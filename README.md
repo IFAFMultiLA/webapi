@@ -1,5 +1,7 @@
 # MultiLA Web API and administration backend
 
+Markus Konrad <markus.konrad@htw-berlin.de>, March 2023
+
 ## Requirements
 
 - Docker with Docker Compose v2 (recommended: run Docker in *rootless* mode)
@@ -7,6 +9,7 @@
 
 ## Software and frameworks used in this project
 
+- Python 3.11
 - Django as web framework with djangorestframework extension package 
 - PostgreSQL database
 
@@ -32,11 +35,69 @@ The Docker Compose file under `docker/compose.yml` defines the following service
     be ready yet when "web" is started – simply starting the services as second time should solve the problem
 - when all services were started successfully, run `make migrate` to run the initial database migrations
 - alternatively, to manually control the docker services outside your IDE, use the commands specified in the Makefile:
-  - `make dockercreate` to create the containers
-  - `make dockerup` to launch all services
+  - `make create` to create the containers
+  - `make up` to launch all services
 - the web application is then available under `http://0.0.0.0:8000`
 - a simple database administration web interface is then available under `http://0.0.0.0:8080`
 
 ## Deployment
 
-TODO
+### Initial deployment
+
+1. Create a Docker Compose configuration like the following as `docker/compose_prod.yml`: 
+
+```yaml
+version: '2'
+
+services:
+  db:
+    image: postgres
+    volumes:
+      - '../data/db:/var/lib/postgresql/data'
+    environment:
+      - 'POSTGRES_USER=admin'
+      - 'POSTGRES_PASSWORD=<CHANGE_THIS>'
+      - 'POSTGRES_DB=multila'
+  web:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile_prod
+    command: python -m uvicorn --host 0.0.0.0 --port 8000 multila.asgi:application
+    volumes:
+      - ../src:/code
+    ports:
+      - "8000:8000"
+    environment:
+      - 'POSTGRES_USER=admin'
+      - 'POSTGRES_PASSWORD=<CHANGE_THIS>'
+      - 'POSTGRES_DB=multila'
+      - 'DJANGO_SETTINGS_MODULE=multila.settings_prod'
+      - 'SECRET_KEY=<CHANGE_THIS>'
+    depends_on:
+      - db
+```
+
+2. Make sure the correct server and directory is entered in `Makefile` under `SERVER` and `APPDIR`. Then run
+   `make sync` to upload all files to the server.
+3. On the server, do the following:
+   - run `make build` to build the web application
+   - run `make create` to create the docker containers
+   - run `make up` to launch the containers
+   - run `make migrate` to initialize the DB
+   - run `make check` to check the deployment
+   - you may run `make logs` and/or `curl http://0.0.0.0:8000/` to check if the web server is running
+4. On the server, create an HTTP proxy to forward HTTP requests to the server to the docker container running the web
+   application. For example, a configuration for the Apache webserver would use the following: 
+
+```
+ProxyPass /api/ http://0.0.0.0:8000/
+ProxyPassReverse /api/ http://0.0.0.0:8000/
+```
+
+All requests to `https://<SERVER>/api/` should then be forwarded to the web application.
+
+### Publishing updates
+
+- locally, run `make testsync` and `make sync` to publish updated files to the server
+- on the server, optional run `make migrate` to update the database and run `make restart_web` to restart the web
+  application

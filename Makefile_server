@@ -1,4 +1,4 @@
-COMPFILE := docker/compose.yml
+COMPFILE := docker/compose_prod.yml
 COMP := compose -f $(COMPFILE)
 SERVER := htwserver-webapi
 APPDIR := ~/api
@@ -6,10 +6,16 @@ SERVER_APP := $(SERVER):$(APPDIR)
 RSYNC_COMMON := -rcv --exclude-from=.rsyncexclude
 
 up:
-	docker $(COMP) up
+	docker $(COMP) up -d
+
+logs:
+	docker $(COMP) logs -f
 
 down:
 	docker $(COMP) down
+
+restart_web:
+	docker $(COMP) restart web
 
 build:
 	docker $(COMP) build
@@ -23,9 +29,5 @@ enter:
 migrate:
 	docker $(COMP) exec web python manage.py migrate
 
-sync:
-	rsync $(RSYNC_COMMON) . $(SERVER_APP) && ssh $(SERVER) "mv $(APPDIR)/Makefile_server $(APPDIR)/Makefile"
-
-testsync:
-	rsync $(RSYNC_COMMON) -n . $(SERVER_APP)
-
+check:
+	docker $(COMP) exec web python manage.py check --deploy

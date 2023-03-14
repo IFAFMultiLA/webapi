@@ -1,0 +1,10 @@
+data/
+.git*
+.idea/
+.rsyncexclude
+Makefile
+requirements.txt
+docker/Dockerfile
+docker/compose.yml
+src/multila/settings.py
+.gitignore

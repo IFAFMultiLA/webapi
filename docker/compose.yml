@@ -34,4 +34,3 @@ services:
       - 'POSTGRES_DB=multila'
     depends_on:
       - db
-
