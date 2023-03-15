@@ -1,5 +1,6 @@
 COMPFILE := docker/compose.yml
 COMP := compose -f $(COMPFILE)
+EXEC := $(COMP) exec web
 SERVER := htwserver-webapi
 APPDIR := ~/api
 SERVER_APP := $(SERVER):$(APPDIR)
@@ -18,10 +19,13 @@ create:
 	docker $(COMP) create
 
 enter:
-	docker $(COMP) exec web /bin/bash
+	docker $(EXEC) /bin/bash
 
 migrate:
-	docker $(COMP) exec web python manage.py migrate
+	docker $(EXEC) python manage.py migrate
+
+dump:
+	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz
 
 sync:
 	rsync $(RSYNC_COMMON) . $(SERVER_APP) && ssh $(SERVER) "mv $(APPDIR)/Makefile_server $(APPDIR)/Makefile"
