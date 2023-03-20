@@ -1,5 +1,6 @@
 FROM python:3.11
 WORKDIR /code
 COPY ./requirements_prod.txt /code/
+RUN pip install -U pip
 RUN pip install -r requirements_prod.txt
 COPY ./src /code/

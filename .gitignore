@@ -1,2 +1,4 @@
 docker/compose_prod.yml
 data/db
+docker/compose_dev.yml
+__pycache__
