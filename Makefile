@@ -1,4 +1,4 @@
-COMPFILE := docker/compose.yml
+COMPFILE := docker/compose_dev.yml
 COMP := compose -f $(COMPFILE)
 EXEC := $(COMP) exec web
 SERVER := htwserver-webapi

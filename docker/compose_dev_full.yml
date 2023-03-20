@@ -2,13 +2,11 @@ version: '2'
 
 services:
   adminer:
-    container_name: multila-adminer
     image: adminer
     ports:
       - 8080:8080
 
   db:
-    container_name: multila-db
     image: postgres
 #    ports:
 #      - '5432:5432'
@@ -19,11 +17,9 @@ services:
       - 'POSTGRES_PASSWORD=admin'
       - 'POSTGRES_DB=multila'
   web:
-    container_name: multila-web
     build:
       context: ..
       dockerfile: ./docker/Dockerfile
-    working_dir: /code
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - '../src:/code'

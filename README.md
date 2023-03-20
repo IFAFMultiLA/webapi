@@ -10,7 +10,7 @@ Markus Konrad <markus.konrad@htw-berlin.de>, March 2023
 ## Software and frameworks used in this project
 
 - Python 3.11
-- Django as web framework with djangorestframework extension package 
+- Django 4.1 as web framework with djangorestframework extension package 
 - PostgreSQL database
 
 ## Docker services
@@ -26,6 +26,32 @@ The Docker Compose file under `docker/compose.yml` defines the following service
 
 ## Local development setup
 
+There are two ways to set up a local development environment: either by using a Python virtual environment *(venv)*
+on the local machine to run the Python interpreter or to by using a Python interpreter inside a docker container.
+
+## Option 1: Using a venv on the local machine
+
+- create a Python 3.11 virtual environment and activate it
+- install the required packages via pip: `pip install -r requirements.txt`
+- create a project in your IDE, set up the Python interpreter as the one you just created in the virtual environment
+- copy `docker/compose_dev_db_only.yml` to `docker/compose_dev.yml`
+- create a launch configuration for Django in your IDE and make sure to set the following environment variables:
+
+```
+DJANGO_SETTINGS_MODULE=multila.settings
+POSTGRES_DB=multila
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=admin
+```
+
+- start the docker services for the first time via `make up` or via your IDE's docker interface
+  - **note:** the first start of the "web" service may fail, since the database is initialized in parallel and may not
+    be ready yet when "web" is started – simply starting the services as second time should solve the problem
+- start the web application using the launch configuration in your IDE
+
+## Option 2: Using a Python interpreter inside a docker container
+
+- copy `docker/compose_dev_full.yml` to `docker/compose_dev.yml`
 - create a project in your IDE, set up a connection to Docker and set up to use the Python interpreter inside the
   `multila-web` service 
   - for set up with PyCharm Professional,
@@ -33,12 +59,16 @@ The Docker Compose file under `docker/compose.yml` defines the following service
 - start all services for a first time
   - **note:** the first start of the "web" service may fail, since the database is initialized in parallel and may not
     be ready yet when "web" is started – simply starting the services as second time should solve the problem
-- when all services were started successfully, run `make migrate` to run the initial database migrations
 - alternatively, to manually control the docker services outside your IDE, use the commands specified in the Makefile:
   - `make create` to create the containers
   - `make up` to launch all services
-- the web application is then available under `http://0.0.0.0:8000`
-- a simple database administration web interface is then available under `http://0.0.0.0:8080`
+
+### Common set up steps for both options
+
+- when all services were started successfully, run `make migrate` to run the initial database migrations
+- run `make superuser` to create a backend admin user
+- the web application is then available under `http://localhost:8000`
+- a simple database administration web interface is then available under `http://localhost:8080`
 
 ## Deployment
 
