@@ -21,6 +21,12 @@ create:
 enter:
 	docker $(EXEC) /bin/bash
 
+superuser:
+	docker $(EXEC) python manage.py createsuperuser
+
+djangoshell:
+	docker $(EXEC) python manage.py shell
+
 migrate:
 	docker $(EXEC) python manage.py migrate
 

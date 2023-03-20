@@ -4,6 +4,7 @@ ENV PYTHONUNBUFFERED=1
 RUN mkdir /fixtures
 WORKDIR /code
 COPY ./requirements.txt /code/
+RUN pip install -U pip
 RUN pip install -r requirements.txt
 COPY ./src /code/
 

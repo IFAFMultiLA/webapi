@@ -84,6 +84,7 @@ services:
    - run `make create` to create the docker containers
    - run `make up` to launch the containers
    - run `make migrate` to initialize the DB
+   - run `make superuser` to create a backend admin user
    - run `make check` to check the deployment
    - you may run `make logs` and/or `curl http://0.0.0.0:8000/` to check if the web server is running
 4. On the server, create an HTTP proxy to forward HTTP requests to the server to the docker container running the web
