@@ -19,19 +19,19 @@ create:
 	docker $(COMP) create
 
 enter:
-	docker $(EXEC) /bin/bash
+	docker $(EXEC) /bin/bash || echo "web container is not running"
 
 superuser:
-	docker $(EXEC) python manage.py createsuperuser
+	docker $(EXEC) python manage.py createsuperuser || python src/manage.py createsuperuser
 
 djangoshell:
-	docker $(EXEC) python manage.py shell
+	docker $(EXEC) python manage.py shell || python src/manage.py shell
 
 migrate:
-	docker $(EXEC) python manage.py migrate
+	docker $(EXEC) python manage.py migrate || python src/manage.py migrate
 
 dump:
-	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz
+	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz || python src/manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz
 
 sync:
 	rsync $(RSYNC_COMMON) . $(SERVER_APP) && ssh $(SERVER) "mv $(APPDIR)/Makefile_server $(APPDIR)/Makefile"

@@ -24,12 +24,14 @@ class ApplicationConfig(models.Model):
                              help_text='A unique label to identify this configuration.')
     config = models.JSONField('Configuration', blank=True)
     updated = models.DateTimeField('Last update', auto_now=True)
+    updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
         return f'Application configuration #{self.pk} "{self.label}" for application #{self.application_id}'
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['application', 'label'], name='unique_app_label')]
+        verbose_name = 'Application configuration'
 
 
 class ApplicationSession(models.Model):
@@ -43,6 +45,8 @@ class ApplicationSession(models.Model):
     config = models.ForeignKey(ApplicationConfig, on_delete=models.CASCADE)
     auth_mode = models.CharField(choices=AUTH_MODE_OPTIONS, max_length=max_options_length(AUTH_MODE_OPTIONS),
                                  blank=False)
+    updated = models.DateTimeField('Last update', auto_now=True)
+    updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
         return f'Application session "{self.code}" for configuration #{self.config_id}'

@@ -35,19 +35,11 @@ on the local machine to run the Python interpreter or to by using a Python inter
 - install the required packages via pip: `pip install -r requirements.txt`
 - create a project in your IDE, set up the Python interpreter as the one you just created in the virtual environment
 - copy `docker/compose_dev_db_only.yml` to `docker/compose_dev.yml`
-- create a launch configuration for Django in your IDE and make sure to set the following environment variables:
-
-```
-DJANGO_SETTINGS_MODULE=multila.settings
-POSTGRES_DB=multila
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=admin
-```
-
 - start the docker services for the first time via `make up` or via your IDE's docker interface
   - **note:** the first start of the "web" service may fail, since the database is initialized in parallel and may not
     be ready yet when "web" is started – simply starting the services as second time should solve the problem
-- start the web application using the launch configuration in your IDE
+- optional: create a launch configuration for Django in your IDE or
+- start the web application using the launch configuration in your IDE or use `python src/manage.py runserver`
 
 ## Option 2: Using a Python interpreter inside a docker container
 

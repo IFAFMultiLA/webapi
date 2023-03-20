@@ -6,9 +6,6 @@
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
       <env name="DJANGO_SETTINGS_MODULE" value="multila.settings" />
-      <env name="POSTGRES_DB" value="multila" />
-      <env name="POSTGRES_USER" value="admin" />
-      <env name="POSTGRES_PASSWORD" value="admin" />
     </envs>
     <option name="SDK_HOME" value="" />
     <option name="WORKING_DIRECTORY" value="" />
