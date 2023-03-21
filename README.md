@@ -62,7 +62,13 @@ on the local machine to run the Python interpreter or to by using a Python inter
 - the web application is then available under `http://localhost:8000`
 - a simple database administration web interface is then available under `http://localhost:8080`
 
-## Deployment
+## Server deployment
+
+### Prerequisites
+
+- Docker with Docker Compose v2 (recommended: run Docker in *rootless* mode)
+- an HTTP server such as Apache or nginx used as proxy
+- a valid SSL certificate – **only run this service via HTTPS in production!**
 
 ### Initial deployment
 
