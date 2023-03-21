@@ -69,16 +69,18 @@ def app_session_login(request):
 
     2. Then run the following:
 
-        curl -d "sess=<SESS_CODE>&username=<USER>&password=<PASSWORD>" \
+        curl -d -d '{"sess": "<SESS_CODE>", "username": "<USER>", "password": "<PASSWORD>"}' \
             -c /tmp/cookies.txt -b /tmp/cookies.txt \
-            -H "X-CSRFToken: <CSRFTOKEN>" \
+            -H "X-CSRFToken: <CSRFTOKEN>"
+            -H "Content-Type: application/json" \
             -i http://127.0.0.1:8000/session_login/
     """
 
     if request.method == 'POST':
-        sess_code = request.POST.get('sess', None)
-        username = request.POST.get('username', None)
-        password = request.POST.get('password', None)
+        data = JSONParser().parse(request)
+        sess_code = data.get('sess', None)
+        username = data.get('username', None)
+        password = data.get('password', None)
 
         if sess_code and username and password:
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
