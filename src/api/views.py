@@ -1,8 +1,12 @@
+from functools import wraps
+
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
+from rest_framework.parsers import JSONParser
 
-from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User
+from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession
+from .serializers import TrackingSessionSerializer
 
 
 @ensure_csrf_cookie
@@ -89,6 +93,90 @@ def app_session_login(request):
                     'user_code': user_sess_obj.code,
                     'config': app_config_obj.config
                 }, status=201)
+
+    return HttpResponse(status=400)
+
+
+def require_user_session_token(view_fn):
+    @wraps(view_fn)
+    def wrap(request, *args, **kwargs):
+        auth_data = request.headers.get('authorization').split(' ')
+        if len(auth_data) == 2 and auth_data[0].lower() == 'token':
+            token = auth_data[1]
+            data = JSONParser().parse(request)
+            sess = data.get('sess', None)
+
+            if token and sess:
+                try:
+                    user_app_sess_obj = UserApplicationSession.objects.get(application_session_id=sess, code=token)
+                except UserApplicationSession.DoesNotExist:
+                    return HttpResponse(status=404)
+
+                if user_app_sess_obj.application_session.auth_mode == 'login' and not user_app_sess_obj.user:
+                    # login requires a user object
+                    return HttpResponse(status=404)
+
+                request.user = user_app_sess_obj.user
+                return view_fn(request, *args, user_app_sess_obj=user_app_sess_obj, parsed_data=data, **kwargs)
+
+        return HttpResponse(status=404)
+
+    return wrap
+
+
+def require_tracking_session(view_fn):
+    @wraps(view_fn)
+    def wrap(request, user_app_sess_obj, parsed_data):
+        tracking_session_id = parsed_data.get('tracking_session_id', None)
+
+        if tracking_session_id:
+            try:
+                tracking_sess_obj = TrackingSession.objects.get(id=tracking_session_id,
+                                                                user_app_session_id=user_app_sess_obj.pk)
+            except TrackingSession.DoesNotExist:
+                return HttpResponse(status=400)
+
+            return view_fn(request,
+                           user_app_sess_obj=user_app_sess_obj,
+                           parsed_data=parsed_data,
+                           tracking_sess_obj=tracking_sess_obj)
+
+        return HttpResponse(status=404)
+
+    return wrap
+
+
+@require_user_session_token
+def start_tracking(request, user_app_sess_obj, parsed_data):
+    if request.method == 'POST':
+        parsed_data['user_app_session'] = user_app_sess_obj.pk
+        tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
+        if tracking_sess_serializer.is_valid():
+            tracking_sess_serializer.save()
+            return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk})
+
+    return HttpResponse(status=400)
+
+
+@require_user_session_token
+@require_tracking_session
+def stop_tracking(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
+    if request.method == 'POST' and not tracking_sess_obj.end_time:
+        tracking_sess_serializer = TrackingSessionSerializer(tracking_sess_obj,
+                                                             data={'end_time': parsed_data['end_time']},
+                                                             partial=True)
+        if tracking_sess_serializer.is_valid():
+            tracking_sess_serializer.save()
+            return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk})
+
+    return HttpResponse(status=400)
+
+
+@require_user_session_token
+@require_tracking_session
+def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
+    if request.method == 'POST':
+        pass
 
     return HttpResponse(status=400)
 

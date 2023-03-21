@@ -112,9 +112,10 @@ class TrackingSession(models.Model):
     logout / timeout.
     """
     user_app_session = models.ForeignKey(UserApplicationSession, on_delete=models.CASCADE)
-    start_time = models.DateTimeField('Session start', auto_now_add=True)
+    # this information must be submitted and is not set via auto_now_add
+    start_time = models.DateTimeField('Session start', blank=False)
     end_time = models.DateTimeField('Session end', null=True, default=None)
-    device_info = models.TextField('User device information', blank=True)
+    device_info = models.JSONField('User device information', blank=True, null=True)
 
     def __str__(self):
         return f'Tracking session #{self.pk} for user application session #{self.user_app_session_id} in time range ' \
