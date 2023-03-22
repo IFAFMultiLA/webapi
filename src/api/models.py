@@ -99,7 +99,7 @@ class UserApplicationSession(models.Model):
         return self.code
 
     def __str__(self):
-        return f'User session "{self.code}" for user #{self.user_id} and application session ' \
+        return f'User session #{self.pk} "{self.code}" for user #{self.user_id} and application session ' \
                f'"{self.application_session_id}"'
 
     class Meta:
@@ -127,7 +127,7 @@ class TrackingEvent(models.Model):
     tracking_session = models.ForeignKey(TrackingSession, on_delete=models.CASCADE)
     time = models.DateTimeField(blank=False)   # this information must be submitted and is not set via auto_now_add
     type = models.CharField('Event type', max_length=128, blank=False)    # TODO: use discrete set of choices?
-    value = models.JSONField('Event value', blank=True)
+    value = models.JSONField('Event value', blank=True, null=True)
 
     def __str__(self):
         return f'Tracking event #{self.pk} for tracking session #{self.tracking_session_id} at {self.time} of type ' \
