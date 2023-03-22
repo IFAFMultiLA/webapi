@@ -39,6 +39,9 @@ migrate:
 dump:
 	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz || python src/manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz
 
+test:
+	docker $(EXEC) python manage.py test api || python src/manage.py test api
+
 sync:
 	rsync $(RSYNC_COMMON) . $(SERVER_APP) && ssh $(SERVER) "mv $(APPDIR)/Makefile_server $(APPDIR)/Makefile"
 

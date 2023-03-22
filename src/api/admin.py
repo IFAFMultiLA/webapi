@@ -42,10 +42,7 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
 
     @admin.display(ordering=None, description='URL')
     def session_url(self, obj):
-        baseurl = obj.config.application.url
-        if not baseurl.endswith('/'):
-            baseurl += '/'
-        sess_url = f'{baseurl}?sess={obj.code}'
+        sess_url = obj.session_url()
         return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
 
     def save_model(self, request, obj, form, change):

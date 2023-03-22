@@ -11,7 +11,10 @@ hash_key = settings.SECRET_KEY.encode()[:32]
 
 
 def max_options_length(opts):
-    return max(map(len, (lbl for lbl, _ in opts)))
+    if opts:
+        return max(map(len, (lbl for lbl, _ in opts)))
+    else:
+        return 0
 
 
 def current_time_bytes():
@@ -63,13 +66,19 @@ class ApplicationSession(models.Model):
     def generate_code(self, force=False):
         if self.code and not force:
             raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
-        if not self.config:
+        if not hasattr(self, 'config'):
             raise ValueError('`self.config` must be set to generate a code')
 
         data = json.dumps(self.config.config).encode() + current_time_bytes()
         self.code = hashlib.blake2s(data, digest_size=5, key=hash_key).hexdigest()
 
         return self.code
+
+    def session_url(self):
+        baseurl = self.config.application.url
+        if not baseurl.endswith('/'):
+            baseurl += '/'
+        return f'{baseurl}?sess={self.code}'
 
     def __str__(self):
         return f'Application session "{self.code}" for configuration #{self.config_id}'
