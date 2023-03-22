@@ -163,7 +163,7 @@ def app_session_login(request):
 
     2. Then run the following:
 
-        curl -d -d '{"sess": "<SESS_CODE>", "username": "<USER>", "password": "<PASSWORD>"}' \
+        curl -d '{"sess": "<SESS_CODE>", "username": "<USER>", "password": "<PASSWORD>"}' \
             -c /tmp/cookies.txt -b /tmp/cookies.txt \
             -H "X-CSRFToken: <CSRFTOKEN>"
             -H "Content-Type: application/json" \
@@ -178,17 +178,21 @@ def app_session_login(request):
 
         if sess_code and username and password:
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
-            user_obj = get_object_or_404(User, username=username)
 
-            if user_obj.check_password(password):
-                app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj, user_obj)
+            if app_sess_obj.auth_mode == 'login':
+                user_obj = get_object_or_404(User, username=username)
 
-                return JsonResponse({
-                    'sess_code': app_sess_obj.code,
-                    'auth_mode': app_sess_obj.auth_mode,
-                    'user_code': user_sess_obj.code,
-                    'config': app_config_obj.config
-                }, status=201)
+                if user_obj.check_password(password):
+                    app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj, user_obj)
+
+                    return JsonResponse({
+                        'sess_code': app_sess_obj.code,
+                        'auth_mode': app_sess_obj.auth_mode,
+                        'user_code': user_sess_obj.code,
+                        'config': app_config_obj.config
+                    }, status=201)
+                else:
+                    return HttpResponse(status=401)
 
     return HttpResponse(status=400)
 

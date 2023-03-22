@@ -1,12 +1,26 @@
+import json
 from datetime import datetime, timedelta
 
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
     UserApplicationSession, User
+
+
+class CustomAPIClient(APIClient):
+    def post_json(self, path, data=None, follow=False, **extra):
+        omit_csrftoken = extra.pop('omit_csrftoken', False)
+        if 'csrftoken' in self.cookies and not omit_csrftoken:
+            extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
+
+        return self.post(path, data=data, format='json', follow=follow, **extra)
+
+
+class CustomAPITestCase(APITestCase):
+    client_class = CustomAPIClient
 
 
 class ModelsCommonTests(TestCase):
@@ -98,9 +112,10 @@ class UserApplicationSessionTests(TestCase):
         self.assertTrue(len(code) == 64)
 
 
-class ViewTests(APITestCase):
+class ViewTests(CustomAPITestCase):
     def setUp(self):
-        self.user = User.objects.create_user('testuser', password='testpw')
+        self.user_password = 'testpw'
+        self.user = User.objects.create_user('testuser', password=self.user_password)
         app = Application.objects.create(name='test app', url='https://test.app')
         app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
         self.app_sess_no_auth = ApplicationSession(config=app_config, auth_mode='none')
@@ -123,6 +138,7 @@ class ViewTests(APITestCase):
 
         # OK
         response = self.client.get(url, valid_data)
+        self.assertIn('csrftoken', response.cookies)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         user_app_sess = UserApplicationSession.objects.get(application_session=self.app_sess_no_auth)
         self.assertIsNone(user_app_sess.user)
@@ -139,9 +155,51 @@ class ViewTests(APITestCase):
         valid_data = {'sess': self.app_sess_login.code}
 
         response = self.client.get(url, valid_data)
+        self.assertIn('csrftoken', response.cookies)
         self.assertEqual(response.status_code, status.HTTP_200_OK)   # doesn't create a user session
         self.assertEqual(UserApplicationSession.objects.filter(application_session=self.app_sess_login).count(), 0)
         self.assertEqual(response.json(), {
             'sess_code': valid_data['sess'],
             'auth_mode': 'login'
+        })
+
+    def test_app_session_login(self):
+        # request application session – also sets CSRF token in cookie
+        self.client.get(reverse('session'), {'sess': self.app_sess_login.code})
+
+        # test application session login
+        self.client.handler.enforce_csrf_checks = True
+        valid_data = {'sess': self.app_sess_login.code, 'username': self.user.username, 'password': self.user_password}
+        url = reverse('session_login')
+
+        # failures
+        self.assertEqual(self.client.get(url, data=valid_data).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.client.post_json(url, data={}).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.client.post_json(url, data={
+            'sess': 'foo', 'username': self.user.username, 'password': self.user_password
+        }).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.post_json(url, data={
+            'sess': self.app_sess_no_auth.code, 'username': self.user.username, 'password': self.user_password
+        }).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.client.post_json(url, data={
+            'sess': self.app_sess_login.code, 'username': 'foo', 'password': self.user_password
+        }).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.post_json(url, data={
+            'sess': self.app_sess_login.code, 'username': self.user.username, 'password': 'foo'
+        }).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.post_json(url, data=valid_data, omit_csrftoken=True).status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+        # OK
+        response = self.client.post_json(url, data=valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user_app_sess = UserApplicationSession.objects.get(application_session=self.app_sess_login)
+        self.assertEqual(user_app_sess.user.id, self.user.id)
+        self.assertIsInstance(user_app_sess.code, str)
+        self.assertTrue(len(user_app_sess.code) == 64)
+        self.assertEqual(response.json(), {
+            'sess_code': valid_data['sess'],
+            'auth_mode': 'login',
+            'user_code': user_app_sess.code,
+            'config': self.app_sess_no_auth.config.config
         })
