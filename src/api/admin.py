@@ -1,9 +1,4 @@
-import hashlib
-import json
-from datetime import datetime
-
 from django.contrib import admin
-from django.conf import settings
 from django.utils.safestring import mark_safe
 
 from .models import Application, ApplicationConfig, ApplicationSession
@@ -57,8 +52,7 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         obj.updated_by = request.user
 
         if not change:
-            data = json.dumps(obj.config.config).encode() + datetime.now().timestamp().hex().encode()
-            obj.code = hashlib.blake2s(data, digest_size=5, key=settings.SECRET_KEY.encode()[:32]).hexdigest()
+            obj.generate_code()
         return super().save_model(request, obj, form, change)
 
 

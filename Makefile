@@ -6,6 +6,9 @@ APPDIR := ~/api
 SERVER_APP := $(SERVER):$(APPDIR)
 RSYNC_COMMON := -rcv --exclude-from=.rsyncexclude
 
+activate_venv:
+	(. venv/bin/activate)
+
 up:
 	docker $(COMP) up
 
@@ -26,6 +29,9 @@ superuser:
 
 djangoshell:
 	docker $(EXEC) python manage.py shell || python src/manage.py shell
+
+migrations:
+	docker $(EXEC) python manage.py makemigrations || python src/manage.py makemigrations
 
 migrate:
 	docker $(EXEC) python manage.py migrate || python src/manage.py migrate

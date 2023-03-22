@@ -1,9 +1,21 @@
+import hashlib
+import json
+from datetime import datetime
+
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
 
 
+hash_key = settings.SECRET_KEY.encode()[:32]
+
+
 def max_options_length(opts):
     return max(map(len, (lbl for lbl, _ in opts)))
+
+
+def current_time_bytes():
+    return datetime.now().timestamp().hex().encode()
 
 
 class Application(models.Model):
@@ -48,6 +60,17 @@ class ApplicationSession(models.Model):
     updated = models.DateTimeField('Last update', auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
+    def generate_code(self, force=False):
+        if self.code and not force:
+            raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
+        if not self.config:
+            raise ValueError('`self.config` must be set to generate a code')
+
+        data = json.dumps(self.config.config).encode() + current_time_bytes()
+        self.code = hashlib.blake2s(data, digest_size=5, key=hash_key).hexdigest()
+
+        return self.code
+
     def __str__(self):
         return f'Application session "{self.code}" for configuration #{self.config_id}'
 
@@ -62,12 +85,22 @@ class UserApplicationSession(models.Model):
     # - in both cases, a unique code must be generated for the first login or visit (this code can then be
     #   stored via cookies)
     user = models.ForeignKey(User, null=True, default=None, on_delete=models.SET_NULL)
-    code = models.CharField('Unique user session code', max_length=10, blank=False)
+    code = models.CharField('Unique user session code', max_length=64, blank=False)
 
     created = models.DateTimeField('Creation time', auto_now_add=True)
 
+    def generate_code(self, force=False):
+        if self.code and not force:
+            raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
+
+        data = self.application_session.code.encode() + current_time_bytes()
+        self.code = hashlib.blake2s(data, digest_size=32, key=hash_key).hexdigest()
+
+        return self.code
+
     def __str__(self):
-        return f'User session for user #{self.user_id} and application session "{self.application_session_id}"'
+        return f'User session #{self.pk} "{self.code}" for user #{self.user_id} and application session ' \
+               f'"{self.application_session_id}"'
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['application_session', 'code'], name='unique_appsess_code')]
@@ -79,9 +112,10 @@ class TrackingSession(models.Model):
     logout / timeout.
     """
     user_app_session = models.ForeignKey(UserApplicationSession, on_delete=models.CASCADE)
-    start_time = models.DateTimeField('Session start', auto_now_add=True)
+    # this information must be submitted and is not set via auto_now_add
+    start_time = models.DateTimeField('Session start', blank=False)
     end_time = models.DateTimeField('Session end', null=True, default=None)
-    device_info = models.TextField('User device information', blank=True)
+    device_info = models.JSONField('User device information', blank=True, null=True)
 
     def __str__(self):
         return f'Tracking session #{self.pk} for user application session #{self.user_app_session_id} in time range ' \
@@ -93,7 +127,7 @@ class TrackingEvent(models.Model):
     tracking_session = models.ForeignKey(TrackingSession, on_delete=models.CASCADE)
     time = models.DateTimeField(blank=False)   # this information must be submitted and is not set via auto_now_add
     type = models.CharField('Event type', max_length=128, blank=False)    # TODO: use discrete set of choices?
-    value = models.JSONField('Event value', blank=True)
+    value = models.JSONField('Event value', blank=True, null=True)
 
     def __str__(self):
         return f'Tracking event #{self.pk} for tracking session #{self.tracking_session_id} at {self.time} of type ' \

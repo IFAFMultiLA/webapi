@@ -79,6 +79,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'multila.wsgi.application'
 
+CSRF_FAILURE_VIEW = 'api.views.csrf_failure'
 
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
