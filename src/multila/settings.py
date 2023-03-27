@@ -31,7 +31,10 @@ SECRET_KEY = 'django-insecure-76tpm66^c=!&)qg5^&%o!9&fo+4wj7ksopfz_@_qty@=1ex$kt
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-
+#CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = ['http://127.0.0.1:8001', 'http://localhost:8001']
+CSRF_TRUSTED_ORIGINS = ['http://127.0.0.1:8001']
+CORS_ALLOW_CREDENTIALS = True
 
 # Application definition
 
@@ -52,12 +55,17 @@ MIDDLEWARE = [
     'debug_toolbar.middleware.DebugToolbarMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+if DEBUG:
+    MIDDLEWARE.append('api.utils.DisableCSRF')
+
 
 ROOT_URLCONF = 'multila.urls'
 

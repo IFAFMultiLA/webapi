@@ -26,8 +26,9 @@ SECRET_KEY = os.environ['SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*']
-
+ALLOWED_HOSTS = ['*']           # TODO: restrict this
+CORS_ALLOW_ALL_ORIGINS = True   # TODO: restrict this
+CORS_ALLOW_CREDENTIALS = True
 
 # Application definition
 
