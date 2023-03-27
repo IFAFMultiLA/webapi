@@ -1,5 +1,6 @@
 COMPFILE := docker/compose_prod.yml
 COMP := compose -f $(COMPFILE)
+EXEC := $(COMP) exec web
 SERVER := htwserver-webapi
 APPDIR := ~/api
 SERVER_APP := $(SERVER):$(APPDIR)
@@ -24,10 +25,13 @@ create:
 	docker $(COMP) create
 
 enter:
-	docker $(COMP) exec web /bin/bash
+	docker $(EXEC) /bin/bash
 
 migrate:
-	docker $(COMP) exec web python manage.py migrate
+	docker $(EXEC) python manage.py migrate
 
 check:
-	docker $(COMP) exec web python manage.py check --deploy
+	docker $(EXEC) python manage.py check --deploy
+
+test:
+	docker $(EXEC) python manage.py test api
