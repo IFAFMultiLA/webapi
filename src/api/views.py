@@ -64,7 +64,7 @@ def require_user_session_token(view_fn):
                 request.user = user_app_sess_obj.user
                 return view_fn(request, *args, user_app_sess_obj=user_app_sess_obj, parsed_data=data, **kwargs)
 
-        return HttpResponse(status=404)
+        return HttpResponse(status=401)
 
     return wrap
 
@@ -224,7 +224,7 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
             tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
             if tracking_sess_serializer.is_valid():
                 tracking_sess_serializer.save()
-                return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk})
+                return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk}, status=201)
 
     return HttpResponse(status=400)
 
@@ -256,7 +256,7 @@ def stop_tracking(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
                                                              partial=True)
         if tracking_sess_serializer.is_valid():
             tracking_sess_serializer.save()
-            return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk})
+            return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk}, status=200)
 
     return HttpResponse(status=400)
 
@@ -290,7 +290,7 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 
         if event_serializer.is_valid():
             event_serializer.save()
-            return JsonResponse({'tracking_event_id': event_serializer.instance.pk})
+            return JsonResponse({'tracking_event_id': event_serializer.instance.pk}, status=201)
 
     return HttpResponse(status=400)
 

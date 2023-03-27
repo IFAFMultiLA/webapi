@@ -1,5 +1,4 @@
-import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo, timezone
 
 from django.test import TestCase
 from django.urls import reverse
@@ -7,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
-    UserApplicationSession, User
+    UserApplicationSession, User, TrackingSession
 
 
 class CustomAPIClient(APIClient):
@@ -15,6 +14,10 @@ class CustomAPIClient(APIClient):
         omit_csrftoken = extra.pop('omit_csrftoken', False)
         if 'csrftoken' in self.cookies and not omit_csrftoken:
             extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
+
+        auth_token = extra.pop('auth_token', None)
+        if auth_token:
+            extra['HTTP_AUTHORIZATION'] = f'Token {auth_token}'
 
         return self.post(path, data=data, format='json', follow=follow, **extra)
 
@@ -173,20 +176,25 @@ class ViewTests(CustomAPITestCase):
         url = reverse('session_login')
 
         # failures
-        self.assertEqual(self.client.get(url, data=valid_data).status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(self.client.post_json(url, data={}).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.client.get(url, data=valid_data).status_code, status.HTTP_400_BAD_REQUEST)  # wrong method
+        self.assertEqual(self.client.post_json(url, data={}).status_code, status.HTTP_400_BAD_REQUEST)  # no data
+        # wrong application session
         self.assertEqual(self.client.post_json(url, data={
             'sess': 'foo', 'username': self.user.username, 'password': self.user_password
         }).status_code, status.HTTP_404_NOT_FOUND)
+        # application session that doesn't require login
         self.assertEqual(self.client.post_json(url, data={
             'sess': self.app_sess_no_auth.code, 'username': self.user.username, 'password': self.user_password
         }).status_code, status.HTTP_400_BAD_REQUEST)
+        # wrong user name
         self.assertEqual(self.client.post_json(url, data={
             'sess': self.app_sess_login.code, 'username': 'foo', 'password': self.user_password
         }).status_code, status.HTTP_404_NOT_FOUND)
+        # wrong password
         self.assertEqual(self.client.post_json(url, data={
             'sess': self.app_sess_login.code, 'username': self.user.username, 'password': 'foo'
         }).status_code, status.HTTP_401_UNAUTHORIZED)
+        # no CSRF token
         self.assertEqual(self.client.post_json(url, data=valid_data, omit_csrftoken=True).status_code,
                          status.HTTP_401_UNAUTHORIZED)
 
@@ -203,3 +211,26 @@ class ViewTests(CustomAPITestCase):
             'user_code': user_app_sess.code,
             'config': self.app_sess_no_auth.config.config
         })
+
+    def test_start_tracking(self):
+        # request application session – also sets CSRF token in cookie
+        response = self.client.get(reverse('session'), {'sess': self.app_sess_no_auth.code})
+        auth_token = response.json()['user_code']
+
+        # test start tracking
+        url = reverse('start_tracking')
+        now = datetime.utcnow()
+        valid_data = {'sess': self.app_sess_no_auth.code, 'start_time': now.isoformat()}
+
+        # failures
+        # TODO
+
+        # OK without device_info
+        response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        tracking_sess = TrackingSession.objects.get(user_app_session__code=auth_token)
+        self.assertEqual(response.json(), {'tracking_session_id': tracking_sess.id})
+        self.assertEqual(tracking_sess.start_time, now.astimezone(timezone.utc))
+
+        # OK with device_info
+        # TODO
