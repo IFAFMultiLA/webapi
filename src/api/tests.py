@@ -11,6 +11,17 @@ from .models import max_options_length, current_time_bytes, Application, Applica
 
 class CustomAPIClient(APIClient):
     def post_json(self, path, data=None, follow=False, **extra):
+        return self.post(path, data=data, format='json', follow=follow, **extra)
+
+    def post(self, path, data=None, format=None, content_type=None, follow=False, **extra):
+        self._handle_extra(extra)
+        return super().post(path, data=data, format=format, content_type=content_type, follow=follow, **extra)
+
+    def get(self, path, data=None, follow=False, **extra):
+        self._handle_extra(extra)
+        return super().get(path, data=data, follow=follow, **extra)
+
+    def _handle_extra(self, extra):
         omit_csrftoken = extra.pop('omit_csrftoken', False)
         if 'csrftoken' in self.cookies and not omit_csrftoken:
             extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
@@ -18,8 +29,6 @@ class CustomAPIClient(APIClient):
         auth_token = extra.pop('auth_token', None)
         if auth_token:
             extra['HTTP_AUTHORIZATION'] = f'Token {auth_token}'
-
-        return self.post(path, data=data, format='json', follow=follow, **extra)
 
 
 class CustomAPITestCase(APITestCase):
@@ -223,7 +232,17 @@ class ViewTests(CustomAPITestCase):
         valid_data = {'sess': self.app_sess_no_auth.code, 'start_time': now.isoformat()}
 
         # failures
-        # TODO
+        self.assertEqual(self.client.get(url, data=valid_data, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # wrong method
+        self.assertEqual(self.client.post_json(url, data={}, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # no data
+        self.assertEqual(self.client.post_json(url, data={'sess': 'foo'}, auth_token=auth_token).status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong application session
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing start_time
+        self.assertEqual(self.client.post_json(url, data=valid_data, auth_token='foo').status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong auth token
 
         # OK without device_info
         response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
@@ -232,5 +251,26 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.json(), {'tracking_session_id': tracking_sess.id})
         self.assertEqual(tracking_sess.start_time, now.astimezone(timezone.utc))
 
-        # OK with device_info
-        # TODO
+        # OK with repeated request -> return same tracking session
+        response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tracking_sess2 = TrackingSession.objects.get(user_app_session__code=auth_token)
+        self.assertEqual(response.json(), {'tracking_session_id': tracking_sess2.id})
+        self.assertEqual(tracking_sess, tracking_sess2)
+
+        # OK with device_info in new user session
+        response = self.client.get(reverse('session'), {'sess': self.app_sess_no_auth.code})
+        auth_token = response.json()['user_code']
+
+        valid_data = {
+            'sess': self.app_sess_no_auth.code,
+            'start_time': now.isoformat(),
+            'device_info': {'test key': 'test value'}
+        }
+
+        response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        tracking_sess = TrackingSession.objects.get(user_app_session__code=auth_token)
+        self.assertEqual(response.json(), {'tracking_session_id': tracking_sess.id})
+        self.assertEqual(tracking_sess.start_time, now.astimezone(timezone.utc))
+        self.assertEqual(tracking_sess.device_info, valid_data['device_info'])
