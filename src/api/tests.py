@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, tzinfo, timezone
+from datetime import datetime, timedelta, timezone
 
 from django.test import TestCase
 from django.urls import reverse
@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
-    UserApplicationSession, User, TrackingSession
+    UserApplicationSession, User, TrackingSession, TrackingEvent
 
 
 class CustomAPIClient(APIClient):
@@ -54,7 +54,7 @@ class ModelsCommonTests(TestCase):
                         < timedelta(seconds=1))
 
 
-class ApplicationSessionTests(TestCase):
+class ApplicationSessionModelTests(TestCase):
     def setUp(self):
         app = Application.objects.create(name='test app', url='https://test.app')
         app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
@@ -94,7 +94,7 @@ class ApplicationSessionTests(TestCase):
         self.assertTrue(len(code) == 10)
 
 
-class UserApplicationSessionTests(TestCase):
+class UserApplicationSessionModelTests(TestCase):
     def test_generate_code(self):
         app = Application(name='test app', url='https://test.app')
         app_config = ApplicationConfig(application=app, label='test config', config={'test': True})
@@ -328,3 +328,75 @@ class ViewTests(CustomAPITestCase):
         # OK with repeated request -> tracking session already ended
         self.assertEqual(self.client.post_json(url, data=valid_data, auth_token=auth_token).status_code,
                          status.HTTP_400_BAD_REQUEST)
+
+    def test_track_event(self):
+        # request application session – also sets CSRF token in cookie
+        response = self.client.get(reverse('session'), {'sess': self.app_sess_no_auth.code})
+        auth_token = response.json()['user_code']
+
+        # start tracking
+        response = self.client.post_json(reverse('start_tracking'),
+                                         data={'sess': self.app_sess_no_auth.code,
+                                               'start_time': datetime.utcnow().isoformat()},
+                                         auth_token=auth_token)
+
+        tracking_sess_id = response.json()['tracking_session_id']
+
+        # test tracking events
+        url = reverse('track_event')
+        now = datetime.utcnow()
+        test_event_no_val = {"time": now.isoformat(), "type": "testtype"}
+        test_event_with_val = dict(**test_event_no_val, value={"testkey": "testvalue"})
+        valid_data_no_val = {'sess': self.app_sess_no_auth.code,
+                             'tracking_session_id': tracking_sess_id,
+                             'event': test_event_no_val}
+        valid_data_with_val = {'sess': self.app_sess_no_auth.code,
+                               'tracking_session_id': tracking_sess_id,
+                               'event': test_event_with_val}
+
+        # failures
+        self.assertEqual(self.client.get(url, data=valid_data_no_val, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # wrong method
+        self.assertEqual(self.client.post_json(url, data={}, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # no data
+        self.assertEqual(self.client.post_json(url, data={'sess': 'foo'}, auth_token=auth_token).status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong application session
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'tracking_session_id': tracking_sess_id},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing event
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'event': test_event_no_val},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing tracking_session_id
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'event': test_event_no_val,
+                                                          'tracking_session_id': 0},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # wrong tracking_session_id
+        self.assertEqual(self.client.post_json(url, data=valid_data_no_val, auth_token='foo').status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong auth token
+
+        # OK without event value
+        response = self.client.post_json(url, data=valid_data_no_val, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        tracking_event = TrackingEvent.objects.get(tracking_session_id=tracking_sess_id)
+        self.assertEqual(response.json(), {'tracking_event_id': tracking_event.id})
+        self.assertEqual(tracking_event.time, now.astimezone(timezone.utc))
+        self.assertEqual(tracking_event.type, test_event_no_val["type"])
+        self.assertIsNone(tracking_event.value)
+
+        # OK with event value
+        response = self.client.post_json(url, data=valid_data_with_val, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        tracking_event = TrackingEvent.objects.get(id=response.json()['tracking_event_id'])
+        self.assertEqual(tracking_event.time, now.astimezone(timezone.utc))
+        self.assertEqual(tracking_event.type, test_event_with_val["type"])
+        self.assertEqual(tracking_event.value, test_event_with_val["value"])
+
+        # stop tracking
+        self.assertEqual(self.client.post_json(reverse('start_tracking'), data={
+            'sess': self.app_sess_no_auth.code,
+            'end_time': datetime.utcnow().isoformat(),
+            'tracking_session_id': tracking_sess_id
+        }, auth_token=auth_token).status_code, status.HTTP_200_OK)
