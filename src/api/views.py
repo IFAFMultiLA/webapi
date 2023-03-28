@@ -205,7 +205,7 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
     Checking this view locally with `curl`:
 
     1. See how to obtain a user application session token `<AUTH_TOKEN>` and all other required codes/tokens in the
-       docs for `app_session_login`.
+       docs for `app_session_login` (when login is required) or `app_session` (when no login is required).
 
     2. Then run the following (note that you can additionally pass "device_info" JSON data):
 

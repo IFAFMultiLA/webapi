@@ -6,8 +6,6 @@ APPDIR := ~/api
 SERVER_APP := $(SERVER):$(APPDIR)
 RSYNC_COMMON := -rcv --exclude-from=.rsyncexclude
 
-activate_venv:
-	(. venv/bin/activate)
 
 up:
 	docker $(COMP) up
