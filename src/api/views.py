@@ -13,6 +13,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.parsers import JSONParser
+from rest_framework.exceptions import ParseError
 
 from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer
@@ -34,13 +35,16 @@ def require_user_session_token(view_fn):
     @wraps(view_fn)
     def wrap(request, *args, **kwargs):
         # get authorization header
-        auth_data = request.headers.get('authorization').split(' ')  # expected format: "Token <token code>"
+        auth_data = request.headers.get('authorization', '').split(' ')  # expected format: "Token <token code>"
         if len(auth_data) == 2 and auth_data[0].lower() == 'token':
             # get the token
             token = auth_data[1]
 
             # parse the passed JSON data
-            data = JSONParser().parse(request)
+            try:
+                data = JSONParser().parse(request)
+            except ParseError as exc:
+                return HttpResponse(f'JSON parsing error: {str(exc).encode("utf-8")}', status=400)
 
             # get the application session code
             sess = data.get('sess', None)
@@ -50,11 +54,11 @@ def require_user_session_token(view_fn):
                     # get the user application session for the given application session and user session token
                     user_app_sess_obj = UserApplicationSession.objects.get(application_session_id=sess, code=token)
                 except UserApplicationSession.DoesNotExist:
-                    return HttpResponse(status=404)
+                    return HttpResponse(status=401)
 
                 if user_app_sess_obj.application_session.auth_mode == 'login' and not user_app_sess_obj.user:
                     # login requires a user object
-                    return HttpResponse(status=404)
+                    return HttpResponse(status=401)
                 elif user_app_sess_obj.application_session.auth_mode == 'none' and user_app_sess_obj.user:
                     # when auth mode is "none", the user should be anonymous
                     raise RuntimeError('application session authentication mode is "none" but user is authenticated '
@@ -63,7 +67,8 @@ def require_user_session_token(view_fn):
                 # set the authenticated user (will be None if auth_mode is "none")
                 request.user = user_app_sess_obj.user
                 return view_fn(request, *args, user_app_sess_obj=user_app_sess_obj, parsed_data=data, **kwargs)
-
+            else:
+                return HttpResponse(status=400)
         return HttpResponse(status=401)
 
     return wrap
@@ -84,18 +89,17 @@ def require_tracking_session(view_fn):
             try:
                 # get tracking session for this user application session
                 tracking_sess_obj = TrackingSession.objects.get(id=tracking_session_id,
-                                                                user_app_session_id=user_app_sess_obj.pk)
+                                                                user_app_session_id=user_app_sess_obj.pk,
+                                                                end_time__isnull=True)  # tracking session still active
             except TrackingSession.DoesNotExist:
                 return HttpResponse(status=400)
 
-            # the tracking session must still be active
-            if not tracking_sess_obj.end_time:
-                return view_fn(request,
-                               user_app_sess_obj=user_app_sess_obj,
-                               parsed_data=parsed_data,
-                               tracking_sess_obj=tracking_sess_obj)
+            return view_fn(request,
+                           user_app_sess_obj=user_app_sess_obj,
+                           parsed_data=parsed_data,
+                           tracking_sess_obj=tracking_sess_obj)
 
-        return HttpResponse(status=404)
+        return HttpResponse(status=400)
 
     return wrap
 
@@ -220,11 +224,17 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
     if request.method == 'POST':
         parsed_data['user_app_session'] = user_app_sess_obj.pk
 
-        if 'end_time' not in parsed_data and 'id' not in parsed_data:
-            tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
-            if tracking_sess_serializer.is_valid():
-                tracking_sess_serializer.save()
-                return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk}, status=201)
+        try:
+            # there already exists a tracking session for this user session
+            tracking_sess_obj = TrackingSession.objects.get(user_app_session=user_app_sess_obj)
+            return JsonResponse({'tracking_session_id': tracking_sess_obj.pk}, status=200)
+        except TrackingSession.DoesNotExist:
+            # create a new tracking session
+            if 'end_time' not in parsed_data and 'id' not in parsed_data:
+                tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
+                if tracking_sess_serializer.is_valid():
+                    tracking_sess_serializer.save()
+                    return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk}, status=201)
 
     return HttpResponse(status=400)
 
