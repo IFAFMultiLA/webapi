@@ -274,3 +274,57 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.json(), {'tracking_session_id': tracking_sess.id})
         self.assertEqual(tracking_sess.start_time, now.astimezone(timezone.utc))
         self.assertEqual(tracking_sess.device_info, valid_data['device_info'])
+
+    def test_stop_tracking(self):
+        # request application session – also sets CSRF token in cookie
+        response = self.client.get(reverse('session'), {'sess': self.app_sess_no_auth.code})
+        auth_token = response.json()['user_code']
+
+        # start tracking
+        response = self.client.post_json(reverse('start_tracking'),
+                                         data={'sess': self.app_sess_no_auth.code,
+                                               'start_time': datetime.utcnow().isoformat()},
+                                         auth_token=auth_token)
+
+        tracking_sess_id = response.json()['tracking_session_id']
+
+        # test stop tracking
+        url = reverse('stop_tracking')
+        now = datetime.utcnow()
+        valid_data = {'sess': self.app_sess_no_auth.code,
+                      'end_time': now.isoformat(),
+                      'tracking_session_id': tracking_sess_id}
+
+        # failures
+        self.assertEqual(self.client.get(url, data=valid_data, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # wrong method
+        self.assertEqual(self.client.post_json(url, data={}, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # no data
+        self.assertEqual(self.client.post_json(url, data={'sess': 'foo'}, auth_token=auth_token).status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong application session
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'tracking_session_id': tracking_sess_id},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing end_time
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'end_time': now.isoformat()},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing tracking_session_id
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'end_time': now.isoformat(),
+                                                          'tracking_session_id': 0},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # wrong tracking_session_id
+        self.assertEqual(self.client.post_json(url, data=valid_data, auth_token='foo').status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong auth token
+
+        # OK
+        response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tracking_sess = TrackingSession.objects.get(user_app_session__code=auth_token)
+        self.assertEqual(response.json(), {'tracking_session_id': tracking_sess.id})
+        self.assertEqual(tracking_sess.end_time, now.astimezone(timezone.utc))
+
+        # OK with repeated request -> tracking session already ended
+        self.assertEqual(self.client.post_json(url, data=valid_data, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)

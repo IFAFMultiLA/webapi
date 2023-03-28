@@ -89,18 +89,17 @@ def require_tracking_session(view_fn):
             try:
                 # get tracking session for this user application session
                 tracking_sess_obj = TrackingSession.objects.get(id=tracking_session_id,
-                                                                user_app_session_id=user_app_sess_obj.pk)
+                                                                user_app_session_id=user_app_sess_obj.pk,
+                                                                end_time__isnull=True)  # tracking session still active
             except TrackingSession.DoesNotExist:
                 return HttpResponse(status=400)
 
-            # the tracking session must still be active
-            if not tracking_sess_obj.end_time:
-                return view_fn(request,
-                               user_app_sess_obj=user_app_sess_obj,
-                               parsed_data=parsed_data,
-                               tracking_sess_obj=tracking_sess_obj)
+            return view_fn(request,
+                           user_app_sess_obj=user_app_sess_obj,
+                           parsed_data=parsed_data,
+                           tracking_sess_obj=tracking_sess_obj)
 
-        return HttpResponse(status=404)
+        return HttpResponse(status=400)
 
     return wrap
 
@@ -230,6 +229,7 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
             tracking_sess_obj = TrackingSession.objects.get(user_app_session=user_app_sess_obj)
             return JsonResponse({'tracking_session_id': tracking_sess_obj.pk}, status=200)
         except TrackingSession.DoesNotExist:
+            # create a new tracking session
             if 'end_time' not in parsed_data and 'id' not in parsed_data:
                 tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
                 if tracking_sess_serializer.is_valid():
