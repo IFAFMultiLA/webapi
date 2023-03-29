@@ -137,6 +137,15 @@ class ViewTests(CustomAPITestCase):
         self.app_sess_login.generate_code()
         self.app_sess_login.save()
 
+    def test_404(self):
+        response = self.client.get('foo', content_type='application/json')
+        self.assertEqual(response.headers['Content-Type'], 'application/json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        response = self.client.get('foo')
+        self.assertTrue(response.headers['Content-Type'].startswith('text/html'))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_app_session(self):
         url = reverse('session')
 

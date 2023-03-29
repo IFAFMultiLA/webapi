@@ -22,6 +22,12 @@ urlpatterns = [
     path('', include('api.urls'))
 ]
 
+handler400 = 'api.views.bad_request_failure'
+handler403 = 'api.views.permission_denied_failure'
+handler404 = 'api.views.not_found_failure'
+handler500 = 'api.views.server_error_failure'
+
+
 try:
     import debug_toolbar
     urlpatterns.append(path('__debug__/', include(debug_toolbar.urls)))
