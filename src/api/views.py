@@ -12,11 +12,21 @@ from functools import wraps
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views import defaults as default_views
+from django.views.csrf import csrf_failure as default_csrf_failure
 from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import ParseError
 
 from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer
+
+
+DEFAULT_ERROR_VIEWS = {
+    400: ('Bad request.', default_views.bad_request),
+    403: ('Permission denied.', default_views.permission_denied),
+    404: ('Not found.', default_views.page_not_found),
+    500: ('Server error.', default_views.server_error)
+}
 
 
 # --- decorators ---
@@ -309,10 +319,37 @@ def csrf_failure(request, reason=""):
     """
     Default CSRF failure view to format a CSRF failure as JSON.
     """
-    return JsonResponse({'error': 'CSRF check failure.', 'reason': reason}, status=401)
+    if request.headers.get('content-type', None) == 'application/json':
+        return JsonResponse({'error': 'CSRF check failure.', 'reason': reason}, status=401)
+    else:
+        return default_csrf_failure(request, reason=reason)
+
+
+def bad_request_failure(request, exception, template_name='400.html'):
+    return _wrap_failure_request(request, 400, exception=exception, template_name=template_name)
+
+
+def permission_denied_failure(request, exception, template_name='403.html'):
+    return _wrap_failure_request(request, 403, exception=exception, template_name=template_name)
+
+
+def not_found_failure(request, exception, template_name='404.html'):
+    return _wrap_failure_request(request, 404, exception=exception, template_name=template_name)
+
+
+def server_error_failure(request, template_name='500.html'):
+    return _wrap_failure_request(request, 500, template_name=template_name)
 
 
 # --- helpers ---
+
+
+def _wrap_failure_request(request, status, **kwargs):
+    error_msg, default_view = DEFAULT_ERROR_VIEWS[status]
+    if request.headers.get('content-type', None) == 'application/json':
+        return JsonResponse({'error': error_msg}, status=status)
+    else:
+        return default_view(request, **kwargs)
 
 
 def _generate_user_session(app_sess_obj, user_obj=None):
