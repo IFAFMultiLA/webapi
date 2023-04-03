@@ -164,7 +164,7 @@ def app_session_login(request):
     Log in for an application session that requires authentication. The following data must be provided via POST:
 
     - application session code as `sess`
-    - user name as `username`
+    - either username as `username` or email as `email` (if both is given both must belong to the same user)
     - user password as `password`
 
     Will return a generated `user_code` (that must be used as authentication token for further requests) and an
@@ -188,13 +188,20 @@ def app_session_login(request):
         data = JSONParser().parse(request)
         sess_code = data.get('sess', None)
         username = data.get('username', None)
+        email = data.get('email', None)
         password = data.get('password', None)
 
-        if sess_code and username and password:
+        if sess_code and (username or email) and password:
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
 
             if app_sess_obj.auth_mode == 'login':
-                user_obj = get_object_or_404(User, username=username)
+                ident_args = {}
+                if username:
+                    ident_args['username'] = username
+                if email:
+                    ident_args['email'] = email
+                assert ident_args
+                user_obj = get_object_or_404(User, **ident_args)
 
                 if user_obj.check_password(password):
                     app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj, user_obj)

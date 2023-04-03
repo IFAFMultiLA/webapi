@@ -127,7 +127,7 @@ class UserApplicationSessionModelTests(TestCase):
 class ViewTests(CustomAPITestCase):
     def setUp(self):
         self.user_password = 'testpw'
-        self.user = User.objects.create_user('testuser', password=self.user_password)
+        self.user = User.objects.create_user('testuser', email='testuser@testserver.com', password=self.user_password)
         app = Application.objects.create(name='test app', url='https://test.app')
         app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
         self.app_sess_no_auth = ApplicationSession(config=app_config, auth_mode='none')
@@ -204,9 +204,13 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(self.client.post_json(url, data={
             'sess': self.app_sess_no_auth.code, 'username': self.user.username, 'password': self.user_password
         }).status_code, status.HTTP_400_BAD_REQUEST)
-        # wrong user name
+        # wrong username
         self.assertEqual(self.client.post_json(url, data={
             'sess': self.app_sess_login.code, 'username': 'foo', 'password': self.user_password
+        }).status_code, status.HTTP_404_NOT_FOUND)
+        # wrong email
+        self.assertEqual(self.client.post_json(url, data={
+            'sess': self.app_sess_login.code, 'email': 'foo', 'password': self.user_password
         }).status_code, status.HTTP_404_NOT_FOUND)
         # wrong password
         self.assertEqual(self.client.post_json(url, data={
@@ -216,10 +220,26 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(self.client.post_json(url, data=valid_data, omit_csrftoken=True).status_code,
                          status.HTTP_401_UNAUTHORIZED)
 
-        # OK
+        # OK with username / password
         response = self.client.post_json(url, data=valid_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        user_app_sess = UserApplicationSession.objects.get(application_session=self.app_sess_login)
+        user_app_sess = UserApplicationSession.objects.filter(application_session=self.app_sess_login).latest('created')
+        self.assertEqual(user_app_sess.user.id, self.user.id)
+        self.assertIsInstance(user_app_sess.code, str)
+        self.assertTrue(len(user_app_sess.code) == 64)
+        self.assertEqual(response.json(), {
+            'sess_code': valid_data['sess'],
+            'auth_mode': 'login',
+            'user_code': user_app_sess.code,
+            'config': self.app_sess_no_auth.config.config
+        })
+
+        # OK with email / password
+        valid_data = {'sess': self.app_sess_login.code, 'email': self.user.email, 'password': self.user_password}
+
+        response = self.client.post_json(url, data=valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user_app_sess = UserApplicationSession.objects.filter(application_session=self.app_sess_login).latest('created')
         self.assertEqual(user_app_sess.user.id, self.user.id)
         self.assertIsInstance(user_app_sess.code, str)
         self.assertTrue(len(user_app_sess.code) == 64)
