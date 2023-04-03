@@ -236,7 +236,7 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
 
         try:
             # there already exists a tracking session for this user session
-            tracking_sess_obj = TrackingSession.objects.get(user_app_session=user_app_sess_obj)
+            tracking_sess_obj = TrackingSession.objects.get(user_app_session=user_app_sess_obj, end_time__isnull=True)
             return JsonResponse({'tracking_session_id': tracking_sess_obj.pk}, status=200)
         except TrackingSession.DoesNotExist:
             # create a new tracking session

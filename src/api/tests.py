@@ -334,9 +334,20 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.json(), {'tracking_session_id': tracking_sess.id})
         self.assertEqual(tracking_sess.end_time, now.astimezone(timezone.utc))
 
-        # OK with repeated request -> tracking session already ended
+        # failure with repeated request -> tracking session already ended
         self.assertEqual(self.client.post_json(url, data=valid_data, auth_token=auth_token).status_code,
                          status.HTTP_400_BAD_REQUEST)
+
+        # start tracking with same user session -> receive new tracking session ID
+        now2 = datetime.utcnow()
+        response = self.client.post_json(reverse('start_tracking'),
+                                         data={'sess': self.app_sess_no_auth.code,
+                                               'start_time': now2.isoformat()},
+                                         auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        tracking_sess2 = TrackingSession.objects.get(user_app_session__code=auth_token, start_time=now2.isoformat())
+        self.assertEqual(response.json(), {'tracking_session_id': tracking_sess2.id})
+        self.assertTrue(tracking_sess.id != tracking_sess2.id)
 
     def test_track_event(self):
         # request application session – also sets CSRF token in cookie
