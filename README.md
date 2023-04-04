@@ -6,6 +6,8 @@ Markus Konrad <markus.konrad@htw-berlin.de>, March 2023
 
 - Docker with Docker Compose v2 (recommended: run Docker in *rootless* mode)
 - recommended: IDE with Docker Compose support (e.g. PyCharm Professional, VSCode)
+- Python 3.11 if not running the web application in a docker container
+  (see *Option 1: Using a venv on the local machine*)
 
 ## Software and frameworks used in this project
 
@@ -13,14 +15,18 @@ Markus Konrad <markus.konrad@htw-berlin.de>, March 2023
 - Django 4.1 as web framework with djangorestframework extension package 
 - PostgreSQL database
 
+## Software architecture and API documentation
+
+Detailed information on the software architecture is located under `docs/`.
+
+TODO: OpenAPI schema generation and swagger UI.
+
 ## Docker services
 
 The Docker Compose file under `docker/compose.yml` defines the following services:
 
-- `web`: the Django web application developed under `src/` and build via `docker/Dockerfile`
-  - exposes port 8000
 - `db`: the PostgreSQL database
-  - does not expose any ports
+  - exposes port 5432
 - `adminer`: simple database administration web interface for development purposes
   - exposes port 8080
 

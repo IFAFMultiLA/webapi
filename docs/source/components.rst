@@ -1,0 +1,5 @@
+.. _components:
+
+Software components
+===================
+
