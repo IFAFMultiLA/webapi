@@ -6,6 +6,7 @@ APPDIR := ~/api
 SERVER_APP := $(SERVER):$(APPDIR)
 RSYNC_COMMON := -rcv --exclude-from=.rsyncexclude
 
+.PHONY: docs
 
 up:
 	docker $(COMP) up
@@ -39,6 +40,9 @@ dump:
 
 test:
 	docker $(EXEC) python manage.py test api || python src/manage.py test api
+
+docs:
+	cd docs && make clean && make html && make latexpdf
 
 sync:
 	rsync $(RSYNC_COMMON) . $(SERVER_APP) && ssh $(SERVER) "mv $(APPDIR)/Makefile_server $(APPDIR)/Makefile"

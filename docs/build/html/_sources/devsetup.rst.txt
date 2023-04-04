@@ -57,3 +57,6 @@ Generating the documentation
 - the documentation source files are located under ``docs/source``
 - different output formats can be produced using the Makefile in ``docs``, e.g. via ``make html``
 - the generated documentation is then available under ``docs/build/<output_format>``
+- a shortcut is available in the Makefile in the project root directory – you can run ``make docs`` from here
+- note that generating a PDF of the documentation requires that the packages *texlive*, *texlive-latex-extra* and
+  *latexmk* are installed
