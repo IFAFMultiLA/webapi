@@ -3,8 +3,6 @@ Views that expose the API endpoints.
 
 API endpoints that accept data via POST must pass the data in JSON format. When dates or times are passed, they must
 be formatted in ISO 8601 format.
-
-Markus Konrad <markus.konrad@htw-berlin.de>, March 2023.
 """
 
 from functools import wraps
@@ -130,6 +128,13 @@ def app_session(request):
 
         curl -c /tmp/cookies.txt -b /tmp/cookies.txt \
             -i http://127.0.0.1:8000/session/?sess=<SESS_CODE>
+
+    Returns a JSON response with:
+
+    - `sess_code`: session code
+    - `auth_mode`: authentication mode ("none" or "login")
+    - optional `user_code`: generated user authentication token (when `auth_mode` is "none")
+    - optional `config`: application configuration as JSON object (when `auth_mode` is "none")
     """
 
     if request.method == 'GET':
@@ -182,6 +187,13 @@ def app_session_login(request):
             -H "X-CSRFToken: <CSRFTOKEN>"
             -H "Content-Type: application/json" \
             -i http://127.0.0.1:8000/session_login/
+
+    Returns a JSON response with:
+
+    - `sess_code`: session code
+    - `auth_mode`: authentication mode ("none" or "login")
+    - `user_code`: generated user authentication token
+    - `config`: application configuration as JSON object
     """
 
     if request.method == 'POST':
@@ -237,6 +249,9 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
              -H "Content-Type: application/json" \
              -i http://127.0.0.1:8000/start_tracking/
 
+    Returns a JSON response with:
+
+    - `tracking_session_id`: tracking session ID for started tracking session
     """
     if request.method == 'POST':
         parsed_data['user_app_session'] = user_app_sess_obj.pk
@@ -276,6 +291,9 @@ def stop_tracking(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
              -H "Content-Type: application/json" \
              -i http://127.0.0.1:8000/stop_tracking/
 
+    Returns a JSON response with:
+
+    - `tracking_session_id`: stopped tracking session ID (same as in request)
     """
     if request.method == 'POST' and 'end_time' in parsed_data:
         tracking_sess_serializer = TrackingSessionSerializer(tracking_sess_obj,
@@ -309,6 +327,9 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
              -H "Content-Type: application/json" \
              -i http://127.0.0.1:8000/track_event/
 
+    Returns a JSON response with:
+
+    - `tracking_event_id`: saved tracking event ID
     """
     if request.method == 'POST':
         data = parsed_data.get('event', {})
@@ -333,18 +354,22 @@ def csrf_failure(request, reason=""):
 
 
 def bad_request_failure(request, exception, template_name='400.html'):
+    """HTTP status 400 / bad request response view."""
     return _wrap_failure_request(request, 400, exception=exception, template_name=template_name)
 
 
 def permission_denied_failure(request, exception, template_name='403.html'):
+    """HTTP status 403 / permission denied response view."""
     return _wrap_failure_request(request, 403, exception=exception, template_name=template_name)
 
 
 def not_found_failure(request, exception, template_name='404.html'):
+    """HTTP status 404 / not found response view."""
     return _wrap_failure_request(request, 404, exception=exception, template_name=template_name)
 
 
 def server_error_failure(request, template_name='500.html'):
+    """HTTP status 500 / server failure response view."""
     return _wrap_failure_request(request, 500, template_name=template_name)
 
 
@@ -352,6 +377,10 @@ def server_error_failure(request, template_name='500.html'):
 
 
 def _wrap_failure_request(request, status, **kwargs):
+    """
+    Wrap a failure request and generate either a JSON response (when the request was a JSON request) or the django
+    standard HTML response.
+    """
     error_msg, default_view = DEFAULT_ERROR_VIEWS[status]
     if request.headers.get('content-type', None) == 'application/json':
         return JsonResponse({'error': error_msg}, status=status)

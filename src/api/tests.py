@@ -1,3 +1,7 @@
+"""
+Automated tests.
+"""
+
 from datetime import datetime, timedelta, timezone
 
 from django.test import TestCase
@@ -10,18 +14,27 @@ from .models import max_options_length, current_time_bytes, Application, Applica
 
 
 class CustomAPIClient(APIClient):
+    """
+    Extended test client based on APIClient.
+    """
     def post_json(self, path, data=None, follow=False, **extra):
+        """
+        POST request in JSON format.
+        """
         return self.post(path, data=data, format='json', follow=follow, **extra)
 
     def post(self, path, data=None, format=None, content_type=None, follow=False, **extra):
+        """POST request with optional "extras", i.e. CSRF token / auth token."""
         self._handle_extra(extra)
         return super().post(path, data=data, format=format, content_type=content_type, follow=follow, **extra)
 
     def get(self, path, data=None, follow=False, **extra):
+        """GET request with optional "extras", i.e. CSRF token / auth token."""
         self._handle_extra(extra)
         return super().get(path, data=data, follow=follow, **extra)
 
     def _handle_extra(self, extra):
+        """Handle extras, i.e. CSRF token / auth token."""
         omit_csrftoken = extra.pop('omit_csrftoken', False)
         if 'csrftoken' in self.cookies and not omit_csrftoken:
             extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
@@ -32,10 +45,16 @@ class CustomAPIClient(APIClient):
 
 
 class CustomAPITestCase(APITestCase):
+    """
+    Extended test case using CustomAPIClient.
+    """
     client_class = CustomAPIClient
 
 
 class ModelsCommonTests(TestCase):
+    """
+    Test case for some common functions in models module.
+    """
     def test_max_options_length(self):
         self.assertIs(max_options_length([]), 0)
         self.assertIs(max_options_length([('', '')]), 0)
@@ -55,10 +74,18 @@ class ModelsCommonTests(TestCase):
 
 
 class ApplicationSessionModelTests(TestCase):
+    """
+    Test case for ApplicationSession model.
+    """
     def setUp(self):
+        # create an app for an app config
         app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
         app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
         app_sess = ApplicationSession(config=app_config, auth_mode='none')
+
+        # creating a session code is necessary before saving
         self.code = app_sess.generate_code()
         app_sess.save()
 
@@ -83,6 +110,7 @@ class ApplicationSessionModelTests(TestCase):
             app_sess_no_config.generate_code()
 
     def test_session_url(self):
+        # retrieve app session stored in `setUp`
         app_sess = ApplicationSession.objects.get(code=self.code)
         sess_url = app_sess.session_url()
         self.assertTrue(sess_url.startswith(app_sess.config.application.url))
@@ -95,7 +123,11 @@ class ApplicationSessionModelTests(TestCase):
 
 
 class UserApplicationSessionModelTests(TestCase):
+    """
+    Test case for UserApplicationSession model.
+    """
     def test_generate_code(self):
+        # create all models that are necessary for a user application session
         app = Application(name='test app', url='https://test.app')
         app_config = ApplicationConfig(application=app, label='test config', config={'test': True})
         app_sess = ApplicationSession(config=app_config, auth_mode='none')
@@ -125,14 +157,26 @@ class UserApplicationSessionModelTests(TestCase):
 
 
 class ViewTests(CustomAPITestCase):
+    """
+    Test case for views.
+    """
     def setUp(self):
+        # create a test user
         self.user_password = 'testpw'
         self.user = User.objects.create_user('testuser', email='testuser@testserver.com', password=self.user_password)
+
+        # create a test app
         app = Application.objects.create(name='test app', url='https://test.app')
+
+        # create a config for this app
         app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+
+        # create an app session w/o authentication
         self.app_sess_no_auth = ApplicationSession(config=app_config, auth_mode='none')
         self.app_sess_no_auth.generate_code()
         self.app_sess_no_auth.save()
+
+        # create an app session that requires login
         self.app_sess_login = ApplicationSession(config=app_config, auth_mode='login')
         self.app_sess_login.generate_code()
         self.app_sess_login.save()

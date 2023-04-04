@@ -1,7 +1,12 @@
+"""
+URL routing.
+"""
+
 from django.urls import path
 from . import views
 
 
+# map URL patterns to views
 urlpatterns = [
     path('session/', views.app_session, name='session'),
     path('session_login/', views.app_session_login, name='session_login'),
