@@ -34,6 +34,28 @@
             
   <section id="client-server-communication">
 <span id="clientserver"></span><h1>Client-server communication<a class="headerlink" href="#client-server-communication" title="Permalink to this heading">¶</a></h1>
+<ul class="simple">
+<li><p>client-server communication happens on the basis of a RESTful web API implemented in this repository</p></li>
+<li><p>the API is self-documented using an OpenAPI schema (TODO)</p></li>
+</ul>
+<section id="client-server-communication-flowchart">
+<h2>Client-server communication flowchart<a class="headerlink" href="#client-server-communication-flowchart" title="Permalink to this heading">¶</a></h2>
+<section id="without-login-anonymous">
+<h3>Without login (“anonymous”)<a class="headerlink" href="#without-login-anonymous" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>doesn’t require an account</p></li>
+<li><p>user authentication is based on a user token that is generated on first visit and then stored to cookies for re-use</p></li>
+</ul>
+<img alt="_images/client-server-noauth.png" src="_images/client-server-noauth.png" />
+</section>
+<section id="with-login">
+<h3>With login<a class="headerlink" href="#with-login" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>requires that the user has registered an account with email and password</p></li>
+</ul>
+<img alt="_images/client-server-login.png" src="_images/client-server-login.png" />
+</section>
+</section>
 </section>
 
 
@@ -55,7 +77,14 @@
 <h3>Navigation</h3>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="components.html">Software components</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Client-server communication</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Client-server communication</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#client-server-communication-flowchart">Client-server communication flowchart</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#without-login-anonymous">Without login (“anonymous”)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#with-login">With login</a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="devsetup.html">Local development setup</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deployment.html">Server deployment</a></li>
 </ul>
