@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import defaults as default_views
 from django.views.csrf import csrf_failure as default_csrf_failure
+from django.db.utils import IntegrityError
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -21,12 +22,16 @@ from .models import ApplicationSession, ApplicationConfig, UserApplicationSessio
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer
 
 
+# --- constants ---
+
 DEFAULT_ERROR_VIEWS = {
     status.HTTP_400_BAD_REQUEST: ('Bad request.', default_views.bad_request),
     status.HTTP_403_FORBIDDEN: ('Permission denied.', default_views.permission_denied),
     status.HTTP_404_NOT_FOUND: ('Not found.', default_views.page_not_found),
     status.HTTP_500_INTERNAL_SERVER_ERROR: ('Server error.', default_views.server_error)
 }
+
+MIN_PASSWORD_LENGTH = 8
 
 
 # --- decorators ---
@@ -231,6 +236,60 @@ def app_session_login(request):
                     }, status=status.HTTP_201_CREATED)
                 else:
                     return HttpResponse(status=status.HTTP_401_UNAUTHORIZED)
+        return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def register_user(request):
+    """
+    Register a new user with a username and/or email address and password. The following data must be provided via POST:
+
+    - `username` (optional if email is given)
+    - `email` (optional if username is given)
+    - `password`
+
+    Checking this view locally with `curl`:
+
+        curl -d '{"username": "<USER>", "email": "<EMAIL>", "password": "<PASSWORD>"}' \
+            -H "Content-Type: application/json" \
+            -i http://127.0.0.1:8000/register_user/
+
+    A few basic password safety checks are performed and it is checked whether a user with this name already exists. If
+    any of these checks fail, a 403 error is returned with the following data:
+
+    - `error`: short error label such as "pw_too_short"
+    - `message`: full error message
+
+    If a user account was created successfully, an HTTP 201 response is returned.
+    """
+    def _validation_error(err, msg):
+        return JsonResponse({'error': err, 'message': msg}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'POST':
+        data = JSONParser().parse(request)
+        username = data.get('username', None)
+        email = data.get('email', None)
+        password = data.get('password', None)
+
+        if (username or email) and password:
+            # we require only very few, very basic password safety checks as a password breach does not impose a high
+            # risk in this application
+            if len(password) < MIN_PASSWORD_LENGTH:
+                return _validation_error('pw_too_short',
+                                         f'Password must be at least {MIN_PASSWORD_LENGTH} characters long.')
+            if password == username:
+                return _validation_error('pw_same_as_user', f'Password must be different from provided username.')
+            if password == email:
+                return _validation_error('pw_same_as_email', f'Password must be different from provided email.')
+
+            # try to create the account
+            try:
+                User.objects.create_user(username or email, email=email, password=password)
+            except IntegrityError:  # oops, already exists
+                return _validation_error('user_already_registered', 'This account already exists.')
+
+            return HttpResponse(status=status.HTTP_201_CREATED)
+
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
