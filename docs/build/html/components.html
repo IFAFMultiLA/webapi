@@ -1,0 +1,144 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Software components &#8212; MultiLA Web API  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Client-server communication" href="clientserver.html" />
+    <link rel="prev" title="MultiLA Web API and administration backend" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="software-components">
+<span id="components"></span><h1>Software components<a class="headerlink" href="#software-components" title="Permalink to this heading">¶</a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<p>The following images show an overview of the MultiLA platform components:</p>
+<img alt="_images/sw-architektur1.png" src="_images/sw-architektur1.png" />
+<img alt="_images/sw-architektur2.png" src="_images/sw-architektur2.png" />
+<img alt="_images/sw-architektur3.png" src="_images/sw-architektur3.png" />
+<img alt="_images/sw-architektur4.png" src="_images/sw-architektur4.png" />
+<img alt="_images/sw-architektur5.png" src="_images/sw-architektur5.png" />
+<img alt="_images/sw-architektur6.png" src="_images/sw-architektur6.png" />
+</section>
+<section id="further-information-on-components">
+<h2>Further information on components<a class="headerlink" href="#further-information-on-components" title="Permalink to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>the web API is central and provides a common platform for setting up client applications, configuring and sharing
+them, and tracking user data and feedback</p></li>
+<li><p>all data – user generated or operational – is stored in the database</p>
+<ul>
+<li><p>only the web API service has direct access to the database – client applications cannot access the database directly</p></li>
+</ul>
+</li>
+<li><p>for <em>learnr</em> based client applications, there is a package <em>adaptivelearnr</em> that provides all necessary (JavaScript)
+code to interact with the web API and to make client applications <em>configurable</em></p>
+<ul>
+<li><p>this allows to quickly create several client applications that share the same code for interfacing with the web API
+and that can be configured in some details (e.g. including/excluding certain sections, aesthetic changes, etc.)</p></li>
+</ul>
+</li>
+<li><p>external services are optional so far</p></li>
+</ul>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">MultiLA Web API</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Software components</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#further-information-on-components">Further information on components</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="clientserver.html">Client-server communication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="devsetup.html">Local development setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Server deployment</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">MultiLA Web API and administration backend</a></li>
+      <li>Next: <a href="clientserver.html" title="next chapter">Client-server communication</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Markus Konrad.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.1.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+      |
+      <a href="_sources/components.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,3 +1,7 @@
+"""
+Model definitions.
+"""
+
 import hashlib
 import json
 from datetime import datetime
@@ -7,10 +11,13 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
-hash_key = settings.SECRET_KEY.encode()[:32]
+hash_key = settings.SECRET_KEY.encode()[:32]   # hash salt
 
 
 def max_options_length(opts):
+    """
+    Get maximum length of all labels in options sequence `opts`.
+    """
     if opts:
         return max(map(len, (lbl for lbl, _ in opts)))
     else:
@@ -18,6 +25,9 @@ def max_options_length(opts):
 
 
 def current_time_bytes():
+    """
+    Get the current time encoded as hex byte string.
+    """
     return datetime.now().timestamp().hex().encode()
 
 
@@ -64,17 +74,25 @@ class ApplicationSession(models.Model):
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
     def generate_code(self, force=False):
+        """
+        Generate a unique code for this application session. If `force` is True, overwrite an already given code.
+        """
         if self.code and not force:
             raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
         if not hasattr(self, 'config'):
             raise ValueError('`self.config` must be set to generate a code')
 
+        # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
+        # from the configuration and the current time
         data = json.dumps(self.config.config).encode() + current_time_bytes()
         self.code = hashlib.blake2s(data, digest_size=5, key=hash_key).hexdigest()
 
         return self.code
 
     def session_url(self):
+        """
+        Return a URL pointing to an application with the session code attached.
+        """
         baseurl = self.config.application.url
         if not baseurl.endswith('/'):
             baseurl += '/'
@@ -99,9 +117,15 @@ class UserApplicationSession(models.Model):
     created = models.DateTimeField('Creation time', auto_now_add=True)
 
     def generate_code(self, force=False):
+        """
+        Generate a unique code for this user application session (i.e. a user authentication token).
+        If `force` is True, overwrite an already given code.
+        """
         if self.code and not force:
             raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
 
+        # generate a code of length 64 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
+        # from the application session code and the current time
         data = self.application_session.code.encode() + current_time_bytes()
         self.code = hashlib.blake2s(data, digest_size=32, key=hash_key).hexdigest()
 
@@ -117,8 +141,8 @@ class UserApplicationSession(models.Model):
 
 class TrackingSession(models.Model):
     """
-    A tracking session is a session that allows to collect data for a specific user session after login and until
-    logout / timeout.
+    A tracking session is a session that allows to collect data for a specific user session after login / first visit
+    and until the tracking session is explicitly closed or timed out.
     """
     user_app_session = models.ForeignKey(UserApplicationSession, on_delete=models.CASCADE)
     # this information must be submitted and is not set via auto_now_add
