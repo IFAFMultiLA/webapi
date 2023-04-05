@@ -1,3 +1,5 @@
+.. _intro:
+
 MultiLA Web API and administration backend
 ==========================================
 

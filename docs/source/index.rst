@@ -1,12 +1,8 @@
 .. webapi documentation master file
 
-.. include:: intro.rst
-
-Table of contents
-=================
-
 .. toctree::
 
+  intro
   components
   clientserver
   devsetup
