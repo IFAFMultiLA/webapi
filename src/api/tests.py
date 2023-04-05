@@ -294,6 +294,81 @@ class ViewTests(CustomAPITestCase):
             'config': self.app_sess_no_auth.config.config
         })
 
+    def test_register_user(self):
+        # test register user
+        valid_data = {'username': 'testuser2', 'email': 'testuser2@localhost', 'password': 'testuser2pw'}
+        valid_data_no_email = valid_data.copy()
+        del valid_data_no_email['email']
+        valid_data_no_user = valid_data.copy()
+        del valid_data_no_user['username']
+        url = reverse('register_user')
+
+        # failures
+        self.assertEqual(self.client.get(url, data=valid_data).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.post_json(url, data={}).status_code, status.HTTP_400_BAD_REQUEST)  # no data
+        # missing username and email
+        self.assertEqual(self.client.post_json(url, data={'password': 'testuser2pw'}).status_code,
+                         status.HTTP_400_BAD_REQUEST)
+        # missing password
+        self.assertEqual(self.client.post_json(url, data={
+            'username': 'testuser2', 'email': 'testuser2@localhost'
+        }).status_code, status.HTTP_400_BAD_REQUEST)
+        # password too short
+        response = self.client.post_json(url, data={
+            'username': 'testuser2', 'email': 'testuser2@localhost', 'password': 'short'
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.json()['error'], 'pw_too_short')
+        # password equals username
+        response = self.client.post_json(url, data={
+            'username': 'testuser2', 'email': 'testuser2@localhost', 'password': 'testuser2'
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.json()['error'], 'pw_same_as_user')
+        # password equals email
+        response = self.client.post_json(url, data={
+            'username': 'testuser2', 'email': 'testuser2@localhost', 'password': 'testuser2@localhost'
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.json()['error'], 'pw_same_as_email')
+
+        # OK with username, email, password
+        response = self.client.post_json(url, data=valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(username=valid_data['username'])
+        self.assertEqual(user.email, valid_data['email'])
+        self.assertTrue(user.check_password(valid_data['password']))
+        user.delete()
+
+        # OK with username, password
+        response = self.client.post_json(url, data=valid_data_no_email)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(username=valid_data['username'])
+        self.assertEqual(user.email, '')
+        self.assertTrue(user.check_password(valid_data['password']))
+        user.delete()
+
+        # OK with email, password
+        response = self.client.post_json(url, data=valid_data_no_user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(username=valid_data['email'])
+        self.assertEqual(user.email, valid_data['email'])
+        self.assertEqual(user.email, user.username)
+        self.assertTrue(user.check_password(valid_data['password']))
+
+    def test_register_user_twice(self):
+        valid_data = {'username': 'testuser2', 'email': 'testuser2@localhost', 'password': 'testuser2pw'}
+        url = reverse('register_user')
+
+        # OK with username, email, password
+        response = self.client.post_json(url, data=valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # failure with same data (user already exists)
+        response = self.client.post_json(url, data=valid_data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.json()['error'], 'user_already_registered')
+
     def test_start_tracking(self):
         # request application session – also sets CSRF token in cookie
         response = self.client.get(reverse('session'), {'sess': self.app_sess_no_auth.code})
