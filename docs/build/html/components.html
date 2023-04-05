@@ -36,16 +36,8 @@
 <span id="components"></span><h1>Software components<a class="headerlink" href="#software-components" title="Permalink to this heading">¶</a></h1>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
-<p>The following images show an overview of the MultiLA platform components:</p>
-<img alt="_images/sw-architektur1.png" src="_images/sw-architektur1.png" />
-<img alt="_images/sw-architektur2.png" src="_images/sw-architektur2.png" />
-<img alt="_images/sw-architektur3.png" src="_images/sw-architektur3.png" />
-<img alt="_images/sw-architektur4.png" src="_images/sw-architektur4.png" />
-<img alt="_images/sw-architektur5.png" src="_images/sw-architektur5.png" />
-<img alt="_images/sw-architektur6.png" src="_images/sw-architektur6.png" />
-</section>
-<section id="further-information-on-components">
-<h2>Further information on components<a class="headerlink" href="#further-information-on-components" title="Permalink to this heading">¶</a></h2>
+<p>The following image show an overview of the MultiLA platform components:</p>
+<img alt="_images/sw-arch.png" src="_images/sw-arch.png" />
 <ul class="simple">
 <li><p>the web API is central and provides a common platform for setting up client applications, configuring and sharing
 them, and tracking user data and feedback</p></li>
@@ -61,7 +53,11 @@ code to interact with the web API and to make client applications <em>configurab
 and that can be configured in some details (e.g. including/excluding certain sections, aesthetic changes, etc.)</p></li>
 </ul>
 </li>
-<li><p>external services are optional so far</p></li>
+<li><p>the R Shiny server doesn’t communicate with the MultiLA web API, only the JavaScript code on the client side
+implements the communication</p></li>
+<li><p>in general, any (web) application can use the MultiLA web API, which means for example R Shiny applications or
+Jupyter Notebook applications</p></li>
+<li><p>it may be possible to connect external services for authentication (e.g. Moodle)</p></li>
 </ul>
 </section>
 </section>
@@ -86,7 +82,6 @@ and that can be configured in some details (e.g. including/excluding certain sec
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Software components</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#further-information-on-components">Further information on components</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="clientserver.html">Client-server communication</a></li>

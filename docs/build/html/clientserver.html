@@ -36,10 +36,19 @@
 <span id="clientserver"></span><h1>Client-server communication<a class="headerlink" href="#client-server-communication" title="Permalink to this heading">¶</a></h1>
 <ul class="simple">
 <li><p>client-server communication happens on the basis of a RESTful web API implemented in this repository</p></li>
-<li><p>the API is self-documented using an OpenAPI schema (TODO)</p></li>
+<li><p>the implementation is done in <code class="docutils literal notranslate"><span class="pre">api/views.py</span></code></p></li>
+<li><p>the API exposes an OpenAPI schema under the URL <code class="docutils literal notranslate"><span class="pre">http[s]://&lt;HOST&gt;/openapi</span></code> when <code class="docutils literal notranslate"><span class="pre">settings.DEBUG</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
 </ul>
 <section id="client-server-communication-flowchart">
 <h2>Client-server communication flowchart<a class="headerlink" href="#client-server-communication-flowchart" title="Permalink to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>an application session may either require a login or not – this can be configured in the administration backend for
+each application session as “authentication mode”</p></li>
+<li><p>all API endpoints except for <code class="docutils literal notranslate"><span class="pre">session/</span></code> and <code class="docutils literal notranslate"><span class="pre">session_login/</span></code> require an HTTP authorization token, a.k.a
+“user token”, even when no login is required</p></li>
+<li><p>this makes sure that each request to the API is linked to a user – either to a registered user (when a login is
+required) or to an anonymous user that is only identified with a unique code (when no login is required)</p></li>
+</ul>
 <section id="without-login-anonymous">
 <h3>Without login (“anonymous”)<a class="headerlink" href="#without-login-anonymous" title="Permalink to this heading">¶</a></h3>
 <ul class="simple">

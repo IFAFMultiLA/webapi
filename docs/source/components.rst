@@ -6,22 +6,9 @@ Software components
 Overview
 --------
 
-The following images show an overview of the MultiLA platform components:
+The following image show an overview of the MultiLA platform components:
 
-.. image:: img/sw-architektur1.png
-
-.. image:: img/sw-architektur2.png
-
-.. image:: img/sw-architektur3.png
-
-.. image:: img/sw-architektur4.png
-
-.. image:: img/sw-architektur5.png
-
-.. image:: img/sw-architektur6.png
-
-Further information on components
----------------------------------
+.. image:: img/sw-arch.png
 
 - the web API is central and provides a common platform for setting up client applications, configuring and sharing
   them, and tracking user data and feedback
@@ -35,4 +22,8 @@ Further information on components
   - this allows to quickly create several client applications that share the same code for interfacing with the web API
     and that can be configured in some details (e.g. including/excluding certain sections, aesthetic changes, etc.)
 
-- external services are optional so far
+- the R Shiny server doesn't communicate with the MultiLA web API, only the JavaScript code on the client side
+  implements the communication
+- in general, any (web) application can use the MultiLA web API, which means for example R Shiny applications or
+  Jupyter Notebook applications
+- it may be possible to connect external services for authentication (e.g. Moodle)
