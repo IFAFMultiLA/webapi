@@ -3,6 +3,9 @@ URL routing.
 """
 
 from django.urls import path
+from django.conf import settings
+from rest_framework.schemas import get_schema_view
+
 from . import views
 
 
@@ -14,3 +17,12 @@ urlpatterns = [
     path('stop_tracking/', views.stop_tracking, name='stop_tracking'),
     path('track_event/', views.track_event, name='track_event'),
 ]
+
+if settings.DEBUG:
+    urlpatterns.append(
+        path('openapi', get_schema_view(
+            title="MultiLA web API",
+            description="MultiLA platform web API",
+            version="0.1.0"
+        ), name='openapi-schema')
+    )
