@@ -331,6 +331,12 @@ class ViewTests(CustomAPITestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.json()['error'], 'pw_same_as_email')
+        # email is not valid
+        response = self.client.post_json(url, data={
+            'username': 'testuser2', 'email': 'wrong', 'password': 'testuser2@localhost'
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.json()['error'], 'invalid_email')
 
         # OK with username, email, password
         response = self.client.post_json(url, data=valid_data)

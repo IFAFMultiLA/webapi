@@ -13,6 +13,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import defaults as default_views
 from django.views.csrf import csrf_failure as default_csrf_failure
 from django.db.utils import IntegrityError
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -272,6 +274,13 @@ def register_user(request):
         password = data.get('password', None)
 
         if (username or email) and password:
+            if email:
+                # if an email address is given, check its format
+                try:
+                    validate_email(email)
+                except ValidationError:
+                    return _validation_error('invalid_email', 'The provided email address seems invalid.')
+
             # we require only very few, very basic password safety checks as a password breach does not impose a high
             # risk in this application
             if len(password) < MIN_PASSWORD_LENGTH:
