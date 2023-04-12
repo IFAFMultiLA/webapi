@@ -38,6 +38,9 @@ migrate:
 dump:
 	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz || python src/manage.py dumpdata -o /fixtures/dump-`date -Iseconds`.json.gz
 
+collectstatic:
+	docker $(EXEC) python manage.py collectstatic || python src/manage.py collectstatic
+
 test:
 	docker $(EXEC) python manage.py test api || python src/manage.py test api
 
