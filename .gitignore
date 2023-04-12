@@ -4,3 +4,4 @@ docker/compose_dev.yml
 __pycache__
 .$*
 
+static_files/

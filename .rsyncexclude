@@ -8,3 +8,6 @@ docker/Dockerfile
 docker/compose.yml
 src/multila/settings.py
 .gitignore
+venv/
+**/__pycache__
+docs/

@@ -46,21 +46,33 @@ Initial deployment
         depends_on:
           - db
 
-2. Make sure the correct server and directory is entered in ``Makefile`` under ``SERVER`` and ``APPDIR``. Then run
-   ``make sync`` to upload all files to the server.
+2. Make sure the correct server and directory is entered in ``Makefile`` under ``SERVER`` and ``APPDIR``. Then run:
+
+    - ``make collectstatic`` to copy all static files to the ``static_files`` directory
+    - ``make sync`` to upload all files to the server
+
 3. On the server, do the following:
 
-   - run ``make build`` to build the web application
-   - run ``make create`` to create the docker containers
-   - run ``make up`` to launch the containers
-   - run ``make migrate`` to initialize the DB
-   - run ``make superuser`` to create a backend admin user
-   - run ``make check`` to check the deployment
-   - you may run ``make logs`` and/or ``curl http://0.0.0.0:8000/`` to check if the web server is running
+    - run ``make copy_static`` to copy the static files to the directory ``/var/www/api_static_files/`` (you must have
+      the permissions to do so)
+    - run ``make build`` to build the web application
+    - run ``make create`` to create the docker containers
+    - run ``make up`` to launch the containers
+    - run ``make migrate`` to initialize the DB
+    - run ``make superuser`` to create a backend admin user – **use a secure password**
+    - run ``make check`` to check the deployment
+    - run ``make test`` to run the tests in the deployment environment
+    - you may run ``make logs`` and/or ``curl http://0.0.0.0:8000/`` to check if the web server is running
 
 4. On the server, create an HTTP proxy to forward HTTP requests to the server to the docker container running the web
-   application. For example, a configuration for the Apache webserver would use the following::
+   application. For example, a configuration for the Apache webserver that forwards all requests to
+   ``https://<HOST>/api/`` would use the following::
 
+    # setup static files (and prevent them to be passed through the proxy)
+    ProxyPass /api_static_files !
+    Alias /api_static_files /var/www/api_static_files
+
+    # setup proxy for API
     ProxyPass /api/ http://0.0.0.0:8000/
     ProxyPassReverse /api/ http://0.0.0.0:8000/
 
@@ -72,3 +84,5 @@ Publishing updates
 - locally, run ``make testsync`` and ``make sync`` to publish updated files to the server
 - on the server, optional run ``make migrate`` to update the database and run ``make restart_web`` to restart the web
   application
+- if there are changes in the dependencies, you need to rebuild the container as decribed above under
+  *Initial deployment*, point (3)

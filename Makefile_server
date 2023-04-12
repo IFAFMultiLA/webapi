@@ -35,3 +35,10 @@ check:
 
 test:
 	docker $(EXEC) python manage.py test api
+
+superuser:
+	docker $(EXEC) python manage.py createsuperuser
+
+copy_static:
+	cp -r static_files/* /var/www/api_static_files/
+

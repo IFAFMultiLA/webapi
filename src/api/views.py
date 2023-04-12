@@ -17,8 +17,6 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view
-from rest_framework.parsers import JSONParser
-from rest_framework.exceptions import ParseError
 
 from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer
@@ -57,15 +55,8 @@ def require_user_session_token(view_fn):
             # get the token
             token = auth_data[1]
 
-            # parse the passed JSON data
-            try:
-                data = JSONParser().parse(request)
-            except ParseError as exc:
-                return HttpResponse(f'JSON parsing error: {str(exc).encode("utf-8")}',
-                                    status=status.HTTP_400_BAD_REQUEST)
-
             # get the application session code
-            sess = data.get('sess', None)
+            sess = request.data.get('sess', None)
 
             if token and sess:
                 try:
@@ -84,7 +75,7 @@ def require_user_session_token(view_fn):
 
                 # set the authenticated user (will be None if auth_mode is "none")
                 request.user = user_app_sess_obj.user
-                return view_fn(request, *args, user_app_sess_obj=user_app_sess_obj, parsed_data=data, **kwargs)
+                return view_fn(request, *args, user_app_sess_obj=user_app_sess_obj, parsed_data=request.data, **kwargs)
             else:
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
         return HttpResponse(status=status.HTTP_401_UNAUTHORIZED)
@@ -209,7 +200,7 @@ def app_session_login(request):
     """
 
     if request.method == 'POST':
-        data = JSONParser().parse(request)
+        data = request.data
         sess_code = data.get('sess', None)
         username = data.get('username', None)
         email = data.get('email', None)
@@ -268,7 +259,7 @@ def register_user(request):
         return JsonResponse({'error': err, 'message': msg}, status=status.HTTP_403_FORBIDDEN)
 
     if request.method == 'POST':
-        data = JSONParser().parse(request)
+        data = request.data
         username = data.get('username', None)
         email = data.get('email', None)
         password = data.get('password', None)
