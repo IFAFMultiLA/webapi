@@ -35,8 +35,8 @@
   <section id="multila-web-api-and-administration-backend">
 <span id="intro"></span><h1>MultiLA Web API and administration backend<a class="headerlink" href="#multila-web-api-and-administration-backend" title="Permalink to this heading">¶</a></h1>
 <p>Markus Konrad &lt;<a class="reference external" href="mailto:markus&#46;konrad&#37;&#52;&#48;htw-berlin&#46;de">markus<span>&#46;</span>konrad<span>&#64;</span>htw-berlin<span>&#46;</span>de</a>&gt;, April 2023</p>
-<section id="requirements">
-<h2>Requirements<a class="headerlink" href="#requirements" title="Permalink to this heading">¶</a></h2>
+<section id="technical-requirements">
+<h2>Technical requirements<a class="headerlink" href="#technical-requirements" title="Permalink to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Docker with Docker Compose v2 (recommended: run Docker in <em>rootless</em> mode)</p></li>
 <li><p>recommended: IDE with Docker Compose support (e.g. PyCharm Professional, VSCode)</p></li>
@@ -48,8 +48,28 @@
 <h2>Software and frameworks used in this project<a class="headerlink" href="#software-and-frameworks-used-in-this-project" title="Permalink to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Python 3.11</p></li>
-<li><p>Django 4.1 as web framework with djangorestframework extension package</p></li>
+<li><p><a class="reference external" href="https://www.djangoproject.com/">Django 4.2</a> as web framework with
+<a class="reference external" href="https://www.django-rest-framework.org/">Django REST framework extension package</a></p></li>
 <li><p>PostgreSQL database</p></li>
+</ul>
+</section>
+<section id="relevant-documentation-parts-in-used-frameworks">
+<h2>Relevant documentation parts in used frameworks<a class="headerlink" href="#relevant-documentation-parts-in-used-frameworks" title="Permalink to this heading">¶</a></h2>
+<p>Django:</p>
+<ul class="simple">
+<li><p>Models and databases (<a class="reference external" href="https://docs.djangoproject.com/en/4.2/intro/tutorial02/">tutorial</a> /
+<a class="reference external" href="https://docs.djangoproject.com/en/4.2/topics/db/">topic guide</a>)</p></li>
+<li><p>Views (<a class="reference external" href="https://docs.djangoproject.com/en/4.2/intro/tutorial03/">tutorial</a> /
+<a class="reference external" href="https://docs.djangoproject.com/en/4.2/topics/http/views/">topic guide</a>)</p></li>
+<li><p>Automated admin interface (<a class="reference external" href="https://docs.djangoproject.com/en/4.2/intro/tutorial02/">tutorial</a> /
+<a class="reference external" href="https://docs.djangoproject.com/en/4.2/#the-admin">documentation</a>)</p></li>
+<li><p>Testing (<a class="reference external" href="https://docs.djangoproject.com/en/4.2/topics/testing/">topic guide</a>)</p></li>
+</ul>
+<p>Django REST framework:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.django-rest-framework.org/tutorial/1-serialization/">Serialization</a></p></li>
+<li><p><a class="reference external" href="https://www.django-rest-framework.org/tutorial/2-requests-and-responses/">Requests and Responses</a></p></li>
+<li><p><a class="reference external" href="https://www.django-rest-framework.org/api-guide/testing/">Testing</a></p></li>
 </ul>
 </section>
 </section>
@@ -73,8 +93,9 @@
 <h3>Navigation</h3>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">MultiLA Web API and administration backend</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#technical-requirements">Technical requirements</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#software-and-frameworks-used-in-this-project">Software and frameworks used in this project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#relevant-documentation-parts-in-used-frameworks">Relevant documentation parts in used frameworks</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="components.html">Software components</a></li>
