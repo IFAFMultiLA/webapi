@@ -6,9 +6,14 @@ ModelAdmin classes to generate the django administration backend.
 
 
 from django.contrib import admin
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils.safestring import mark_safe
 
 from .models import Application, ApplicationConfig, ApplicationSession
+
+
+# --- model admins ---
 
 
 class ApplicationAdmin(admin.ModelAdmin):
@@ -84,7 +89,51 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         return super().save_model(request, obj, form, change)
 
 
+# --- custom admin site ---
+
+
+class MultiLAAdminSite(admin.AdminSite):
+    site_header = 'MultiLA Administration Interface'
+    site_url = None
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('dataview/', self.admin_view(self.dataview), name='dataview'),
+        ]
+        return custom_urls + urls
+
+    def get_app_list(self, request, app_label=None):
+        app_list = super().get_app_list(request)
+
+        dataview_app = {
+            'name': 'Data view',
+            'app_label': 'dataview',
+            'app_url': reverse('multila_admin:dataview'),
+            'has_module_perms': request.user.is_superuser,
+            'models': []
+        }
+
+        app_list.append(dataview_app)
+
+        return app_list
+
+    def dataview(self, request):
+        context = {
+            **self.each_context(request),
+            "title": self.index_title,
+            "subtitle": "Data view",
+            "app_label": 'dataview',
+        }
+
+        request.current_app = self.name
+
+        return TemplateResponse(request, "admin/dataview.html", context)
+
+
+admin_site = MultiLAAdminSite(name='multila_admin')
+
 # register model admins
-admin.site.register(Application, ApplicationAdmin)
-admin.site.register(ApplicationConfig, ApplicationConfigAdmin)
-admin.site.register(ApplicationSession, ApplicationSessionAdmin)
+admin_site.register(Application, ApplicationAdmin)
+admin_site.register(ApplicationConfig, ApplicationConfigAdmin)
+admin_site.register(ApplicationSession, ApplicationSessionAdmin)
