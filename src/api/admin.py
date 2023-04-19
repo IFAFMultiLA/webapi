@@ -121,18 +121,24 @@ class MultiLAAdminSite(admin.AdminSite):
         return app_list
 
     def dataview(self, request):
-        def default_format(v):
+        def default_format(v, _=None):
             return '-' if v is None else v
 
-        def format_timedelta(t):
+        def format_timedelta(t, _):
             if t is None:
                 return default_format(t)
             return f'{int(t.total_seconds() // 60)}min {round((t.total_seconds() / 60 - t.total_seconds() // 60) * 60)}s'
 
-        def format_datetime(t):
+        def format_datetime(t, _):
             if t is None:
                 return default_format(t)
             return t.strftime('%Y-%m-%d %H:%M:%S')
+
+        def format_app_config(v, row):
+            if v is None:
+                return default_format(v)
+            app_config_url = reverse("multila_admin:api_applicationconfig_change", args=[row["applicationconfig"]])
+            return mark_safe(f'<a href={app_config_url}>{v}</a>')
 
         CONFIGFORM_GROUPBY_CHOICES = [
             ('app', 'Application'),
@@ -157,7 +163,8 @@ class MultiLAAdminSite(admin.AdminSite):
         COLUMN_FORMATING = {
             'avg_trackingsess_duration': format_timedelta,
             'most_recent_trackingsess': format_datetime,
-            'most_recent_event': format_datetime
+            'most_recent_event': format_datetime,
+            'applicationconfig__label': format_app_config
         }
 
         class ConfigForm(forms.Form):
@@ -184,15 +191,17 @@ class MultiLAAdminSite(admin.AdminSite):
         if groupby == 'app':
             group_fields = []
         elif groupby == 'app_config':
-            group_fields = ['applicationconfig__label']
+            group_fields = ['applicationconfig__label', 'applicationconfig']
         elif groupby == 'app_session':
-            group_fields = ['applicationconfig__label', 'applicationconfig__applicationsession__code',
+            group_fields = ['applicationconfig__label', 'applicationconfig',
+                            'applicationconfig__applicationsession__code',
                             'applicationconfig__applicationsession__auth_mode']
         else:
             raise ValueError(f'invalid value for "groupby": {groupby}')
 
         data_fields = toplevel_fields + group_fields + stats_fields
         order_fields = toplevel_fields + group_fields
+        hidden_fields = set(toplevel_fields) | {'applicationconfig'}
 
         data_rows = Application.objects\
             .annotate(n_users=Count(usersess_expr, distinct=True),
@@ -208,8 +217,8 @@ class MultiLAAdminSite(admin.AdminSite):
 
         table_data = defaultdict(list)
         for row in data_rows:
-            formatted_row = [COLUMN_FORMATING.get(k, default_format)(row[k])
-                             for k in data_fields if k not in {'name', 'url'}]
+            formatted_row = [COLUMN_FORMATING.get(k, default_format)(row[k], row)
+                             for k in data_fields if k not in hidden_fields]
             table_data[(row['name'], row['url'])].append(formatted_row)
 
         context = {
