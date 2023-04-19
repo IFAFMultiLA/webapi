@@ -140,6 +140,13 @@ class MultiLAAdminSite(admin.AdminSite):
             app_config_url = reverse("multila_admin:api_applicationconfig_change", args=[row["applicationconfig"]])
             return mark_safe(f'<a href={app_config_url}>{v}</a>')
 
+        def format_app_session(v, row):
+            if v is None:
+                return default_format(v)
+            app_config_url = reverse("multila_admin:api_applicationsession_change",
+                                     args=[row["applicationconfig__applicationsession"]])
+            return mark_safe(f'<a href={app_config_url}>{v}</a>')
+
         CONFIGFORM_GROUPBY_CHOICES = [
             ('app', 'Application'),
             ('app_config', 'Application config.'),
@@ -164,7 +171,8 @@ class MultiLAAdminSite(admin.AdminSite):
             'avg_trackingsess_duration': format_timedelta,
             'most_recent_trackingsess': format_datetime,
             'most_recent_event': format_datetime,
-            'applicationconfig__label': format_app_config
+            'applicationconfig__label': format_app_config,
+            'applicationconfig__applicationsession__code': format_app_session
         }
 
         class ConfigForm(forms.Form):
@@ -195,13 +203,14 @@ class MultiLAAdminSite(admin.AdminSite):
         elif groupby == 'app_session':
             group_fields = ['applicationconfig__label', 'applicationconfig',
                             'applicationconfig__applicationsession__code',
-                            'applicationconfig__applicationsession__auth_mode']
+                            'applicationconfig__applicationsession__auth_mode',
+                            'applicationconfig__applicationsession']
         else:
             raise ValueError(f'invalid value for "groupby": {groupby}')
 
         data_fields = toplevel_fields + group_fields + stats_fields
         order_fields = toplevel_fields + group_fields
-        hidden_fields = set(toplevel_fields) | {'applicationconfig'}
+        hidden_fields = set(toplevel_fields) | {'applicationconfig', 'applicationconfig__applicationsession'}
 
         data_rows = Application.objects\
             .annotate(n_users=Count(usersess_expr, distinct=True),
