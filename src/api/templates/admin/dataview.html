@@ -1,4 +1,4 @@
-{% extends "admin/index.html" %}
+{% extends "admin/base_site.html" %}
 {% load i18n %}
 
 {% block extrastyle %}
@@ -6,6 +6,16 @@
 <style>
     .dashboard #content {
         width: auto;
+    }
+
+    #content table tbody th {
+        background: var(--primary);
+        color: var(--header-link-color);
+    }
+
+    #content table tbody th a {
+        color: var(--header-link-color);
+        text-decoration: underline;
     }
 </style>
 {% endblock %}
@@ -22,8 +32,6 @@ Data view
 {% endblock %}
 {% endif %}
 
-{% block sidebar %}
-{% endblock %}
 {% block coltype %}{% endblock %}
 
 {% block content %}
@@ -38,7 +46,7 @@ Data view
     <thead>
         <tr>
             {% for col in table_columns %}
-                <th>{{ col }}</th>
+                <th style="text-align: right">{{ col }}</th>
             {% endfor %}
         </tr>
     </thead>
