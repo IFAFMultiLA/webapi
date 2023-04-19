@@ -141,6 +141,9 @@ class MultiLAAdminSite(admin.AdminSite):
         ]
 
         COLUMN_DESCRIPTIONS = {
+            'applicationconfig__label': 'Application config.',
+            'applicationconfig__applicationsession__code': 'App. session code',
+            'applicationconfig__applicationsession__auth_mode': 'Auth. mode',
             'n_users': 'Total num. users',
             'n_nonanon_users': 'Registered users',
             'n_nonanon_logins': 'Logins of registered users',
@@ -171,34 +174,37 @@ class MultiLAAdminSite(admin.AdminSite):
         viewconfig = request.session.get('dataview_configform', {})
         groupby = viewconfig.get('groupby', CONFIGFORM_GROUPBY_CHOICES[0][0])
 
-        if groupby == 'app':
-            usersess_expr = 'applicationconfig__applicationsession__userapplicationsession'
-            trackingsess_expr = usersess_expr + '__trackingsession'
-            trackingevent_expr = trackingsess_expr + '__trackingevent'
+        usersess_expr = 'applicationconfig__applicationsession__userapplicationsession'
+        trackingsess_expr = usersess_expr + '__trackingsession'
+        trackingevent_expr = trackingsess_expr + '__trackingevent'
+        toplevel_fields = ['name', 'url']
+        stats_fields = ['n_users', 'n_nonanon_users', 'n_nonanon_logins', 'n_trackingsess',
+                        'most_recent_trackingsess', 'avg_trackingsess_duration', 'n_events', 'most_recent_event']
 
-            data_fields = ['name', 'url', 'n_users', 'n_nonanon_users', 'n_nonanon_logins', 'n_trackingsess',
-                           'most_recent_trackingsess', 'avg_trackingsess_duration', 'n_events', 'most_recent_event']
-            data_rows = Application.objects\
-                .annotate(n_users=Count(usersess_expr, distinct=True),
-                          n_nonanon_users=Count(usersess_expr + '__user', distinct=True),
-                          n_nonanon_logins=Count(usersess_expr + '__user', distinct=False),
-                          n_trackingsess=Count(trackingsess_expr, distinct=True),
-                          most_recent_trackingsess=Max(trackingsess_expr + '__start_time'),
-                          avg_trackingsess_duration=Avg(F(trackingsess_expr + '__end_time')
-                                                        - F(trackingsess_expr + '__start_time')),
-                          n_events=Count(trackingevent_expr, distinct=True),
-                          most_recent_event=Max(trackingevent_expr + '__time'))\
-                .order_by('name').values(*data_fields)
+        if groupby == 'app':
+            group_fields = []
         elif groupby == 'app_config':
-            # TODO
-            data_fields = []
-            data_rows = []
+            group_fields = ['applicationconfig__label']
         elif groupby == 'app_session':
-            # TODO
-            data_fields = []
-            data_rows = []
+            group_fields = ['applicationconfig__label', 'applicationconfig__applicationsession__code',
+                            'applicationconfig__applicationsession__auth_mode']
         else:
             raise ValueError(f'invalid value for "groupby": {groupby}')
+
+        data_fields = toplevel_fields + group_fields + stats_fields
+        order_fields = toplevel_fields + group_fields
+
+        data_rows = Application.objects\
+            .annotate(n_users=Count(usersess_expr, distinct=True),
+                      n_nonanon_users=Count(usersess_expr + '__user', distinct=True),
+                      n_nonanon_logins=Count(usersess_expr + '__user', distinct=False),
+                      n_trackingsess=Count(trackingsess_expr, distinct=True),
+                      most_recent_trackingsess=Max(trackingsess_expr + '__start_time'),
+                      avg_trackingsess_duration=Avg(F(trackingsess_expr + '__end_time')
+                                                    - F(trackingsess_expr + '__start_time')),
+                      n_events=Count(trackingevent_expr, distinct=True),
+                      most_recent_event=Max(trackingevent_expr + '__time'))\
+            .order_by(*order_fields).values(*data_fields)
 
         table_data = defaultdict(list)
         for row in data_rows:
