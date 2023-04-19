@@ -1,0 +1,69 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .dashboard #content {
+        width: auto;
+    }
+
+    #content table tbody th {
+        background: var(--primary);
+        color: var(--header-link-color);
+    }
+
+    #content table tbody th a {
+        color: var(--header-link-color);
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ app_label }}{% endblock %}
+
+{% if not is_popup %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo;
+Data view
+</div>
+{% endblock %}
+{% endif %}
+
+{% block coltype %}{% endblock %}
+
+{% block content %}
+
+<form action="{% url 'multila_admin:dataview' %}" method="post">
+    {% csrf_token %}
+    {{ configform }}
+    <input type="submit" value="OK">
+</form>
+
+<table style="width:100%;margin-top:2em">
+    <thead>
+        <tr>
+            {% for col in table_columns %}
+                <th style="text-align: right">{{ col }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody style="text-align: right">
+    {% for name_url, rows in table_data %}
+        <tr>
+            <th colspan="{{ table_columns|length }}">{{ name_url.0 }} at <a href="{{ name_url.1 }}">{{ name_url.1 }}</a></th>
+        </tr>
+        {% for row in rows %}
+            <tr>
+                {% for cell in row %}
+                    <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
