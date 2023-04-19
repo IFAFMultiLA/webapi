@@ -7,6 +7,7 @@ from collections import defaultdict
 
 from django import forms
 from django.contrib import admin
+from django.contrib.auth.models import User, Group
 from django.db.models import Count, Max, Avg, F
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
@@ -251,3 +252,5 @@ admin_site = MultiLAAdminSite(name='multila_admin')
 admin_site.register(Application, ApplicationAdmin)
 admin_site.register(ApplicationConfig, ApplicationConfigAdmin)
 admin_site.register(ApplicationSession, ApplicationSessionAdmin)
+admin_site.register(User)
+admin_site.register(Group)
