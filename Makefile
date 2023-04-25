@@ -53,3 +53,6 @@ sync:
 testsync:
 	rsync $(RSYNC_COMMON) -n . $(SERVER_APP)
 
+adminer_tunnel:
+	ssh -N -L 8081:localhost:8081 $(SERVER)
+
