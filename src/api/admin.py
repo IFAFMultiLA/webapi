@@ -102,22 +102,40 @@ class MultiLAAdminSite(admin.AdminSite):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('dataview/', self.admin_view(self.dataview), name='dataview'),
+            path('data/view/', self.admin_view(self.dataview), name='dataview'),
+            path('data/export/', self.admin_view(self.dataexport), name='dataexport'),
         ]
         return custom_urls + urls
 
     def get_app_list(self, request, app_label=None):
         app_list = super().get_app_list(request)
 
-        dataview_app = {
-            'name': 'Data view',
-            'app_label': 'dataview',
+        datamanager_app = {
+            'name': 'Data manager',
+            'app_label': 'datamanager',
             'app_url': reverse('multila_admin:dataview'),
             'has_module_perms': request.user.is_superuser,
-            'models': []
+            'models': [
+                {
+                    'model': None,
+                    'object_name': 'View',
+                    'name': 'View',
+                    'perms': {'add': False, 'change': False, 'delete': False, 'view': True},
+                    'admin_url': reverse('multila_admin:dataview'),
+                    'add_url': None
+                },
+                {
+                    'model': None,
+                    'object_name': 'Export',
+                    'name': 'Export',
+                    'perms': {'add': False, 'change': False, 'delete': False, 'view': True},
+                    'admin_url': reverse('multila_admin:dataexport'),
+                    'add_url': None
+                }
+            ]
         }
 
-        app_list.append(dataview_app)
+        app_list.append(datamanager_app)
 
         return app_list
 
@@ -233,12 +251,24 @@ class MultiLAAdminSite(admin.AdminSite):
 
         context = {
             **self.each_context(request),
-            "title": self.index_title,
+            "title": "Data manager",
             "subtitle": "Data view",
-            "app_label": 'dataview',
+            "app_label": 'datamanager',
             "configform": configform,
             "table_columns": [COLUMN_DESCRIPTIONS[k] for k in data_fields if k in COLUMN_DESCRIPTIONS],
             "table_data": table_data.items()
+        }
+
+        request.current_app = self.name
+
+        return TemplateResponse(request, "admin/dataview.html", context)
+
+    def dataexport(self, request):
+        context = {
+            **self.each_context(request),
+            "title": "Data manager",
+            "subtitle": "Data export",
+            "app_label": 'datamanager',
         }
 
         request.current_app = self.name
