@@ -1,0 +1,73 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block bodyclass %}{{ block.super }} app-{{ app_label }}{% endblock %}
+
+{% block extrahead %}
+<script>
+    function pollFiles() {
+        let t = $('#filelist tbody');
+        t.empty();
+
+        fetch("{% url 'multila_admin:dataexport_filelist' %}")
+            .then(response => response.json())
+            .then(function (files) {
+                files.forEach(function (f) {
+                    t.append("<tr><td>" + f + "</td><td></td></tr>");
+
+                    const fIndex = awaitingFiles.index(f);
+                    if (fIndex > -1) {
+                        awaitingFiles.splice(fIndex, 1);
+                    }
+                    if (awaitingFiles.length === 0 && pollingIntervalHandle !== null) {
+                        clearInterval(pollingIntervalHandle);
+                    }
+                });
+            });
+    }
+
+    let awaitingFiles = {{ awaiting_files }};
+    let pollingIntervalHandle = null;
+
+    if (awaitingFiles.length > 0) {
+        pollingIntervalHandle = setInterval(pollFiles, 250);
+    }
+</script>
+{% endblock %}
+
+{% if not is_popup %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo;
+Data view
+</div>
+{% endblock %}
+{% endif %}
+
+{% block coltype %}{% endblock %}
+
+{% block content %}
+
+<form action="{% url 'multila_admin:dataexport' %}" method="post">
+    {% csrf_token %}
+
+    {{ configform }}
+
+    <input type="submit" value="Create data export">
+</form>
+
+
+<table style="width:100%;margin-top:2em" id="filelist">
+    <thead>
+        <tr>
+            <td>File</td>
+            <td>Action</td>
+        </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
+
+
+{% endblock %}

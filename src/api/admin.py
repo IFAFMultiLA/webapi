@@ -3,15 +3,28 @@ Admin backend.
 
 ModelAdmin classes to generate the django administration backend.
 """
+import csv
+import os.path
+import shutil
+import threading
+import tempfile
 from collections import defaultdict
+from functools import partial
+from glob import glob
+from time import sleep
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import User, Group
 from django.db.models import Count, Max, Avg, F
+from django.db import connection as db_conn
+from django.http import JsonResponse
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
+from django.conf import settings
 
 from .models import Application, ApplicationConfig, ApplicationSession
 
@@ -104,6 +117,7 @@ class MultiLAAdminSite(admin.AdminSite):
         custom_urls = [
             path('data/view/', self.admin_view(self.dataview), name='dataview'),
             path('data/export/', self.admin_view(self.dataexport), name='dataexport'),
+            path('data/export_filelist/', self.admin_view(self.dataexport_filelist), name='dataexport_filelist'),
         ]
         return custom_urls + urls
 
@@ -146,7 +160,8 @@ class MultiLAAdminSite(admin.AdminSite):
         def format_timedelta(t, _):
             if t is None:
                 return default_format(t)
-            return f'{int(t.total_seconds() // 60)}min {round((t.total_seconds() / 60 - t.total_seconds() // 60) * 60)}s'
+            return f'{int(t.total_seconds() // 60)}min ' \
+                   f'{round((t.total_seconds() / 60 - t.total_seconds() // 60) * 60)}s'
 
         def format_datetime(t, _):
             if t is None:
@@ -253,7 +268,7 @@ class MultiLAAdminSite(admin.AdminSite):
             **self.each_context(request),
             "title": "Data manager",
             "subtitle": "Data view",
-            "app_label": 'datamanager',
+            "app_label": "datamanager",
             "configform": configform,
             "table_columns": [COLUMN_DESCRIPTIONS[k] for k in data_fields if k in COLUMN_DESCRIPTIONS],
             "table_data": table_data.items()
@@ -263,17 +278,98 @@ class MultiLAAdminSite(admin.AdminSite):
 
         return TemplateResponse(request, "admin/dataview.html", context)
 
+    def dataexport_filelist(self, request):
+        return JsonResponse(sorted(map(os.path.basename, glob(os.path.join(settings.DATA_EXPORT_DIR, '*.csv')))),
+                            safe=False)
+
     def dataexport(self, request):
+        def create_export(dir, fname, app_sess):
+            fpath = os.path.join(dir, fname)
+
+            FIELDS = (
+                ("a.id", "app_id"),
+                ("a.name", "app_name"),
+                ("a.url", "app_url"),
+                ("ac.id", "app_config_id"),
+                ("ac.label", "app_config_label"),
+                ("asess.code", "app_sess_code"),
+                ("asess.auth_mode", "app_sess_auth_mode"),
+                ("au.code", "user_app_sess_code"),
+                ("au.user_id", "user_app_sess_user_id"),
+                ("t.id", "track_sess_id"),
+                ("t.start_time", "track_sess_start"),
+                ("t.end_time", "track_sess_end"),
+                ("t.device_info", "track_sess_device_info"),
+                ("e.time", "event_time"),
+                ("e.type", "event_type"),
+                ("e.value", "event_value"),
+            )
+
+            query_select = ','.join(f'{sqlfield} AS {csvfield}' for sqlfield, csvfield in FIELDS)
+
+            query = f"""SELECT {query_select} FROM api_application a
+                        LEFT JOIN api_applicationconfig ac on a.id = ac.application_id
+                        LEFT JOIN api_applicationsession asess on ac.id = asess.config_id
+                        LEFT JOIN api_userapplicationsession au on asess.code = au.application_session_id
+                        LEFT JOIN api_trackingsession t on au.id = t.user_app_session_id
+                        LEFT JOIN api_trackingevent e on t.id = e.tracking_session_id"""
+
+            if app_sess:
+                query += " WHERE asess.code = %s"
+
+            with open(fpath, 'w', newline='') as f:
+                csvwriter = csv.writer(f)
+                csvwriter.writerow(list(zip(*FIELDS))[1])
+
+                with db_conn.cursor() as cur:
+                    cur.execute(query, [app_sess] if app_sess else [])
+
+                    for dbrow in cur.fetchall():
+                        csvwriter.writerow(dbrow)
+
+            shutil.move(fpath, os.path.join(settings.DATA_EXPORT_DIR, fname))
+            request.session['dataexport_awaiting_files'].pop(fname)
+
+        app_sess_objs = ApplicationSession.objects.values(
+            'config__application__name', 'config__application__url', 'config__label', 'code', 'auth_mode'
+        ).order_by('config__application__name', 'config__label', 'auth_mode')
+        app_sess_opts = [('', '– all –')] + \
+                        [(sess['code'], f'{sess["config__application__name"]} '
+                                        f'/ {sess["config__label"]} /  {sess["code"]} (auth. mode {sess["auth_mode"]})')
+                         for sess in app_sess_objs]
+
+        class ConfigForm(forms.Form):
+            app_sess_select = forms.ChoiceField(label='Application session', choices=app_sess_opts, required=False)
+
+        if 'dataexport_awaiting_files' not in request.session:
+            request.session['dataexport_awaiting_files'] = []
+
+        if request.method == 'POST':
+            configform = ConfigForm(request.POST)
+
+            if configform.is_valid():
+                request.session['dataexport_configform'] = configform.cleaned_data
+                app_sess_select = request.session['dataexport_configform']['app_sess_select']
+                fname = f'{datetime.now(ZoneInfo(settings.TIME_ZONE)).strftime("%Y-%m-%d_%H%M%S")}_' \
+                        f'{app_sess_select or "all"}.csv'
+                request.session['dataexport_awaiting_files'].append(fname)
+                threading.Thread(target=create_export, args=[tempfile.mkdtemp(), fname, app_sess_select], daemon=True)\
+                    .start()
+        else:
+            configform = ConfigForm(request.session.get('dataexport_configform', {}))
+
+        request.current_app = self.name
+
         context = {
             **self.each_context(request),
             "title": "Data manager",
             "subtitle": "Data export",
-            "app_label": 'datamanager',
+            "app_label": "datamanager",
+            "configform": configform,
+            "awaiting_files": request.session['dataexport_awaiting_files']
         }
 
-        request.current_app = self.name
-
-        return TemplateResponse(request, "admin/dataview.html", context)
+        return TemplateResponse(request, "admin/dataexport.html", context)
 
 
 admin_site = MultiLAAdminSite(name='multila_admin')
