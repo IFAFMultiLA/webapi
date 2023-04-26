@@ -46,7 +46,7 @@ Common set up steps for both options
 - when all services were started successfully, run ``make migrate`` to run the initial database migrations
 - run ``make superuser`` to create a backend admin user
 - the web application is then available under ``http://localhost:8000``
-- a simple database administration web interface is then available under ``http://localhost:8080``
+- a simple database administration web interface is then available under ``http://localhost:8080/admin``
 
 Generating the documentation
 ----------------------------

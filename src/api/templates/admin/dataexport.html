@@ -15,14 +15,33 @@
         $ = django.jQuery;
     }
 
-    $(document).ready(function () {
-        function pollFiles() {
-            let t = $('#filelist tbody');
+    let pollingIntervalHandle = null;
 
-            fetch("{% url 'multila_admin:dataexport_filelist' %}")
-                .then(response => response.json())
-                .then(function (files) {
-                    let allReady = true;
+    function delFile(f) {
+        const delBaseURL = "{% url 'multila_admin:dataexport_delete' 'FILE' %}";
+
+        fetch(delBaseURL.replace("FILE", f)).then(function () {
+            $('#filelist tbody').empty();
+            pollFiles();
+        });
+    }
+
+    function pollFiles() {
+        let t = $('#filelist tbody');
+        const dlBaseURL = "{% url 'multila_admin:dataexport_download' 'FILE' %}";
+
+        fetch("{% url 'multila_admin:dataexport_filelist' %}")
+            .then(response => response.json())
+            .then(function (files) {
+                let allReady = true;
+                let noFilesRow = t.find("tr[data-key='nofiles']");
+
+                if (files.length === 0) {
+                    if (noFilesRow.length === 0) {
+                        t.append("<tr data-key='nofiles'><td colspan='3'>(no files)</td></tr>")
+                    }
+                } else {
+                    noFilesRow.remove();
                     files.forEach(function (fileStatus) {
                         const f = fileStatus[0];
                         const status = fileStatus[1] ? "ready" : "generating...";
@@ -34,19 +53,26 @@
                             tRow.find("td").eq(1).text(status);
                         } else {
                             t.append(
-                                "<tr data-key='" + f + "'><td>" + f + "</td><td>" + status + "</td><td></td></tr>"
+                                "<tr data-key='" + f + "'>" +
+                                    "<td><a href='" +  dlBaseURL.replace("FILE", f) + "'>" + f + "</a></td>" +
+                                    "<td>" + status + "</td>" +
+                                    "<td><a href='#' class='deletelink' onclick='delFile(\"" + f + "\")'>Delete</a></td>" +
+                                "</tr>"
                             );
                         }
                     });
+                }
 
-                    if (allReady && pollingIntervalHandle !== null) {
-                        clearInterval(pollingIntervalHandle);
-                        pollingIntervalHandle = null;
-                    }
-                });
-        }
+                if (allReady && pollingIntervalHandle !== null) {
+                    clearInterval(pollingIntervalHandle);
+                    pollingIntervalHandle = null;
+                }
+            }
+        );
+    }
 
-        let pollingIntervalHandle = setInterval(pollFiles, 250);
+    $(document).ready(function () {
+        pollingIntervalHandle = setInterval(pollFiles, 250);
     });
 </script>
 {% endblock %}
@@ -77,9 +103,9 @@ Data view
 <table style="width:100%;margin-top:2em" id="filelist">
     <thead>
         <tr>
-            <td>File</td>
-            <td>Status</td>
-            <td>Action</td>
+            <th style="width: 60%">File</th>
+            <th style="width: 30%">Status</th>
+            <th style="width: 10%">Action</th>
         </tr>
     </thead>
     <tbody>

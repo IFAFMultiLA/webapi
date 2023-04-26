@@ -9,7 +9,6 @@ import shutil
 import threading
 import tempfile
 from collections import defaultdict
-from functools import partial
 from glob import glob
 from time import sleep
 from datetime import datetime
@@ -20,9 +19,9 @@ from django.contrib import admin
 from django.contrib.auth.models import User, Group
 from django.db.models import Count, Max, Avg, F
 from django.db import connection as db_conn
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFound, FileResponse, HttpResponse
 from django.template.response import TemplateResponse
-from django.urls import path, reverse
+from django.urls import path, reverse, re_path
 from django.utils.safestring import mark_safe
 from django.conf import settings
 
@@ -108,6 +107,18 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
 # --- custom admin site ---
 
 
+def _path_to_export_file(file):
+    if not file or file.startswith('.') or file.count('.') != 1:
+        return HttpResponseForbidden()
+
+    fpath = os.path.join(settings.DATA_EXPORT_DIR, file)
+
+    if not os.path.exists(fpath):
+        return HttpResponseNotFound()
+
+    return fpath
+
+
 class MultiLAAdminSite(admin.AdminSite):
     site_header = 'MultiLA Administration Interface'
     site_url = None
@@ -118,6 +129,10 @@ class MultiLAAdminSite(admin.AdminSite):
             path('data/view/', self.admin_view(self.dataview), name='dataview'),
             path('data/export/', self.admin_view(self.dataexport), name='dataexport'),
             path('data/export_filelist/', self.admin_view(self.dataexport_filelist), name='dataexport_filelist'),
+            re_path(r'^data/export_download/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_download),
+                 name='dataexport_download'),
+            re_path(r'^data/export_delete/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_delete),
+                 name='dataexport_delete')
         ]
         return custom_urls + urls
 
@@ -288,6 +303,22 @@ class MultiLAAdminSite(admin.AdminSite):
             list(set(request.session['dataexport_awaiting_files']) - finished)
 
         return JsonResponse(response_data, safe=False)
+
+    def dataexport_download(self, request, file):
+        fpath_or_failresponse = _path_to_export_file(file)
+        if isinstance(fpath_or_failresponse, HttpResponse):
+            return fpath_or_failresponse
+
+        return FileResponse(open(fpath_or_failresponse, "rb"))
+
+    def dataexport_delete(self, request, file):
+        fpath_or_failresponse = _path_to_export_file(file)
+        if isinstance(fpath_or_failresponse, HttpResponse):
+            return fpath_or_failresponse
+
+        os.unlink(fpath_or_failresponse)
+
+        return HttpResponse(status=200)
 
     def dataexport(self, request):
         def create_export(dir, fname, app_sess):
