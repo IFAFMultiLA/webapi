@@ -1,5 +1,7 @@
 """
 Common utilities.
+
+.. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
 from django.utils.deprecation import MiddlewareMixin

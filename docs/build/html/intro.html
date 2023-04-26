@@ -38,9 +38,15 @@
 <section id="technical-requirements">
 <h2>Technical requirements<a class="headerlink" href="#technical-requirements" title="Permalink to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>Docker with Docker Compose v2 (recommended: run Docker in <em>rootless</em> mode)</p></li>
-<li><p>recommended: IDE with Docker Compose support (e.g. PyCharm Professional, VSCode)</p></li>
-<li><p>Python 3.11 if not running the web application in a docker container
+<li><p>Docker with Docker Compose v2 (recommended: run Docker in <em>rootless</em> mode)</p>
+<ul>
+<li><p>all you need is to <a class="reference external" href="https://docs.docker.com/engine/install/">install the Docker Engine</a> for your operating system
+(Docker Desktop is  optional)</p></li>
+<li><p>it is recommended to <a class="reference external" href="https://docs.docker.com/engine/security/rootless/">set up Docker in rootless mode</a> if your
+operating system supports it</p></li>
+</ul>
+</li>
+<li><p>Python 3.11 if not running the web application in a Docker container
 (see <em>Option 1: Using a venv on the local machine</em>)</p></li>
 </ul>
 </section>

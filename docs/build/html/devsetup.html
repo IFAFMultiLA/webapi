@@ -35,11 +35,13 @@
   <section id="local-development-setup">
 <span id="devsetup"></span><h1>Local development setup<a class="headerlink" href="#local-development-setup" title="Permalink to this heading">¶</a></h1>
 <p>There are two ways to set up a local development environment: either by using a Python virtual environment <em>(venv)</em>
-on the local machine to run the Python interpreter or to by using a Python interpreter inside a docker container.</p>
+on the local machine to run the Python interpreter or by using a Python interpreter inside a Docker container. The
+latter is currently harder to set up in conjunction with an IDE.</p>
 <section id="option-1-using-a-venv-on-the-local-machine">
 <h2>Option 1: Using a venv on the local machine<a class="headerlink" href="#option-1-using-a-venv-on-the-local-machine" title="Permalink to this heading">¶</a></h2>
 <ul class="simple">
-<li><p>create a Python 3.11 virtual environment and activate it</p></li>
+<li><p>create a Python 3.11 virtual environment and activate it (e.g. via <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">-m</span> <span class="pre">venv</span> <span class="pre">venv</span></code> in the project root
+directory and then activating it via <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">venv/bin/activate</span></code>)</p></li>
 <li><p>install the required packages via pip: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-r</span> <span class="pre">requirements.txt</span></code></p></li>
 <li><p>create a project in your IDE, set up the Python interpreter as the one you just created in the virtual environment</p></li>
 <li><p>copy <code class="docutils literal notranslate"><span class="pre">docker/compose_dev_db_only.yml</span></code> to <code class="docutils literal notranslate"><span class="pre">docker/compose_dev.yml</span></code></p></li>
@@ -49,7 +51,7 @@ on the local machine to run the Python interpreter or to by using a Python inter
 be ready yet when “web” is started – simply starting the services as second time should solve the problem</p></li>
 </ul>
 </li>
-<li><p>optional: create a launch configuration for Django in your IDE or</p></li>
+<li><p>optional: create a launch configuration for Django in your IDE</p></li>
 <li><p>start the web application using the launch configuration in your IDE or use <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">src/manage.py</span> <span class="pre">runserver</span></code></p></li>
 </ul>
 </section>
@@ -83,7 +85,7 @@ be ready yet when “web” is started – simply starting the services as secon
 <li><p>when all services were started successfully, run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">migrate</span></code> to run the initial database migrations</p></li>
 <li><p>run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">superuser</span></code> to create a backend admin user</p></li>
 <li><p>the web application is then available under <code class="docutils literal notranslate"><span class="pre">http://localhost:8000</span></code></p></li>
-<li><p>a simple database administration web interface is then available under <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code></p></li>
+<li><p>a simple database administration web interface is then available under <code class="docutils literal notranslate"><span class="pre">http://localhost:8080/admin</span></code></p></li>
 </ul>
 </section>
 <section id="generating-the-documentation">

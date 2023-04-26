@@ -1,0 +1,116 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block bodyclass %}{{ block.super }} app-{{ app_label }}{% endblock %}
+
+{% block extrahead %}
+
+{{ block.super }}
+
+<script src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+<script src="{% static 'admin/js/jquery.init.js' %}"></script>
+
+<script>
+    if (!$) {
+        $ = django.jQuery;
+    }
+
+    let pollingIntervalHandle = null;
+
+    function delFile(f) {
+        const delBaseURL = "{% url 'multila_admin:dataexport_delete' 'FILE' %}";
+
+        fetch(delBaseURL.replace("FILE", f)).then(function () {
+            $('#filelist tbody').empty();
+            pollFiles();
+        });
+    }
+
+    function pollFiles() {
+        let t = $('#filelist tbody');
+        const dlBaseURL = "{% url 'multila_admin:dataexport_download' 'FILE' %}";
+
+        fetch("{% url 'multila_admin:dataexport_filelist' %}")
+            .then(response => response.json())
+            .then(function (files) {
+                let allReady = true;
+                let noFilesRow = t.find("tr[data-key='nofiles']");
+
+                if (files.length === 0) {
+                    if (noFilesRow.length === 0) {
+                        t.append("<tr data-key='nofiles'><td colspan='3'>(no files)</td></tr>")
+                    }
+                } else {
+                    noFilesRow.remove();
+                    files.forEach(function (fileStatus) {
+                        const f = fileStatus[0];
+                        const status = fileStatus[1] ? "ready" : "generating...";
+                        allReady = allReady && fileStatus[1];
+
+                        let tRow = t.find("tr[data-key='" + f + "']");
+
+                        if (tRow.length > 0) {
+                            tRow.find("td").eq(1).text(status);
+                        } else {
+                            t.append(
+                                "<tr data-key='" + f + "'>" +
+                                    "<td><a href='" +  dlBaseURL.replace("FILE", f) + "'>" + f + "</a></td>" +
+                                    "<td>" + status + "</td>" +
+                                    "<td><a href='#' class='deletelink' onclick='delFile(\"" + f + "\")'>Delete</a></td>" +
+                                "</tr>"
+                            );
+                        }
+                    });
+                }
+
+                if (allReady && pollingIntervalHandle !== null) {
+                    clearInterval(pollingIntervalHandle);
+                    pollingIntervalHandle = null;
+                }
+            }
+        );
+    }
+
+    $(document).ready(function () {
+        pollingIntervalHandle = setInterval(pollFiles, 250);
+    });
+</script>
+{% endblock %}
+
+{% if not is_popup %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo;
+Data view
+</div>
+{% endblock %}
+{% endif %}
+
+{% block coltype %}{% endblock %}
+
+{% block content %}
+
+<form action="{% url 'multila_admin:dataexport' %}" method="post">
+    {% csrf_token %}
+
+    {{ configform }}
+
+    <input type="submit" value="Create data export">
+</form>
+
+
+<table style="width:100%;margin-top:2em" id="filelist">
+    <thead>
+        <tr>
+            <th style="width: 60%">File</th>
+            <th style="width: 30%">Status</th>
+            <th style="width: 10%">Action</th>
+        </tr>
+    </thead>
+    <tbody>
+    </tbody>
+</table>
+
+
+{% endblock %}

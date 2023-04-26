@@ -1,5 +1,7 @@
 """
 Serializers for storing data via REST API.
+
+.. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
 from rest_framework import serializers

@@ -4,12 +4,14 @@ Local development setup
 =======================
 
 There are two ways to set up a local development environment: either by using a Python virtual environment *(venv)*
-on the local machine to run the Python interpreter or to by using a Python interpreter inside a docker container.
+on the local machine to run the Python interpreter or by using a Python interpreter inside a Docker container. The
+latter is currently harder to set up in conjunction with an IDE.
 
 Option 1: Using a venv on the local machine
 -------------------------------------------
 
-- create a Python 3.11 virtual environment and activate it
+- create a Python 3.11 virtual environment and activate it (e.g. via ``python3 -m venv venv`` in the project root
+  directory and then activating it via ``source venv/bin/activate``)
 - install the required packages via pip: ``pip install -r requirements.txt``
 - create a project in your IDE, set up the Python interpreter as the one you just created in the virtual environment
 - copy ``docker/compose_dev_db_only.yml`` to ``docker/compose_dev.yml``
@@ -18,7 +20,7 @@ Option 1: Using a venv on the local machine
   - **note:** the first start of the "web" service may fail, since the database is initialized in parallel and may not
     be ready yet when "web" is started – simply starting the services as second time should solve the problem
 
-- optional: create a launch configuration for Django in your IDE or
+- optional: create a launch configuration for Django in your IDE
 - start the web application using the launch configuration in your IDE or use ``python src/manage.py runserver``
 
 Option 2: Using a Python interpreter inside a docker container
@@ -46,7 +48,7 @@ Common set up steps for both options
 - when all services were started successfully, run ``make migrate`` to run the initial database migrations
 - run ``make superuser`` to create a backend admin user
 - the web application is then available under ``http://localhost:8000``
-- a simple database administration web interface is then available under ``http://localhost:8080``
+- a simple database administration web interface is then available under ``http://localhost:8080/admin``
 
 Generating the documentation
 ----------------------------

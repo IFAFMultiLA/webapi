@@ -20,6 +20,12 @@ Initial deployment
     version: '2'
 
     services:
+      # # optional: DB admin web interface accessible on local port 8081
+      # adminer:
+      #  image: adminer
+      #  ports:
+      #    - 127.0.0.1:8081:8080
+
       db:
         image: postgres
         volumes:
@@ -88,3 +94,17 @@ Publishing updates
   ``make copy_static`` on the server
 - if there are changes in the dependencies, you need to rebuild the container as decribed above under
   *Initial deployment*, point (3)
+
+Optional DB administration interface
+------------------------------------
+
+If you have enabled the ``adminer`` service in the docker compose file above, a small DB administration web interface
+is running on port 8081 on the server. For security reasons, it is only accessible from localhost, i.e. you need to set
+up an SSH tunnel to make it available remotely from your machine. You can do so on your machine by running::
+
+    ssh -N -L 8081:localhost:8081 <USER>@<SERVER>
+
+, where ``<USER>@<SERVER>`` are the login name and the host name of the server, where docker containers are running.
+A shortcut is available in the Makefile as ``adminer_tunnel``. You can then go to ``http://localhost:8081/`` in your
+browser and login to the Postgres server (not MySQL!) using the ``POSTGRES_USER`` and ``POSTGRES_PASSWORD`` listed in
+the environment variabless of the docker compose file.

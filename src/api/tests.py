@@ -1,5 +1,7 @@
 """
 Automated tests.
+
+.. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
 from datetime import datetime, timedelta, timezone

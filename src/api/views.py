@@ -3,6 +3,8 @@ Views that expose the API endpoints.
 
 API endpoints that accept data via POST must pass the data in JSON format. When dates or times are passed, they must
 be formatted in ISO 8601 format.
+
+.. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
 from functools import wraps
