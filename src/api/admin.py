@@ -432,6 +432,8 @@ class MultiLAAdminSite(admin.AdminSite):
                         csvwriter.writerow(dbrow)
 
             # move the final data to the export directory
+            if not os.path.exists(settings.DATA_EXPORT_DIR):
+                os.mkdir(settings.DATA_EXPORT_DIR, 0o755)
             shutil.move(tmpfpath, os.path.join(settings.DATA_EXPORT_DIR, fname))
 
         # get all application sessions
