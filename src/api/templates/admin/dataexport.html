@@ -1,37 +1,53 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block bodyclass %}{{ block.super }} app-{{ app_label }}{% endblock %}
 
 {% block extrahead %}
+
+{{ block.super }}
+
+<script src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+<script src="{% static 'admin/js/jquery.init.js' %}"></script>
+
 <script>
-    function pollFiles() {
-        let t = $('#filelist tbody');
-        t.empty();
+    if (!$) {
+        $ = django.jQuery;
+    }
 
-        fetch("{% url 'multila_admin:dataexport_filelist' %}")
-            .then(response => response.json())
-            .then(function (files) {
-                files.forEach(function (f) {
-                    t.append("<tr><td>" + f + "</td><td></td></tr>");
+    $(document).ready(function () {
+        function pollFiles() {
+            let t = $('#filelist tbody');
 
-                    const fIndex = awaitingFiles.index(f);
-                    if (fIndex > -1) {
-                        awaitingFiles.splice(fIndex, 1);
-                    }
-                    if (awaitingFiles.length === 0 && pollingIntervalHandle !== null) {
+            fetch("{% url 'multila_admin:dataexport_filelist' %}")
+                .then(response => response.json())
+                .then(function (files) {
+                    let allReady = true;
+                    files.forEach(function (fileStatus) {
+                        const f = fileStatus[0];
+                        const status = fileStatus[1] ? "ready" : "generating...";
+                        allReady = allReady && fileStatus[1];
+
+                        let tRow = t.find("tr[data-key='" + f + "']");
+
+                        if (tRow.length > 0) {
+                            tRow.find("td").eq(1).text(status);
+                        } else {
+                            t.append(
+                                "<tr data-key='" + f + "'><td>" + f + "</td><td>" + status + "</td><td></td></tr>"
+                            );
+                        }
+                    });
+
+                    if (allReady && pollingIntervalHandle !== null) {
                         clearInterval(pollingIntervalHandle);
+                        pollingIntervalHandle = null;
                     }
                 });
-            });
-    }
+        }
 
-    let awaitingFiles = {{ awaiting_files }};
-    let pollingIntervalHandle = null;
-
-    if (awaitingFiles.length > 0) {
-        pollingIntervalHandle = setInterval(pollFiles, 250);
-    }
+        let pollingIntervalHandle = setInterval(pollFiles, 250);
+    });
 </script>
 {% endblock %}
 
@@ -62,6 +78,7 @@ Data view
     <thead>
         <tr>
             <td>File</td>
+            <td>Status</td>
             <td>Action</td>
         </tr>
     </thead>

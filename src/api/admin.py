@@ -279,8 +279,15 @@ class MultiLAAdminSite(admin.AdminSite):
         return TemplateResponse(request, "admin/dataview.html", context)
 
     def dataexport_filelist(self, request):
-        return JsonResponse(sorted(map(os.path.basename, glob(os.path.join(settings.DATA_EXPORT_DIR, '*.csv')))),
-                            safe=False)
+        finished = set(map(os.path.basename, glob(os.path.join(settings.DATA_EXPORT_DIR, '*.csv'))))
+
+        all_files = sorted(finished | set(request.session['dataexport_awaiting_files']))
+        response_data = [(f, f in finished) for f in all_files]
+
+        request.session['dataexport_awaiting_files'] = \
+            list(set(request.session['dataexport_awaiting_files']) - finished)
+
+        return JsonResponse(response_data, safe=False)
 
     def dataexport(self, request):
         def create_export(dir, fname, app_sess):
@@ -327,8 +334,9 @@ class MultiLAAdminSite(admin.AdminSite):
                     for dbrow in cur.fetchall():
                         csvwriter.writerow(dbrow)
 
+            sleep(3)
+
             shutil.move(fpath, os.path.join(settings.DATA_EXPORT_DIR, fname))
-            request.session['dataexport_awaiting_files'].pop(fname)
 
         app_sess_objs = ApplicationSession.objects.values(
             'config__application__name', 'config__application__url', 'config__label', 'code', 'auth_mode'
@@ -365,8 +373,7 @@ class MultiLAAdminSite(admin.AdminSite):
             "title": "Data manager",
             "subtitle": "Data export",
             "app_label": "datamanager",
-            "configform": configform,
-            "awaiting_files": request.session['dataexport_awaiting_files']
+            "configform": configform
         }
 
         return TemplateResponse(request, "admin/dataexport.html", context)
