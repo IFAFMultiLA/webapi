@@ -5,7 +5,9 @@ Automated tests.
 """
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.admin.sites import all_sites
@@ -15,6 +17,13 @@ from unittest_parametrize import parametrize, param, ParametrizedTestCase
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
     UserApplicationSession, User, TrackingSession, TrackingEvent
+
+
+# ----- helper functions -----
+
+
+def tznow():
+    return datetime.now(ZoneInfo(settings.TIME_ZONE))
 
 
 # ----- views -----
@@ -76,7 +85,8 @@ class ModelsCommonTests(TestCase):
 
     def test_current_time_bytes(self):
         self.assertIsInstance(current_time_bytes(), bytes)
-        self.assertTrue(datetime.now() - datetime.fromtimestamp(float.fromhex(current_time_bytes().decode('utf-8')))
+        self.assertTrue(tznow() - datetime.fromtimestamp(float.fromhex(current_time_bytes().decode('utf-8')),
+                                                         ZoneInfo(settings.TIME_ZONE))
                         < timedelta(seconds=1))
 
 
@@ -389,7 +399,7 @@ class ViewTests(CustomAPITestCase):
 
         # test start tracking
         url = reverse('start_tracking')
-        now = datetime.utcnow()
+        now = tznow()
         valid_data = {'sess': self.app_sess_no_auth.code, 'start_time': now.isoformat()}
 
         # failures
@@ -404,6 +414,14 @@ class ViewTests(CustomAPITestCase):
                          status.HTTP_400_BAD_REQUEST)  # missing start_time
         self.assertEqual(self.client.post_json(url, data=valid_data, auth_token='foo').status_code,
                          status.HTTP_401_UNAUTHORIZED)  # wrong auth token
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'start_time': (now + timedelta(minutes=5)).isoformat()},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # start time is in future
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'start_time': (now - timedelta(minutes=120)).isoformat()},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # start time is too long in past
 
         # OK without device_info
         response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
@@ -444,14 +462,14 @@ class ViewTests(CustomAPITestCase):
         # start tracking
         response = self.client.post_json(reverse('start_tracking'),
                                          data={'sess': self.app_sess_no_auth.code,
-                                               'start_time': datetime.utcnow().isoformat()},
+                                               'start_time': tznow().isoformat()},
                                          auth_token=auth_token)
 
         tracking_sess_id = response.json()['tracking_session_id']
 
         # test stop tracking
         url = reverse('stop_tracking')
-        now = datetime.utcnow()
+        now = tznow()
         valid_data = {'sess': self.app_sess_no_auth.code,
                       'end_time': now.isoformat(),
                       'tracking_session_id': tracking_sess_id}
@@ -478,6 +496,16 @@ class ViewTests(CustomAPITestCase):
                          status.HTTP_400_BAD_REQUEST)  # wrong tracking_session_id
         self.assertEqual(self.client.post_json(url, data=valid_data, auth_token='foo').status_code,
                          status.HTTP_401_UNAUTHORIZED)  # wrong auth token
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'end_time': (now + timedelta(minutes=5)).isoformat(),
+                                                          'tracking_session_id': tracking_sess_id},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # end time is in future
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'end_time': (now - timedelta(minutes=120)).isoformat(),
+                                                          'tracking_session_id': tracking_sess_id},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # end time is too long in past
 
         # OK
         response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
@@ -491,7 +519,7 @@ class ViewTests(CustomAPITestCase):
                          status.HTTP_400_BAD_REQUEST)
 
         # start tracking with same user session -> receive new tracking session ID
-        now2 = datetime.utcnow()
+        now2 = tznow()
         response = self.client.post_json(reverse('start_tracking'),
                                          data={'sess': self.app_sess_no_auth.code,
                                                'start_time': now2.isoformat()},
@@ -509,14 +537,14 @@ class ViewTests(CustomAPITestCase):
         # start tracking
         response = self.client.post_json(reverse('start_tracking'),
                                          data={'sess': self.app_sess_no_auth.code,
-                                               'start_time': datetime.utcnow().isoformat()},
+                                               'start_time': tznow().isoformat()},
                                          auth_token=auth_token)
 
         tracking_sess_id = response.json()['tracking_session_id']
 
         # test tracking events
         url = reverse('track_event')
-        now = datetime.utcnow()
+        now = tznow()
         test_event_no_val = {"time": now.isoformat(), "type": "testtype"}
         test_event_with_val = dict(**test_event_no_val, value={"testkey": "testvalue"})
         valid_data_no_val = {'sess': self.app_sess_no_auth.code,
@@ -548,6 +576,22 @@ class ViewTests(CustomAPITestCase):
                          status.HTTP_400_BAD_REQUEST)  # wrong tracking_session_id
         self.assertEqual(self.client.post_json(url, data=valid_data_no_val, auth_token='foo').status_code,
                          status.HTTP_401_UNAUTHORIZED)  # wrong auth token
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'tracking_session_id': tracking_sess_id,
+                                                          'event': {
+                                                              "time": (now + timedelta(minutes=5)).isoformat(),
+                                                              "type": "testtype"}
+                                                          },
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # time is in future
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                          'tracking_session_id': tracking_sess_id,
+                                                          'event': {
+                                                              "time": (now - timedelta(minutes=120)).isoformat(),
+                                                              "type": "testtype"}
+                                                          },
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # time is too long in past
 
         # OK without event value
         response = self.client.post_json(url, data=valid_data_no_val, auth_token=auth_token)
@@ -569,7 +613,7 @@ class ViewTests(CustomAPITestCase):
         # stop tracking
         self.assertEqual(self.client.post_json(reverse('start_tracking'), data={
             'sess': self.app_sess_no_auth.code,
-            'end_time': datetime.utcnow().isoformat(),
+            'end_time': tznow().isoformat(),
             'tracking_session_id': tracking_sess_id
         }, auth_token=auth_token).status_code, status.HTTP_200_OK)
 

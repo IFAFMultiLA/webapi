@@ -26,9 +26,15 @@ SECRET_KEY = os.environ['SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['*']           # TODO: restrict this
-CORS_ALLOW_ALL_ORIGINS = True   # TODO: restrict this
-CORS_ALLOW_CREDENTIALS = True
+ALLOWED_HOSTS = [
+    'rshiny.f4.htw-berlin.de',
+    '.localhost',
+    '127.0.0.1',
+    '[::1]'
+]
+CORS_ALLOWED_ORIGINS = [
+    'https://rshiny.f4.htw-berlin.de'
+]
 
 # Application definition
 
@@ -47,6 +53,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -124,7 +131,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = '/api_static_files/'
-DATA_EXPORT_DIR = BASE_DIR.parent / 'data' / 'export'
+DATA_EXPORT_DIR = '/data_export'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
