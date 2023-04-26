@@ -49,6 +49,12 @@
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;2&#39;</span>
 
 <span class="nt">services</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># # optional: DB admin web interface accessible on local port 8081</span>
+<span class="w">  </span><span class="c1"># adminer:</span>
+<span class="w">  </span><span class="c1">#  image: adminer</span>
+<span class="w">  </span><span class="c1">#  ports:</span>
+<span class="w">  </span><span class="c1">#    - 127.0.0.1:8081:8080</span>
+
 <span class="w">  </span><span class="nt">db</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span>
 <span class="w">    </span><span class="nt">volumes</span><span class="p">:</span>
@@ -129,6 +135,19 @@ application</p></li>
 <em>Initial deployment</em>, point (3)</p></li>
 </ul>
 </section>
+<section id="optional-db-administration-interface">
+<h2>Optional DB administration interface<a class="headerlink" href="#optional-db-administration-interface" title="Permalink to this heading">¶</a></h2>
+<p>If you have enabled the <code class="docutils literal notranslate"><span class="pre">adminer</span></code> service in the docker compose file above, a small DB administration web interface
+is running on port 8081 on the server. For security reasons, it is only accessible from localhost, i.e. you need to set
+up an SSH tunnel to make it available remotely from your machine. You can do so on your machine by running:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ssh</span> <span class="o">-</span><span class="n">N</span> <span class="o">-</span><span class="n">L</span> <span class="mi">8081</span><span class="p">:</span><span class="n">localhost</span><span class="p">:</span><span class="mi">8081</span> <span class="o">&lt;</span><span class="n">USER</span><span class="o">&gt;@&lt;</span><span class="n">SERVER</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>, where <code class="docutils literal notranslate"><span class="pre">&lt;USER&gt;&#64;&lt;SERVER&gt;</span></code> are the login name and the host name of the server, where docker containers are running.
+A shortcut is available in the Makefile as <code class="docutils literal notranslate"><span class="pre">adminer_tunnel</span></code>. You can then go to <code class="docutils literal notranslate"><span class="pre">http://localhost:8081/</span></code> in your
+browser and login to the Postgres server (not MySQL!) using the <code class="docutils literal notranslate"><span class="pre">POSTGRES_USER</span></code> and <code class="docutils literal notranslate"><span class="pre">POSTGRES_PASSWORD</span></code> listed in
+the environment variabless of the docker compose file.</p>
+</section>
 </section>
 
 
@@ -157,6 +176,7 @@ application</p></li>
 <li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#initial-deployment">Initial deployment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#publishing-updates">Publishing updates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#optional-db-administration-interface">Optional DB administration interface</a></li>
 </ul>
 </li>
 </ul>

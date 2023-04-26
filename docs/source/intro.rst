@@ -9,8 +9,13 @@ Technical requirements
 ----------------------
 
 - Docker with Docker Compose v2 (recommended: run Docker in *rootless* mode)
-- recommended: IDE with Docker Compose support (e.g. PyCharm Professional, VSCode)
-- Python 3.11 if not running the web application in a docker container
+
+  - all you need is to `install the Docker Engine <https://docs.docker.com/engine/install/>`_ for your operating system
+    (Docker Desktop is  optional)
+  - it is recommended to `set up Docker in rootless mode <https://docs.docker.com/engine/security/rootless/>`_ if your
+    operating system supports it
+
+- Python 3.11 if not running the web application in a Docker container
   (see *Option 1: Using a venv on the local machine*)
 
 Software and frameworks used in this project

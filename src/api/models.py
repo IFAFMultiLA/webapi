@@ -1,5 +1,7 @@
 """
 Model definitions.
+
+.. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
 import hashlib

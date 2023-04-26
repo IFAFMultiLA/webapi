@@ -2,6 +2,8 @@
 Admin backend.
 
 ModelAdmin classes to generate the django administration backend.
+
+.. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 import csv
 import os.path
@@ -10,7 +12,6 @@ import threading
 import tempfile
 from collections import defaultdict
 from glob import glob
-from time import sleep
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -108,6 +109,10 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
 
 
 def _path_to_export_file(file):
+    """
+    Helper function to get absolute path to exportable `file`. If `file` does not exist at data export directory or
+    `file` string is malformed, return a HTTP error response.
+    """
     if not file or file.startswith('.') or file.count('.') != 1:
         return HttpResponseForbidden()
 
@@ -120,10 +125,16 @@ def _path_to_export_file(file):
 
 
 class MultiLAAdminSite(admin.AdminSite):
+    """
+    Custom administration site.
+    """
     site_header = 'MultiLA Administration Interface'
-    site_url = None
+    site_url = None   # disable "view on site" link since there is no real frontend
 
     def get_urls(self):
+        """
+        Expand admin URLs by custom views.
+        """
         urls = super().get_urls()
         custom_urls = [
             path('data/view/', self.admin_view(self.dataview), name='dataview'),
@@ -137,6 +148,9 @@ class MultiLAAdminSite(admin.AdminSite):
         return custom_urls + urls
 
     def get_app_list(self, request, app_label=None):
+        """
+        Expand app list by custom views for a "data manager".
+        """
         app_list = super().get_app_list(request)
 
         datamanager_app = {
@@ -144,7 +158,7 @@ class MultiLAAdminSite(admin.AdminSite):
             'app_label': 'datamanager',
             'app_url': reverse('multila_admin:dataview'),
             'has_module_perms': request.user.is_superuser,
-            'models': [
+            'models': [   # "models" actually refer only to custom views – there are no specific datamanager models
                 {
                     'model': None,
                     'object_name': 'View',
@@ -169,6 +183,11 @@ class MultiLAAdminSite(admin.AdminSite):
         return app_list
 
     def dataview(self, request):
+        """
+        Custom view for "dataview", i.e. overview of collected data.
+        """
+
+        # data formatting functions for the table; see COLUMN_FORMATING below
         def default_format(v, _=None):
             return '-' if v is None else v
 
@@ -196,12 +215,14 @@ class MultiLAAdminSite(admin.AdminSite):
                                      args=[row["applicationconfig__applicationsession"]])
             return mark_safe(f'<a href={app_config_url}>{v}</a>')
 
+        # aggregation level choices for form
         CONFIGFORM_GROUPBY_CHOICES = [
             ('app', 'Application'),
             ('app_config', 'Application config.'),
             ('app_session', 'Application session')
         ]
 
+        # map field names to "human readable" column names
         COLUMN_DESCRIPTIONS = {
             'applicationconfig__label': 'Application config.',
             'applicationconfig__applicationsession__code': 'App. session code',
@@ -216,6 +237,7 @@ class MultiLAAdminSite(admin.AdminSite):
             'most_recent_event': 'Most recently recorded event'
         }
 
+        # map field names to custom formating functions
         COLUMN_FORMATING = {
             'avg_trackingsess_duration': format_timedelta,
             'most_recent_trackingsess': format_datetime,
@@ -224,27 +246,34 @@ class MultiLAAdminSite(admin.AdminSite):
             'applicationconfig__applicationsession__code': format_app_session
         }
 
+        # form to select the aggregation level
         class ConfigForm(forms.Form):
             groupby = forms.ChoiceField(label='Group by', choices=CONFIGFORM_GROUPBY_CHOICES, required=False)
 
-        if request.method == 'POST':
+        # handle request
+        if request.method == 'POST':   # form was submitted: populate with submitted data
             configform = ConfigForm(request.POST)
 
-            if configform.is_valid():
+            if configform.is_valid():  # store submitted data in session
                 request.session['dataview_configform'] = configform.cleaned_data
-        else:
+        else:   # form was not submitted: populate with default values stored in sesssion
             configform = ConfigForm(request.session.get('dataview_configform', {}))
 
+        # get aggregation level "groupby" stored in session
         viewconfig = request.session.get('dataview_configform', {})
         groupby = viewconfig.get('groupby', CONFIGFORM_GROUPBY_CHOICES[0][0])
 
+        # table expressions
         usersess_expr = 'applicationconfig__applicationsession__userapplicationsession'
         trackingsess_expr = usersess_expr + '__trackingsession'
         trackingevent_expr = trackingsess_expr + '__trackingevent'
+
+        # fields that are always fetched
         toplevel_fields = ['name', 'url']
         stats_fields = ['n_users', 'n_nonanon_users', 'n_nonanon_logins', 'n_trackingsess',
                         'most_recent_trackingsess', 'avg_trackingsess_duration', 'n_events', 'most_recent_event']
 
+        # fields specific for aggregation level
         if groupby == 'app':
             group_fields = []
         elif groupby == 'app_config':
@@ -257,10 +286,14 @@ class MultiLAAdminSite(admin.AdminSite):
         else:
             raise ValueError(f'invalid value for "groupby": {groupby}')
 
+        # all fields that are fetched
         data_fields = toplevel_fields + group_fields + stats_fields
+        # fields used for sorting
         order_fields = toplevel_fields + group_fields
+        # fields that are fetched but that should not be displayed
         hidden_fields = set(toplevel_fields) | {'applicationconfig', 'applicationconfig__applicationsession'}
 
+        # fetch the data from the DB
         data_rows = Application.objects\
             .annotate(n_users=Count(usersess_expr, distinct=True),
                       n_nonanon_users=Count(usersess_expr + '__user', distinct=True),
@@ -273,12 +306,15 @@ class MultiLAAdminSite(admin.AdminSite):
                       most_recent_event=Max(trackingevent_expr + '__time'))\
             .order_by(*order_fields).values(*data_fields)
 
+        # format the data for display
+        # `table_data` is a dict for grouped table data per app; maps tuple (app name, app url) to formatted data rows
         table_data = defaultdict(list)
         for row in data_rows:
             formatted_row = [COLUMN_FORMATING.get(k, default_format)(row[k], row)
                              for k in data_fields if k not in hidden_fields]
             table_data[(row['name'], row['url'])].append(formatted_row)
 
+        # set template variables
         context = {
             **self.each_context(request),
             "title": "Data manager",
@@ -294,36 +330,65 @@ class MultiLAAdminSite(admin.AdminSite):
         return TemplateResponse(request, "admin/dataview.html", context)
 
     def dataexport_filelist(self, request):
+        """
+        JSON endpoint for data export file table. Returns list of files along with their status as list of tuples with
+        `(file_name, file_status)`, where `file_status` is a bool. For this value, true indicates that the file is ready
+        to be downloaded, false indicates that the file is currently being generated.
+        """
+        # finished files are those from the data export directory
         finished = set(map(os.path.basename, glob(os.path.join(settings.DATA_EXPORT_DIR, '*.csv'))))
 
+        # add the files that are currently being generated to form the set of all files
         all_files = sorted(finished | set(request.session['dataexport_awaiting_files']))
+
+        # generate response data as list of tuples `(file_name, file_status)`
         response_data = [(f, f in finished) for f in all_files]
 
+        # remove already finished files from the set of files are being generated
         request.session['dataexport_awaiting_files'] = \
             list(set(request.session['dataexport_awaiting_files']) - finished)
 
         return JsonResponse(response_data, safe=False)
 
     def dataexport_download(self, request, file):
+        """
+        Data download view. Allows to download the exported `file`. Should be wrapped as `admin_view` for permission
+        checking. Returns a `FileResponse`.
+        """
         fpath_or_failresponse = _path_to_export_file(file)
         if isinstance(fpath_or_failresponse, HttpResponse):
             return fpath_or_failresponse
 
-        return FileResponse(open(fpath_or_failresponse, "rb"))
+        return FileResponse(open(fpath_or_failresponse, "rb"), as_attachment=True)
 
     def dataexport_delete(self, request, file):
+        """
+        Data deletion view. Allows to delete the exported `file`. Returns an empty HTTP 200 response.
+        """
         fpath_or_failresponse = _path_to_export_file(file)
         if isinstance(fpath_or_failresponse, HttpResponse):
             return fpath_or_failresponse
 
+        # delete
         os.unlink(fpath_or_failresponse)
 
         return HttpResponse(status=200)
 
     def dataexport(self, request):
-        def create_export(dir, fname, app_sess):
-            fpath = os.path.join(dir, fname)
+        """
+        Data export view. Allows to generate data exports that can be generated. Lists all generated data exports.
+        """
+        def create_export(fname, app_sess):
+            """
+            Internal function to generate a data export file named `fname` for an application session `app_sess`.
+            If `app_sess` is empty or None, we will generate a data export for all application sessions.
+            """
+            # create a temporary directory; all generated data will at first be placed in this directory; the final
+            # data will then be moved to the export directory
+            tmpdir = tempfile.mkdtemp()
+            tmpfpath = os.path.join(tmpdir, fname)
 
+            # map SQL query field names to CSV column names
             FIELDS = (
                 ("a.id", "app_id"),
                 ("a.name", "app_name"),
@@ -343,8 +408,8 @@ class MultiLAAdminSite(admin.AdminSite):
                 ("e.value", "event_value"),
             )
 
+            # build the query
             query_select = ','.join(f'{sqlfield} AS {csvfield}' for sqlfield, csvfield in FIELDS)
-
             query = f"""SELECT {query_select} FROM api_application a
                         LEFT JOIN api_applicationconfig ac on a.id = ac.application_id
                         LEFT JOIN api_applicationsession asess on ac.id = asess.config_id
@@ -355,7 +420,8 @@ class MultiLAAdminSite(admin.AdminSite):
             if app_sess:
                 query += " WHERE asess.code = %s"
 
-            with open(fpath, 'w', newline='') as f:
+            # write the output
+            with open(tmpfpath, 'w', newline='') as f:
                 csvwriter = csv.writer(f)
                 csvwriter.writerow(list(zip(*FIELDS))[1])
 
@@ -365,40 +431,51 @@ class MultiLAAdminSite(admin.AdminSite):
                     for dbrow in cur.fetchall():
                         csvwriter.writerow(dbrow)
 
-            sleep(3)
+            # move the final data to the export directory
+            shutil.move(tmpfpath, os.path.join(settings.DATA_EXPORT_DIR, fname))
 
-            shutil.move(fpath, os.path.join(settings.DATA_EXPORT_DIR, fname))
-
+        # get all application sessions
         app_sess_objs = ApplicationSession.objects.values(
             'config__application__name', 'config__application__url', 'config__label', 'code', 'auth_mode'
         ).order_by('config__application__name', 'config__label', 'auth_mode')
+
+        # generate options to select an application session in the form
         app_sess_opts = [('', '– all –')] + \
                         [(sess['code'], f'{sess["config__application__name"]} '
                                         f'/ {sess["config__label"]} /  {sess["code"]} (auth. mode {sess["auth_mode"]})')
                          for sess in app_sess_objs]
 
+        # export config. form
         class ConfigForm(forms.Form):
             app_sess_select = forms.ChoiceField(label='Application session', choices=app_sess_opts, required=False)
 
+        # prepare session data
         if 'dataexport_awaiting_files' not in request.session:
             request.session['dataexport_awaiting_files'] = []
 
-        if request.method == 'POST':
+        if request.method == 'POST':   # handle form submit; pass submitted data to form and generate data export
             configform = ConfigForm(request.POST)
 
             if configform.is_valid():
                 request.session['dataexport_configform'] = configform.cleaned_data
+
+                # get selected app session
                 app_sess_select = request.session['dataexport_configform']['app_sess_select']
+
+                # generate a file name
                 fname = f'{datetime.now(ZoneInfo(settings.TIME_ZONE)).strftime("%Y-%m-%d_%H%M%S")}_' \
                         f'{app_sess_select or "all"}.csv'
+
+                # add the file name to the list of files that are being generated
                 request.session['dataexport_awaiting_files'].append(fname)
-                threading.Thread(target=create_export, args=[tempfile.mkdtemp(), fname, app_sess_select], daemon=True)\
+
+                # start a background thread that will generate the data export
+                threading.Thread(target=create_export, args=[fname, app_sess_select], daemon=True)\
                     .start()
-        else:
+        else:   # no form submit; only display exported data
             configform = ConfigForm(request.session.get('dataexport_configform', {}))
 
-        request.current_app = self.name
-
+        # set template variables
         context = {
             **self.each_context(request),
             "title": "Data manager",
@@ -406,6 +483,8 @@ class MultiLAAdminSite(admin.AdminSite):
             "app_label": "datamanager",
             "configform": configform
         }
+
+        request.current_app = self.name
 
         return TemplateResponse(request, "admin/dataexport.html", context)
 
