@@ -20,7 +20,7 @@ from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view
 
-from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession
+from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer
 
 
@@ -128,6 +128,11 @@ def app_session(request):
     authentication, this view will additionally generate a user code `user_code` (that must be used as authentication
     token for further requests) and an application configuration.
 
+    If no session code is passed via GET parameter `sess`, then it is tried to obtain the code of a default application
+    session. This is done by checking if either a referrer passed via `referrer` GET parameter or HTTP "referer" header
+    is listed in the URLs of the applications and if such an application has a default application session, its code is
+    returned as `sess_code` in a JSON object.
+
     Checking this view locally with `curl`:
 
         curl -c /tmp/cookies.txt -b /tmp/cookies.txt \
@@ -136,7 +141,7 @@ def app_session(request):
     Returns a JSON response with:
 
     - `sess_code`: session code
-    - `auth_mode`: authentication mode ("none" or "login")
+    - optional `auth_mode`: authentication mode ("none" or "login") if `sess` was passed
     - optional `user_code`: generated user authentication token (when `auth_mode` is "none")
     - optional `config`: application configuration as JSON object (when `auth_mode` is "none")
     """
@@ -164,8 +169,16 @@ def app_session(request):
                 return_status = status.HTTP_200_OK
 
             return JsonResponse(response_data, status=return_status)
-        else:
-            return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+        elif referrer := request.GET.get('referrer', request.META.get('HTTP_REFERER', None)):
+            default_app_sessions = Application.objects.filter(default_application_session__isnull=False)\
+                .values('url', 'default_application_session__code')
+
+            for app_sess in default_app_sessions:
+                if app_sess['url'] == referrer or (referrer.endswith('/') and app_sess['url'] + '/' == referrer):
+                    return JsonResponse({'sess_code': app_sess['default_application_session__code']},
+                                        status=status.HTTP_200_OK)
+
+        return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])

@@ -39,6 +39,7 @@ class Application(models.Model):
     url = models.URLField('URL', max_length=512, unique=True, blank=False)
     updated = models.DateTimeField('Last update', auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+    default_application_session = models.ForeignKey('ApplicationSession', null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
         return f'Application #{self.pk} "{self.name}" at {self.url}'
@@ -101,7 +102,7 @@ class ApplicationSession(models.Model):
         return f'{baseurl}?sess={self.code}'
 
     def __str__(self):
-        return f'Application session "{self.code}" for configuration #{self.config_id}'
+        return f'Application session "{self.code}" (auth. "{self.auth_mode}") for configuration #{self.config_id}'
 
 
 class UserApplicationSession(models.Model):
