@@ -36,9 +36,9 @@ class ApplicationAdmin(admin.ModelAdmin):
     """
     Admin for Application model.
     """
-    fields = ['name', 'url', 'updated', 'updated_by']
+    fields = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
     readonly_fields = ['updated', 'updated_by']
-    list_display = ['name', 'url', 'updated', 'updated_by']
+    list_display = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
 
     def save_model(self, request, obj, form, change):
         """
@@ -46,6 +46,20 @@ class ApplicationAdmin(admin.ModelAdmin):
         """
         obj.updated_by = request.user
         return super().save_model(request, obj, form, change)
+
+    def get_fields(self, request, obj=None):
+        fields = self.fields
+        if obj:
+            return fields
+        else:
+            return [f for f in fields if f != 'default_application_session']
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        form = super().get_form(request, obj=obj, change=change, **kwargs)
+        form.base_fields['default_application_session'].required = False
+        form.base_fields['default_application_session'].queryset = ApplicationSession.objects.filter(config__application=obj)
+
+        return form
 
 
 class ApplicationConfigAdmin(admin.ModelAdmin):
