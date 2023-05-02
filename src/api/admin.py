@@ -29,6 +29,20 @@ from django.conf import settings
 from .models import Application, ApplicationConfig, ApplicationSession
 
 
+DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
+
+
+def utc_to_default_tz(t):
+    """
+    Helper function to add the default time zone set in `settings.TIME_ZONE` and its respective offset to a datetime
+    object `t`.
+
+    Note that PostgreSQL doesn't save the timezone for a timestamp column. It should be recorded in a separated column.
+    To circumvent that, we use a global default timezone for now.
+    """
+    return (t + t.replace(tzinfo=DEFAULT_TZINFO).utcoffset()).replace(tzinfo=DEFAULT_TZINFO)
+
+
 # --- model admins ---
 
 
@@ -214,7 +228,7 @@ class MultiLAAdminSite(admin.AdminSite):
         def format_datetime(t, _):
             if t is None:
                 return default_format(t)
-            return t.strftime('%Y-%m-%d %H:%M:%S')
+            return utc_to_default_tz(t).strftime('%Y-%m-%d %H:%M:%S')
 
         def format_app_config(v, row):
             if v is None:
@@ -379,6 +393,9 @@ class MultiLAAdminSite(admin.AdminSite):
         """
         Data deletion view. Allows to delete the exported `file`. Returns an empty HTTP 200 response.
         """
+        request.session['dataexport_awaiting_files'] = [f for f in request.session['dataexport_awaiting_files']
+                                                        if f != file]
+
         fpath_or_failresponse = _path_to_export_file(file)
         if isinstance(fpath_or_failresponse, HttpResponse):
             return fpath_or_failresponse
@@ -422,6 +439,12 @@ class MultiLAAdminSite(admin.AdminSite):
                 ("e.value", "event_value"),
             )
 
+            def format_if_datetime(x):
+                if isinstance(x, datetime):
+                    return utc_to_default_tz(x).strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    return x
+
             # build the query
             query_select = ','.join(f'{sqlfield} AS {csvfield}' for sqlfield, csvfield in FIELDS)
             query = f"""SELECT {query_select} FROM api_application a
@@ -437,13 +460,13 @@ class MultiLAAdminSite(admin.AdminSite):
             # write the output
             with open(tmpfpath, 'w', newline='') as f:
                 csvwriter = csv.writer(f)
-                csvwriter.writerow(list(zip(*FIELDS))[1])
+                csvwriter.writerow(list(zip(*FIELDS))[1])  # header
 
                 with db_conn.cursor() as cur:
                     cur.execute(query, [app_sess] if app_sess else [])
 
                     for dbrow in cur.fetchall():
-                        csvwriter.writerow(dbrow)
+                        csvwriter.writerow(map(format_if_datetime, dbrow))
 
             # move the final data to the export directory
             if not os.path.exists(settings.DATA_EXPORT_DIR):

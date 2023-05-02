@@ -198,6 +198,22 @@ class ViewTests(CustomAPITestCase):
         self.app_sess_login.generate_code()
         self.app_sess_login.save()
 
+        # create a second test app
+        self.app_with_default_sess = Application.objects.create(name='test app 2', url='https://test2.app')
+
+        # create a config for this app
+        app_config = ApplicationConfig.objects.create(application=self.app_with_default_sess, label='test config 2',
+                                                      config={})
+
+        # create an app session w/o authentication
+        self.app_sess_no_auth2 = ApplicationSession(config=app_config, auth_mode='none')
+        self.app_sess_no_auth2.generate_code()
+        self.app_sess_no_auth2.save()
+
+        # set this app session as default for this app
+        self.app_with_default_sess.default_application_session = self.app_sess_no_auth2
+        self.app_with_default_sess.save()
+
     def test_404(self):
         response = self.client.get('foo', content_type='application/json')
         self.assertEqual(response.headers['Content-Type'], 'application/json')
@@ -244,6 +260,34 @@ class ViewTests(CustomAPITestCase):
             'sess_code': valid_data['sess'],
             'auth_mode': 'login'
         })
+
+        # test default app session – OK
+        response = self.client.get(url, HTTP_REFERER=self.app_with_default_sess.url)
+        self.assertIn('csrftoken', response.cookies)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)   # doesn't create a user session
+        self.assertEqual(response.json(), {
+            'sess_code': self.app_sess_no_auth2.code,
+        })
+
+        # test default app session – OK too
+        response = self.client.get(url, HTTP_REFERER=self.app_with_default_sess.url + '/')
+        self.assertIn('csrftoken', response.cookies)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)   # doesn't create a user session
+        self.assertEqual(response.json(), {
+            'sess_code': self.app_sess_no_auth2.code,
+        })
+
+        # test default app session – OK too
+        response = self.client.get(url, {'referrer': self.app_with_default_sess.url})
+        self.assertIn('csrftoken', response.cookies)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)   # doesn't create a user session
+        self.assertEqual(response.json(), {
+            'sess_code': self.app_sess_no_auth2.code,
+        })
+
+        # test default app session – fail
+        self.assertEqual(self.client.get(url, HTTP_REFERER='http://foobar.localhost').status_code,
+                         status.HTTP_400_BAD_REQUEST)
 
     def test_app_session_login(self):
         # request application session – also sets CSRF token in cookie
