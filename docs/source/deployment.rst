@@ -30,6 +30,7 @@ Initial deployment
         image: postgres
         volumes:
           - '../data/db:/var/lib/postgresql/data'
+          - '../data/backups:/data_backup'
         environment:
           - 'POSTGRES_USER=admin'
           - 'POSTGRES_PASSWORD=<CHANGE_THIS>'
@@ -40,7 +41,8 @@ Initial deployment
           dockerfile: ./docker/Dockerfile_prod
         command: python -m uvicorn --host 0.0.0.0 --port 8000 multila.asgi:application
         volumes:
-          - ../src:/code
+          - '../src:/code'
+          - '../data/export:/data_export'
         ports:
           - "8000:8000"
         environment:
@@ -108,3 +110,10 @@ up an SSH tunnel to make it available remotely from your machine. You can do so 
 A shortcut is available in the Makefile as ``adminer_tunnel``. You can then go to ``http://localhost:8081/`` in your
 browser and login to the Postgres server (not MySQL!) using the ``POSTGRES_USER`` and ``POSTGRES_PASSWORD`` listed in
 the environment variabless of the docker compose file.
+
+DB backups
+----------
+
+You can use ``make dbbackup`` on the server to generate a PostgreSQL database dump with the current timestamp under
+``data/backups/``. It's advisable to run this command regularly, e.g. via a cronjob, and then copy the database dumps
+to a backup destination e.g. via ``make download_dbbackup``.
