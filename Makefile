@@ -41,7 +41,7 @@ dump:
 	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`$(NOW)`.json.gz || python src/manage.py dumpdata -o /fixtures/dump-`$(NOW)`.json.gz
 
 dbbackup:
-	docker $(EXECDB) /bin/bash -c 'pg_dump -U admin -F c multila > /data_backup/multila-`$(NOW)`.pgdump'
+	docker $(EXECDB) /bin/bash -c 'pg_dump -U admin -F c multila > /data_backup/local_dev_multila-`$(NOW)`.pgdump'
 
 collectstatic:
 	docker $(EXEC) python manage.py collectstatic || python src/manage.py collectstatic
@@ -58,6 +58,8 @@ sync:
 testsync:
 	rsync $(RSYNC_COMMON) -n . $(SERVER_APP)
 
+download_dbbackup:
+	rsync -rcv $(SERVER_APP)/data/backups/ ./data/backups/
+
 adminer_tunnel:
 	ssh -N -L 8081:localhost:8081 $(SERVER)
-
