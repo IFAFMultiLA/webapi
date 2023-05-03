@@ -24,6 +24,7 @@ services:
     volumes:
       - '../src:/code'
       - '../data/fixtures:/fixtures'
+      - '../data/export:/data_export'
     ports:
       - "8000:8000"
     environment:

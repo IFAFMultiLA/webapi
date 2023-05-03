@@ -59,6 +59,7 @@
 <span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span>
 <span class="w">    </span><span class="nt">volumes</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;../data/db:/var/lib/postgresql/data&#39;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;../data/backups:/data_backup&#39;</span>
 <span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;POSTGRES_USER=admin&#39;</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;POSTGRES_PASSWORD=&lt;CHANGE_THIS&gt;&#39;</span>
@@ -69,7 +70,8 @@
 <span class="w">      </span><span class="nt">dockerfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./docker/Dockerfile_prod</span>
 <span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python -m uvicorn --host 0.0.0.0 --port 8000 multila.asgi:application</span>
 <span class="w">    </span><span class="nt">volumes</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">../src:/code</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;../src:/code&#39;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;../data/export:/data_export&#39;</span>
 <span class="w">    </span><span class="nt">ports</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;8000:8000&quot;</span>
 <span class="w">    </span><span class="nt">environment</span><span class="p">:</span>
@@ -148,6 +150,12 @@ A shortcut is available in the Makefile as <code class="docutils literal notrans
 browser and login to the Postgres server (not MySQL!) using the <code class="docutils literal notranslate"><span class="pre">POSTGRES_USER</span></code> and <code class="docutils literal notranslate"><span class="pre">POSTGRES_PASSWORD</span></code> listed in
 the environment variabless of the docker compose file.</p>
 </section>
+<section id="db-backups">
+<h2>DB backups<a class="headerlink" href="#db-backups" title="Permalink to this heading">¶</a></h2>
+<p>You can use <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">dbbackup</span></code> on the server to generate a PostgreSQL database dump with the current timestamp under
+<code class="docutils literal notranslate"><span class="pre">data/backups/</span></code>. It’s advisable to run this command regularly, e.g. via a cronjob, and then copy the database dumps
+to a backup destination e.g. via <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">download_dbbackup</span></code>.</p>
+</section>
 </section>
 
 
@@ -177,6 +185,7 @@ the environment variabless of the docker compose file.</p>
 <li class="toctree-l2"><a class="reference internal" href="#initial-deployment">Initial deployment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#publishing-updates">Publishing updates</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#optional-db-administration-interface">Optional DB administration interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#db-backups">DB backups</a></li>
 </ul>
 </li>
 </ul>
