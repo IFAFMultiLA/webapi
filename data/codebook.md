@@ -55,12 +55,8 @@ Contains data on events produced by users within a tracking session.
   - for `"mouse"`: raw mouse tracking data as collected with [mus.js](https://github.com/ineventapp/musjs); data is
     collected in chunks and must be concatenated to form the trace for the whole tracking session
     - `frames`: array with mouse interactions; each item is an array `[type, x, y, xpath, timestamp]`
-      - `type` can be:
-        - `"m"`: move
-        - `"c"`: click
-        - `"s"`: scroll
-        - `"i"`: key input
-        - `"o"`: input value change (sliders, checkboxes, etc.)
+      - `type` can be: `"m"` – move; `"c"` – click; `"s"` – scroll; `"i"` – key input; `"o"` – input value change
+        (sliders, checkboxes, etc.)
       - `x` and `y` are cursor positions within the window
       - `xpath` is the XPath for the current element or `null` if the element is the same as in the previous record
       - `timestamp` is the time in ms
