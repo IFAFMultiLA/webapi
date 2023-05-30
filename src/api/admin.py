@@ -13,6 +13,7 @@ import tempfile
 from collections import defaultdict
 from glob import glob
 from datetime import datetime
+from zipfile import ZipFile, ZIP_DEFLATED
 from zoneinfo import ZoneInfo
 
 from django import forms
@@ -364,7 +365,7 @@ class MultiLAAdminSite(admin.AdminSite):
         to be downloaded, false indicates that the file is currently being generated.
         """
         # finished files are those from the data export directory
-        finished = set(map(os.path.basename, glob(os.path.join(settings.DATA_EXPORT_DIR, '*.csv'))))
+        finished = set(map(os.path.basename, glob(os.path.join(settings.DATA_EXPORT_DIR, '*.zip'))))
 
         # add the files that are currently being generated to form the set of all files
         all_files = sorted(finished | set(request.session['dataexport_awaiting_files']))
@@ -417,27 +418,51 @@ class MultiLAAdminSite(admin.AdminSite):
             # create a temporary directory; all generated data will at first be placed in this directory; the final
             # data will then be moved to the export directory
             tmpdir = tempfile.mkdtemp()
-            tmpfpath = os.path.join(tmpdir, fname)
 
             # map SQL query field names to CSV column names
-            FIELDS = (
-                ("a.id", "app_id"),
-                ("a.name", "app_name"),
-                ("a.url", "app_url"),
-                ("ac.id", "app_config_id"),
-                ("ac.label", "app_config_label"),
-                ("asess.code", "app_sess_code"),
-                ("asess.auth_mode", "app_sess_auth_mode"),
-                ("au.code", "user_app_sess_code"),
-                ("au.user_id", "user_app_sess_user_id"),
-                ("t.id", "track_sess_id"),
-                ("t.start_time", "track_sess_start"),
-                ("t.end_time", "track_sess_end"),
-                ("t.device_info", "track_sess_device_info"),
-                ("e.time", "event_time"),
-                ("e.type", "event_type"),
-                ("e.value", "event_value"),
-            )
+            QUERIES_AND_FIELDS = {
+                "app_sessions": (
+                    "SELECT {fields} FROM api_application a "
+                        "LEFT JOIN api_applicationconfig ac on a.id = ac.application_id "
+                        "LEFT JOIN api_applicationsession asess on ac.id = asess.config_id",
+                    "WHERE asess.code = %s",
+                    (
+                        ("a.id", "app_id"),
+                        ("a.name", "app_name"),
+                        ("a.url", "app_url"),
+                        ("ac.id", "app_config_id"),
+                        ("ac.label", "app_config_label"),
+                        ("asess.code", "app_sess_code"),
+                        ("asess.auth_mode", "app_sess_auth_mode"),
+                    )
+                ),
+                "tracking_sessions": (
+                    "SELECT {fields} FROM api_userapplicationsession ua "
+                        "LEFT JOIN api_trackingsession t on ua.id = t.user_app_session_id",
+                    "WHERE ua.application_session_id = %s",
+                    (
+                        ("ua.application_session_id", "app_sess_code"),
+                        ("ua.code", "user_app_sess_code"),
+                        ("ua.user_id", "user_app_sess_user_id"),
+                        ("t.id", "track_sess_id"),
+                        ("t.start_time", "track_sess_start"),
+                        ("t.end_time", "track_sess_end"),
+                        ("t.device_info", "track_sess_device_info"),
+                    )
+                ),
+                "tracking_events": (
+                    "SELECT {fields} FROM api_trackingevent e "
+                        "LEFT JOIN api_trackingsession t on e.tracking_session_id = t.id "
+                        "LEFT JOIN api_userapplicationsession ua on t.user_app_session_id = ua.id",
+                    "WHERE ua.application_session_id = %s",
+                    (
+                        ("t.id", "track_sess_id"),
+                        ("e.time", "event_time"),
+                        ("e.type", "event_type"),
+                        ("e.value", "event_value"),
+                    )
+                )
+            }
 
             def format_if_datetime(x):
                 if isinstance(x, datetime):
@@ -445,33 +470,38 @@ class MultiLAAdminSite(admin.AdminSite):
                 else:
                     return x
 
-            # build the query
-            query_select = ','.join(f'{sqlfield} AS {csvfield}' for sqlfield, csvfield in FIELDS)
-            query = f"""SELECT {query_select} FROM api_application a
-                        LEFT JOIN api_applicationconfig ac on a.id = ac.application_id
-                        LEFT JOIN api_applicationsession asess on ac.id = asess.config_id
-                        LEFT JOIN api_userapplicationsession au on asess.code = au.application_session_id
-                        LEFT JOIN api_trackingsession t on au.id = t.user_app_session_id
-                        LEFT JOIN api_trackingevent e on t.id = e.tracking_session_id"""
+            # write CSVs for the data from the queries defined in `QUERIES_AND_FIELDS`
+            stored_csvs = []
+            for csvname, (query_template, query_filter, query_fields) in QUERIES_AND_FIELDS.items():
+                query_select = ','.join(f'{sqlfield} AS {csvfield}' for sqlfield, csvfield in query_fields)
+                query = query_template.format(fields=query_select)
+                if app_sess:
+                    query += " " + query_filter
 
-            if app_sess:
-                query += " WHERE asess.code = %s"
+                # write the output
+                tmpfpath = os.path.join(tmpdir, csvname + ".csv")
+                stored_csvs.append(tmpfpath)
+                with open(tmpfpath, 'w', newline='') as f:
+                    csvwriter = csv.writer(f)
+                    csvwriter.writerow(list(zip(*query_fields))[1])  # header
 
-            # write the output
-            with open(tmpfpath, 'w', newline='') as f:
-                csvwriter = csv.writer(f)
-                csvwriter.writerow(list(zip(*FIELDS))[1])  # header
+                    with db_conn.cursor() as cur:
+                        cur.execute(query, [app_sess] if app_sess else [])
 
-                with db_conn.cursor() as cur:
-                    cur.execute(query, [app_sess] if app_sess else [])
+                        for dbrow in cur.fetchall():
+                            csvwriter.writerow(map(format_if_datetime, dbrow))
 
-                    for dbrow in cur.fetchall():
-                        csvwriter.writerow(map(format_if_datetime, dbrow))
+            # add all CSVs to a ZIP file
+            assert fname.endswith(".zip"), "file to be exported must end with .zip"
+            zipfilepath = os.path.join(tmpdir, fname)
+            with ZipFile(zipfilepath, "w", compression=ZIP_DEFLATED, compresslevel=9) as f:
+                for csvfile in stored_csvs:
+                    f.write(csvfile, arcname=os.path.basename(csvfile))
 
             # move the final data to the export directory
             if not os.path.exists(settings.DATA_EXPORT_DIR):
                 os.mkdir(settings.DATA_EXPORT_DIR, 0o755)
-            shutil.move(tmpfpath, os.path.join(settings.DATA_EXPORT_DIR, fname))
+            shutil.move(zipfilepath, os.path.join(settings.DATA_EXPORT_DIR, fname))
 
         # get all application sessions
         app_sess_objs = ApplicationSession.objects.values(
@@ -503,7 +533,7 @@ class MultiLAAdminSite(admin.AdminSite):
 
                 # generate a file name
                 fname = f'{datetime.now(ZoneInfo(settings.TIME_ZONE)).strftime("%Y-%m-%d_%H%M%S")}_' \
-                        f'{app_sess_select or "all"}.csv'
+                        f'{app_sess_select or "all"}.zip'
 
                 # add the file name to the list of files that are being generated
                 request.session['dataexport_awaiting_files'].append(fname)
