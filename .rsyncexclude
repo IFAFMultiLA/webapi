@@ -1,4 +1,7 @@
-data/
+data/backups
+data/db
+data/export
+data/fixtures
 .git*
 .idea/
 .rsyncexclude
