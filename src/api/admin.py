@@ -72,7 +72,8 @@ class ApplicationAdmin(admin.ModelAdmin):
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
         form.base_fields['default_application_session'].required = False
-        form.base_fields['default_application_session'].queryset = ApplicationSession.objects.filter(config__application=obj)
+        form.base_fields['default_application_session'].queryset = \
+            ApplicationSession.objects.filter(config__application=obj)
 
         return form
 
