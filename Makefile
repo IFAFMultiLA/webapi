@@ -51,6 +51,7 @@ test:
 
 docs:
 	cd docs && make clean && make html && make latexpdf
+	pandoc -o data/codebook.pdf docs/source/codebook.rst
 
 sync:
 	rsync $(RSYNC_COMMON) . $(SERVER_APP) && ssh $(SERVER) "mv $(APPDIR)/Makefile_server $(APPDIR)/Makefile"

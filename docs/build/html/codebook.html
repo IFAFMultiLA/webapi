@@ -1,0 +1,235 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Codebook for MultiLA web API data export &#8212; MultiLA Web API  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Server deployment" href="deployment.html" />
+    <link rel="prev" title="Local development setup" href="devsetup.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="codebook-for-multila-web-api-data-export">
+<span id="codebook"></span><h1>Codebook for MultiLA web API data export<a class="headerlink" href="#codebook-for-multila-web-api-data-export" title="Permalink to this heading">¶</a></h1>
+<p>This data export archive contains three files in CSV format, all of
+which can be joined via common identifiers that are documented below and
+highlighted in <strong>bold.</strong></p>
+<section id="file-app-sessions-csv">
+<h2>File <code class="docutils literal notranslate"><span class="pre">app_sessions.csv</span></code><a class="headerlink" href="#file-app-sessions-csv" title="Permalink to this heading">¶</a></h2>
+<p>Contains data on application sessions, i.e. information on applications
+and the configured sessions that can be visited by users.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">app_id</span></code>: ID of the application – integer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">app_name</span></code>: name of the application – character string</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">app_url</span></code>: URL where the application was served – character string</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">app_config_id</span></code>: ID of the application configuration – integer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">app_config_label</span></code>: name of the application configuration –
+character string</p></li>
+<li><p><strong>``app_sess_code``: session code of the application session (session
+code for a configured application that was shared to the users) –
+character string</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">app_sess_auth_mode</span></code>: authentication mode of the application
+session – categorical; <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;login&quot;</span></code></p></li>
+</ul>
+</section>
+<section id="file-tracking-sessions-csv">
+<h2>File <code class="docutils literal notranslate"><span class="pre">tracking_sessions.csv</span></code><a class="headerlink" href="#file-tracking-sessions-csv" title="Permalink to this heading">¶</a></h2>
+<p>Contains data on user and tracking sessions, i.e. information on users
+and their interaction sessions with the applications starting with the
+first visit of an application session and ending with closing the
+browser window.</p>
+<ul class="simple">
+<li><p><strong>``app_sess_code``: session code of the application session (session
+code for a configured application that was shared to the users) –
+character string</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_app_sess_code</span></code>: user application session code (session code
+for an individual anonymous or registered user interacting with a
+specific application session) – character string</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_app_sess_user_id</span></code>: user ID for registered users; no further
+data on individual users is provided in this dataset – integer for
+registered users or NA for anonymous users</p></li>
+<li><p><strong>``track_sess_id``: tracking session ID (ID indicating for a
+continuous interaction of a user with the application session on a
+single device) – integer</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">track_sess_start</span></code>: start of the tracking session (first visit of a
+user on this device for this application session) – UTC date and time
+in format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">track_sess_end</span></code>: end of the tracking session (user closes the
+browser window of logs out) – UTC date and time in format
+<code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">track_sess_device_info</span></code>: information on the device used by the
+user in this tracking session – JSON with the following information:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_agent</span></code>: “user agent” string from the browser – character
+string</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">form_factor</span></code>: categorical; <code class="docutils literal notranslate"><span class="pre">&quot;desktop&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;tablet&quot;</span></code> or
+<code class="docutils literal notranslate"><span class="pre">&quot;phone&quot;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">window_size</span></code>: array with two elements as integers:
+<code class="docutils literal notranslate"><span class="pre">[window</span> <span class="pre">width,</span> <span class="pre">window</span> <span class="pre">height]</span></code></p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="file-tracking-events-csv">
+<h2>File <code class="docutils literal notranslate"><span class="pre">tracking_events.csv</span></code><a class="headerlink" href="#file-tracking-events-csv" title="Permalink to this heading">¶</a></h2>
+<p>Contains data on events produced by users within a tracking session.</p>
+<ul class="simple">
+<li><p><strong>``track_sess_id``: tracking session ID (ID indicating for a
+continuous interaction of a user with the application session on a
+single device) – integer</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">event_time</span></code>: time when the event took place – UTC date and time in
+format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">event_type</span></code>: type of the event – categorical;
+<code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code> (see below for
+possible <em>learnr</em> events in <code class="docutils literal notranslate"><span class="pre">*</span></code> placeholder) or <code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">event_value</span></code>: event data – JSON; depends on <code class="docutils literal notranslate"><span class="pre">event_type</span></code>:</p>
+<ul>
+<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>: changed window size as
+<code class="docutils literal notranslate"><span class="pre">{&quot;window_size&quot;:</span> <span class="pre">[width,</span> <span class="pre">height]}</span></code></p></li>
+<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code>: data depends on learnr event type (see
+below)</p></li>
+<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code>: raw mouse tracking data as collected with
+<a class="reference external" href="https://github.com/ineventapp/musjs">mus.js</a>; data is
+collected in chunks and must be concatenated to form the trace for
+the whole tracking session</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">frames</span></code>: array with mouse interactions; each item is an
+array <code class="docutils literal notranslate"><span class="pre">[type,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">xpath,</span> <span class="pre">timestamp]</span></code></p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">type</span></code> can be: <code class="docutils literal notranslate"><span class="pre">&quot;m&quot;</span></code> – move; <code class="docutils literal notranslate"><span class="pre">&quot;c&quot;</span></code> – click; <code class="docutils literal notranslate"><span class="pre">&quot;s&quot;</span></code> –
+scroll; <code class="docutils literal notranslate"><span class="pre">&quot;i&quot;</span></code> – key input; <code class="docutils literal notranslate"><span class="pre">&quot;o&quot;</span></code> – input value change
+(sliders, checkboxes, etc.)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span></code> are cursor positions within the window</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">xpath</span></code> is the XPath for the current element or <code class="docutils literal notranslate"><span class="pre">null</span></code>
+if the element is the same as in the previous record</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">timestamp</span></code> is the time in ms</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">window</span></code>: window size</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">timeElapsed</span></code>: time in ms since mouse tracking started</p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<section id="learnr-events">
+<h3>Learnr events<a class="headerlink" href="#learnr-events" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">exercise_hint</span></code>: User requested a hint or solution for an exercise.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exercise_submitted</span></code>: User submitted an answer for an exercise.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exercise_result</span></code>: The evaluation of an exercise has completed.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">question_submission</span></code>: User submitted an answer for a
+multiple-choice question.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">video_progress</span></code>: User watched a segment of a video.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">section_skipped</span></code>: A section of the tutorial was skipped.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">section_viewed</span></code>: A section of the tutorial became visible.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">MultiLA Web API</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="intro.html">MultiLA Web API and administration backend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="components.html">Software components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clientserver.html">Client-server communication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="devsetup.html">Local development setup</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Codebook for MultiLA web API data export</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#file-app-sessions-csv">File <code class="docutils literal notranslate"><span class="pre">app_sessions.csv</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#file-tracking-sessions-csv">File <code class="docutils literal notranslate"><span class="pre">tracking_sessions.csv</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#file-tracking-events-csv">File <code class="docutils literal notranslate"><span class="pre">tracking_events.csv</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#learnr-events">Learnr events</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Server deployment</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="devsetup.html" title="previous chapter">Local development setup</a></li>
+      <li>Next: <a href="deployment.html" title="next chapter">Server deployment</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2023, Markus Konrad.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
+      
+      |
+      <a href="_sources/codebook.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
