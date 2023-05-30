@@ -6,6 +6,7 @@
   components
   clientserver
   devsetup
+  codebook
   deployment
 
 Indices and tables

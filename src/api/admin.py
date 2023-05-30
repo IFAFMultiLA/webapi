@@ -498,6 +498,7 @@ class MultiLAAdminSite(admin.AdminSite):
             with ZipFile(zipfilepath, "w", compression=ZIP_DEFLATED, compresslevel=9) as f:
                 for csvfile in stored_csvs:
                     f.write(csvfile, arcname=os.path.basename(csvfile))
+                f.write(settings.CODEBOOK_PATH, arcname=os.path.basename(settings.CODEBOOK_PATH))
 
             # move the final data to the export directory
             if not os.path.exists(settings.DATA_EXPORT_DIR):
