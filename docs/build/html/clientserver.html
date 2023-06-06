@@ -65,6 +65,28 @@ required) or to an anonymous user that is only identified with a unique code (wh
 <img alt="_images/client-server-login.png" src="_images/client-server-login.png" />
 </section>
 </section>
+<section id="application-configuration">
+<h2>Application configuration<a class="headerlink" href="#application-configuration" title="Permalink to this heading">¶</a></h2>
+<ul>
+<li><p>to each application, a configuration can be passed when starting the application session</p></li>
+<li><p>the API sends the configuration as JSON object after the initial session request (anonymous session) or after log in
+(session that requires login) – this is displayed as <code class="docutils literal notranslate"><span class="pre">app_config</span></code> key in the above figures</p></li>
+<li><p>on the client side, the <em>adaptivelearnr</em> R package handles reading the configuration and setting up the application
+accordingly</p></li>
+<li><p>the application configuration JSON object has the following format and options:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+  <span class="s2">&quot;exclude&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">HTML</span> <span class="n">element</span> <span class="n">IDs</span> <span class="n">to</span> <span class="n">exclude</span><span class="o">&gt;</span><span class="p">],</span>
+  <span class="s2">&quot;js&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">additional</span> <span class="n">JavaScript</span> <span class="n">files</span> <span class="n">to</span> <span class="n">load</span><span class="o">&gt;</span><span class="p">],</span>
+  <span class="s2">&quot;css&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">additional</span> <span class="n">CSS</span> <span class="n">files</span> <span class="n">to</span> <span class="n">load</span><span class="o">&gt;</span><span class="p">],</span>
+  <span class="s2">&quot;tracking&quot;</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">&quot;mouse&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span>  <span class="c1"># enable/disable mouse tracking w/ mus.js</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
 </section>
 
 
@@ -93,6 +115,7 @@ required) or to an anonymous user that is only identified with a unique code (wh
 <li class="toctree-l3"><a class="reference internal" href="#with-login">With login</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#application-configuration">Application configuration</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="devsetup.html">Local development setup</a></li>
