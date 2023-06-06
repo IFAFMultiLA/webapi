@@ -27,3 +27,17 @@ The following image show an overview of the MultiLA platform components:
 - in general, any (web) application can use the MultiLA web API, which means for example R Shiny applications or
   Jupyter Notebook applications
 - it may be possible to connect external services for authentication (e.g. Moodle)
+
+
+Code repositories overview
+--------------------------
+
+- Web API and database: `<https://github.com/IFAFMultiLA/webapi>`_
+- *adaptivelearnr* R package: `<https://github.com/IFAFMultiLA/adaptivelearnr>`_
+
+  - uses adapted (forked) mus.js code for (mouse) tracking: `<https://github.com/IFAFMultiLA/musjs>`_ (all adaptions
+    currently in branch *record-current-elem*)
+
+- R learning applications (using *adaptivelearnr*):
+
+  - TestgenauigkeitBayes: `<https://github.com/IFAFMultiLA/TestgenauigkeitBayes>`_

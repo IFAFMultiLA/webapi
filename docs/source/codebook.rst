@@ -81,7 +81,7 @@ Contains data on events produced by users within a tracking session.
    -  for ``"learnr_event_*"``: data depends on learnr event type (see
       below)
    -  for ``"mouse"``: raw mouse tracking data as collected with
-      `mus.js <https://github.com/ineventapp/musjs>`__; data is
+      `mus.js <https://github.com/ineventapp/musjs>`_; data is
       collected in chunks and must be concatenated to form the trace for
       the whole tracking session
 
