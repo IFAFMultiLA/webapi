@@ -11,6 +11,16 @@
 <script src="{% static 'admin/js/jquery.init.js' %}"></script>
 
 <script>
+if (!$) {
+    $ = django.jQuery;
+}
+
+$(document).ready(function () {
+    window.addEventListener('message', event => {
+        console.log(event);
+    });
+});
+
 </script>
 {% endblock %}
 
@@ -68,5 +78,10 @@ Data replay
         {% endif %}
     </li>
 </ul>
+
+<iframe id="tracking_sess_replay_window"
+        src="{{ tracking_sess.user_app_session.application_session.session_url }}&replay=1"
+        width="100%" height="600">
+</iframe>
 
 {% endblock %}

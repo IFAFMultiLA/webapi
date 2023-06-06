@@ -25,10 +25,10 @@ from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFoun
 from django.template.response import TemplateResponse
 from django.urls import path, reverse, re_path
 from django.utils.safestring import mark_safe
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, get_list_or_404
 from django.conf import settings
 
-from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession
+from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession, TrackingEvent
 
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
@@ -176,6 +176,8 @@ class MultiLAAdminSite(admin.AdminSite):
             re_path(r'^data/export_delete/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_delete),
                  name='dataexport_delete'),
             path('data/replay/<int:tracking_sess_id>', self.admin_view(self.datareplay), name='datareplay'),
+            path('data/replay/<int:tracking_sess_id>/events/<int:i>', self.admin_view(self.datareplay_json),
+                 name='datareplay_json'),
         ]
         return custom_urls + urls
 
@@ -562,7 +564,10 @@ class MultiLAAdminSite(admin.AdminSite):
         return TemplateResponse(request, "admin/dataexport.html", context)
 
     def datareplay(self, request, tracking_sess_id):
-        tracking_sess = get_object_or_404(TrackingSession, pk=tracking_sess_id)
+        """
+        Tracking session replay view for a tracking session identified via `tracking_sess_id`.
+        """
+        tracking_sess = get_object_or_404(TrackingSession.objects.select_related(), pk=tracking_sess_id)
 
         # set template variables
         context = {
@@ -576,6 +581,17 @@ class MultiLAAdminSite(admin.AdminSite):
         request.current_app = self.name
 
         return TemplateResponse(request, "admin/datareplay.html", context)
+
+    def datareplay_json(self, request, tracking_sess_id, i):
+        """
+        Tracking session replay view for a tracking session identified via `tracking_sess_id`.
+        """
+        try:
+            event = TrackingEvent.objects.filter(tracking_session=tracking_sess_id, type="mouse").order_by("time")[i]
+        except IndexError:
+            return JsonResponse({})
+
+        return JsonResponse(event.value)
 
 
 admin_site = MultiLAAdminSite(name='multila_admin')
