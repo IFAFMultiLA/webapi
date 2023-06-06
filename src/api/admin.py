@@ -25,9 +25,10 @@ from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFoun
 from django.template.response import TemplateResponse
 from django.urls import path, reverse, re_path
 from django.utils.safestring import mark_safe
+from django.shortcuts import get_object_or_404
 from django.conf import settings
 
-from .models import Application, ApplicationConfig, ApplicationSession
+from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession
 
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
@@ -173,7 +174,8 @@ class MultiLAAdminSite(admin.AdminSite):
             re_path(r'^data/export_download/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_download),
                  name='dataexport_download'),
             re_path(r'^data/export_delete/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_delete),
-                 name='dataexport_delete')
+                 name='dataexport_delete'),
+            path('data/replay/<int:tracking_sess_id>', self.admin_view(self.datareplay), name='datareplay'),
         ]
         return custom_urls + urls
 
@@ -558,6 +560,22 @@ class MultiLAAdminSite(admin.AdminSite):
         request.current_app = self.name
 
         return TemplateResponse(request, "admin/dataexport.html", context)
+
+    def datareplay(self, request, tracking_sess_id):
+        tracking_sess = get_object_or_404(TrackingSession, pk=tracking_sess_id)
+
+        # set template variables
+        context = {
+            **self.each_context(request),
+            "title": "Data manager",
+            "subtitle": f"Tracking session replay for tracking session #{tracking_sess_id}",
+            "app_label": "datamanager",
+            "tracking_sess": tracking_sess
+        }
+
+        request.current_app = self.name
+
+        return TemplateResponse(request, "admin/datareplay.html", context)
 
 
 admin_site = MultiLAAdminSite(name='multila_admin')
