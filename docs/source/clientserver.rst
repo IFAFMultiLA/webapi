@@ -34,3 +34,23 @@ With login
 - requires that the user has registered an account with email and password
 
 .. image:: img/client-server-login.png
+
+
+Application configuration
+-------------------------
+
+- to each application, a configuration can be passed when starting the application session
+- the API sends the configuration as JSON object after the initial session request (anonymous session) or after log in
+  (session that requires login) – this is displayed as ``app_config`` key in the above figures
+- on the client side, the *adaptivelearnr* R package handles reading the configuration and setting up the application
+  accordingly
+- the application configuration JSON object has the following format and options::
+
+    {
+      "exclude": [<HTML element IDs to exclude>],
+      "js": [<additional JavaScript files to load>],
+      "css": [<additional CSS files to load>],
+      "tracking": {
+        "mouse": <bool>  # enable/disable mouse tracking w/ mus.js
+      }
+    }
