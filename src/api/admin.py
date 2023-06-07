@@ -15,6 +15,7 @@ from glob import glob
 from datetime import datetime
 from zipfile import ZipFile, ZIP_DEFLATED
 from zoneinfo import ZoneInfo
+from urllib.parse import urlsplit, urlunsplit
 
 from django import forms
 from django.contrib import admin
@@ -25,7 +26,7 @@ from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFoun
 from django.template.response import TemplateResponse
 from django.urls import path, reverse, re_path
 from django.utils.safestring import mark_safe
-from django.shortcuts import get_object_or_404, get_list_or_404
+from django.shortcuts import get_object_or_404
 from django.conf import settings
 
 from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession, TrackingEvent
@@ -569,13 +570,20 @@ class MultiLAAdminSite(admin.AdminSite):
         """
         tracking_sess = get_object_or_404(TrackingSession.objects.select_related(), pk=tracking_sess_id)
 
+        # determine valid iframe origin: the scheme+host of the application session URL that will be embedded
+        sess_url = tracking_sess.user_app_session.application_session.session_url()
+        sess_url_parts = list(urlsplit(sess_url))
+        allowed_iframe_origin = urlunsplit(sess_url_parts[:2] + [''] * 3)
+
         # set template variables
         context = {
             **self.each_context(request),
             "title": "Data manager",
             "subtitle": f"Tracking session replay for tracking session #{tracking_sess_id}",
             "app_label": "datamanager",
-            "tracking_sess": tracking_sess
+            "tracking_sess": tracking_sess,
+            "app_config": tracking_sess.user_app_session.application_session.config.config,
+            "allowed_iframe_origin": allowed_iframe_origin
         }
 
         request.current_app = self.name

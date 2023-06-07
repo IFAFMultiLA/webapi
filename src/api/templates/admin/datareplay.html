@@ -10,14 +10,38 @@
 <script src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
 <script src="{% static 'admin/js/jquery.init.js' %}"></script>
 
+{{ app_config|json_script:"app_config" }}
+
 <script>
 if (!$) {
     $ = django.jQuery;
 }
 
+let frame_win = null;
+
+/**
+ * Send a message of type `msgtype` to the parent window.
+ *
+ * This is used when the app is embedded as iframe (e.g. in "replay mode").
+ */
+function messageToIFrame(msgtype, data) {
+    frame_win.postMessage({"msgtype": msgtype, "data": data}, "{{ allowed_iframe_origin }}");
+}
+
 $(document).ready(function () {
+    frame_win = document.getElementById("tracking_sess_replay_window").contentWindow;
+
     window.addEventListener('message', event => {
-        console.log(event);
+        if (event.isTrusted && event.origin === "{{ allowed_iframe_origin }}") {
+            if (event.data.msgtype === "init") {
+                let app_config = JSON.parse(document.getElementById('app_config').textContent);
+                messageToIFrame("app_config", app_config);
+            } else if (event.data.msgtype === "pulldata") {
+                // TODO
+            } else {
+                console.error("event message type not understood:", event.data.msgtype);
+            }
+        }
     });
 });
 
