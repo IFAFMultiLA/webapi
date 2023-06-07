@@ -37,7 +37,13 @@ $(document).ready(function () {
                 let app_config = JSON.parse(document.getElementById('app_config').textContent);
                 messageToIFrame("app_config", app_config);
             } else if (event.data.msgtype === "pulldata") {
-                // TODO
+                let base_url = "{% url 'multila_admin:datareplay_json' tracking_sess.id 0 %}";
+                base_url = base_url.substring(0, base_url.length - 1);
+                fetch(base_url + event.data.data.i)
+                    .then(response => response.json())
+                    .then(function (data) {
+                        messageToIFrame("replaydata", data);
+                    });
             } else {
                 console.error("event message type not understood:", event.data.msgtype);
             }

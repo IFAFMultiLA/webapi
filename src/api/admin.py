@@ -599,7 +599,7 @@ class MultiLAAdminSite(admin.AdminSite):
         except IndexError:
             return JsonResponse({})
 
-        return JsonResponse(event.value)
+        return JsonResponse({"i": i, "replaydata": event.value})
 
 
 admin_site = MultiLAAdminSite(name='multila_admin')
