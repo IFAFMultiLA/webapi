@@ -111,7 +111,7 @@ Data replay
 
 <iframe id="tracking_sess_replay_window"
         src="{{ tracking_sess.user_app_session.application_session.session_url }}&replay=1"
-        width="100%" height="600">
+        width="{{ tracking_sess.device_info.window_size.1 }}" height="{{ tracking_sess.device_info.window_size.0 }}">
 </iframe>
 
 {% endblock %}
