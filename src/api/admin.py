@@ -594,6 +594,12 @@ class MultiLAAdminSite(admin.AdminSite):
         """
         Tracking session replay view for a tracking session identified via `tracking_sess_id`.
         """
+
+        if i == 0:   # for the first chunk, also add the information about how many chunks there are
+            n_chunks = len(TrackingEvent.objects.filter(tracking_session=tracking_sess_id, type="mouse"))
+        else:
+            n_chunks = None
+
         try:
             event = TrackingEvent.objects.filter(tracking_session=tracking_sess_id, type="mouse").order_by("time")[i]
         except IndexError:
@@ -611,7 +617,7 @@ class MultiLAAdminSite(admin.AdminSite):
         replaydata['frames'] = replaydata['frames'][startframe:]
         #replaydata['frames'] = [f for f in replaydata['frames'] if f[0] in filter_frametypes]
 
-        return JsonResponse({"i": i, "replaydata": replaydata})
+        return JsonResponse({"i": i, "replaydata": replaydata, "n_chunks": n_chunks})
 
 
 admin_site = MultiLAAdminSite(name='multila_admin')
