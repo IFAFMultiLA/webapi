@@ -29,7 +29,7 @@ if (!$) {
 }
 
 let frame_win = null;
-let replay_is_playing = false;
+let replay_is_playing = false;   // is true while a session replay is playing
 
 /**
  * Send a message of type `msgtype` to the parent window.
@@ -41,6 +41,10 @@ function messageToIFrame(msgtype, data) {
     frame_win.postMessage({"msgtype": msgtype, "data": data}, "{{ allowed_iframe_origin }}");
 }
 
+
+/**
+ * Update the play/pause toggle button depending on the current playback state.
+ */
 function updatePlayPauseBtn() {
     if (replay_is_playing) {
         $('#replay_ctrl_play_pause').html("&#9208;");
@@ -49,23 +53,28 @@ function updatePlayPauseBtn() {
     }
 }
 
+
 $(document).ready(function () {
     frame_win = document.getElementById("tracking_sess_replay_window").contentWindow;
 
     window.addEventListener('message', event => {
         if (event.isTrusted && event.origin === "{{ allowed_iframe_origin }}") {
             if (event.data.msgtype === "init") {
+                // request to initialize the replay iframe -> send app configuration
                 let app_config = JSON.parse(document.getElementById('app_config').textContent);
                 messageToIFrame("app_config", app_config);
             } else if (event.data.msgtype === "pulldata") {
+                // request to pass a replay data chunk to the replay iframe -> fetch it from the API and send it to
+                // the iframe
                 let base_url = "{% url 'multila_admin:datareplay_json' tracking_sess.id 0 %}";
-                base_url = base_url.substring(0, base_url.length - 1);
+                base_url = base_url.substring(0, base_url.length - 1);   // append which chunk index to fetch
                 fetch(base_url + event.data.data.i)
                     .then(response => response.json())
                     .then(function (data) {
                         messageToIFrame("replaydata", data);
                     });
             } else if (event.data.msgtype === "replay_stopped") {
+                // playback reached the end
                 replay_is_playing = false;
                 updatePlayPauseBtn();
             } else {
@@ -74,6 +83,7 @@ $(document).ready(function () {
         }
     });
 
+    // set up click event listener for play/pause button
     $('#replay_ctrl_play_pause').on('click', function () {
         replay_is_playing = !replay_is_playing;
         updatePlayPauseBtn();
@@ -85,6 +95,7 @@ $(document).ready(function () {
         }
     });
 
+    // set up click event listener for stop button
     $('#replay_ctrl_stop').on('click', function () {
         replay_is_playing = false;
         updatePlayPauseBtn();
