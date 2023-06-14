@@ -78,6 +78,7 @@ $(document).ready(function () {
                 // playback reached the end
                 replay_is_playing = false;
                 updatePlayPauseBtn();
+                frame_win.location.replace("{{ tracking_sess.user_app_session.application_session.session_url }}&replay=1");
             } else {
                 console.error("event message type not understood:", event.data.msgtype);
             }
