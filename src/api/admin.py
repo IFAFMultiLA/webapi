@@ -169,16 +169,30 @@ class MultiLAAdminSite(admin.AdminSite):
         """
         urls = super().get_urls()
         custom_urls = [
-            path('data/view/', self.admin_view(self.dataview), name='dataview'),
-            path('data/export/', self.admin_view(self.dataexport), name='dataexport'),
-            path('data/export_filelist/', self.admin_view(self.dataexport_filelist), name='dataexport_filelist'),
-            re_path(r'^data/export_download/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_download),
-                 name='dataexport_download'),
-            re_path(r'^data/export_delete/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_delete),
-                 name='dataexport_delete'),
-            path('data/replay/<int:tracking_sess_id>', self.admin_view(self.datareplay), name='datareplay'),
-            path('data/replay/<int:tracking_sess_id>/events/<int:i>', self.admin_view(self.datareplay_json),
-                 name='datareplay_json'),
+            path('data/view/',
+                 self.admin_view(self.dataview),
+                 name='dataview'),
+            path('data/export/',
+                 self.admin_view(self.dataexport),
+                 name='dataexport'),
+            path('data/export_filelist/',
+                 self.admin_view(self.dataexport_filelist),
+                 name='dataexport_filelist'),
+            re_path(r'^data/export_download/(?P<file>[\w._-]+)$',
+                    self.admin_view(self.dataexport_download),
+                    name='dataexport_download'),
+            re_path(r'^data/export_delete/(?P<file>[\w._-]+)$',
+                    self.admin_view(self.dataexport_delete),
+                    name='dataexport_delete'),
+            path('data/trackingsessions/',
+                 self.admin_view(self.trackingsessions),
+                 name='trackingsessions'),
+            path('data/trackingsessions/replay/<int:tracking_sess_id>',
+                 self.admin_view(self.trackingsessions_replay),
+                 name='trackingsessions_replay'),
+            path('data/trackingsessions/replay/<int:tracking_sess_id>/chunk/<int:i>',
+                 self.admin_view(self.trackingsessions_replay_datachunk),
+                 name='trackingsessions_replay_datachunk'),
         ]
         return custom_urls + urls
 
@@ -208,6 +222,14 @@ class MultiLAAdminSite(admin.AdminSite):
                     'name': 'Export',
                     'perms': {'add': False, 'change': False, 'delete': False, 'view': True},
                     'admin_url': reverse('multila_admin:dataexport'),
+                    'add_url': None
+                },
+                {
+                    'model': TrackingSession,
+                    'object_name': 'TrackingSession',
+                    'name': 'Tracking sessions',
+                    'perms': {'add': False, 'change': False, 'delete': False, 'view': True},
+                    'admin_url': reverse('multila_admin:trackingsessions'),
                     'add_url': None
                 }
             ]
@@ -564,7 +586,21 @@ class MultiLAAdminSite(admin.AdminSite):
 
         return TemplateResponse(request, "admin/dataexport.html", context)
 
-    def datareplay(self, request, tracking_sess_id):
+    def trackingsessions(self, request):
+        # set template variables
+        context = {
+            **self.each_context(request),
+            "title": "Data manager",
+            "subtitle": "Tracking sessions",
+            "app_label": "datamanager"
+        }
+
+        request.current_app = self.name
+
+        return TemplateResponse(request, "admin/trackingsessions.html", context)
+
+
+    def trackingsessions_replay(self, request, tracking_sess_id):
         """
         Tracking session replay view for a tracking session identified via `tracking_sess_id`.
         """
@@ -588,11 +624,12 @@ class MultiLAAdminSite(admin.AdminSite):
 
         request.current_app = self.name
 
-        return TemplateResponse(request, "admin/datareplay.html", context)
+        return TemplateResponse(request, "admin/trackingsessions_replay.html", context)
 
-    def datareplay_json(self, request, tracking_sess_id, i):
+    def trackingsessions_replay_datachunk(self, request, tracking_sess_id, i):
         """
-        Tracking session replay view for a tracking session identified via `tracking_sess_id`.
+        Tracking session replay view for fetching the `i`th replay data chunk of the tracking session identified
+        by `tracking_sess_id`. Returns a JSON response.
         """
 
         if i == 0:   # for the first chunk, also add the information about how many chunks there are

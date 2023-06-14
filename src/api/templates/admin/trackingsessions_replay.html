@@ -66,7 +66,7 @@ $(document).ready(function () {
             } else if (event.data.msgtype === "pulldata") {
                 // request to pass a replay data chunk to the replay iframe -> fetch it from the API and send it to
                 // the iframe
-                let base_url = "{% url 'multila_admin:datareplay_json' tracking_sess.id 0 %}";
+                let base_url = "{% url 'multila_admin:trackingsessions_replay_datachunk' tracking_sess.id 0 %}";
                 base_url = base_url.substring(0, base_url.length - 1);   // append which chunk index to fetch
                 fetch(base_url + event.data.data.i)
                     .then(response => response.json())
