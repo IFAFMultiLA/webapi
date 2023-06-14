@@ -684,16 +684,17 @@ class MultiLAAdminSite(admin.AdminSite):
             return JsonResponse({})
 
         #filter_frametypes = {'m', 'c', 's', 'i', 'o'}
-        filter_frametypes = {'m'}
+        # filter_frametypes = {'m'}
         replaydata = event.value
-        startframe = 0
-        for f_index, f in enumerate(replaydata['frames']):
-            if f[0] in filter_frametypes:
-                startframe = f_index
-                break
-
-        replaydata['frames'] = replaydata['frames'][startframe:]
-        #replaydata['frames'] = [f for f in replaydata['frames'] if f[0] in filter_frametypes]
+        # startframe = 0
+        # for f_index, f in enumerate(replaydata['frames']):
+        #     if f[0] in filter_frametypes:
+        #         startframe = f_index
+        #         break
+        #
+        # replaydata['frames'] = replaydata['frames'][startframe:]
+        filter_frametypes = {'m', 'c', 's', 'i', 'o'}
+        replaydata['frames'] = [f for f in replaydata['frames'] if f[0] in filter_frametypes]
 
         return JsonResponse({"i": i, "replaydata": replaydata, "n_chunks": n_chunks})
 
