@@ -37,7 +37,7 @@ let replay_is_playing = false;   // is true while a session replay is playing
  * This is used when the app is embedded as iframe (e.g. in "replay mode").
  */
 function messageToIFrame(msgtype, data) {
-    data === undefined ? null : data;
+    data = data === undefined ? null : data;
     frame_win.postMessage({"msgtype": msgtype, "data": data}, "{{ allowed_iframe_origin }}");
 }
 
@@ -47,9 +47,9 @@ function messageToIFrame(msgtype, data) {
  */
 function updatePlayPauseBtn() {
     if (replay_is_playing) {
-        $('#replay_ctrl_play_pause').html("&#9208;");
+        $('#replay_ctrl_play_pause').html("Pause");
     } else {
-        $('#replay_ctrl_play_pause').html("&#9654;");
+        $('#replay_ctrl_play_pause').html("Play");
     }
 }
 
@@ -58,6 +58,7 @@ $(document).ready(function () {
     frame_win = document.getElementById("tracking_sess_replay_window").contentWindow;
 
     window.addEventListener('message', event => {
+        console.log("message from iframe:", event);
         if (event.isTrusted && event.origin === "{{ allowed_iframe_origin }}") {
             if (event.data.msgtype === "init") {
                 // request to initialize the replay iframe -> send app configuration
@@ -66,7 +67,7 @@ $(document).ready(function () {
             } else if (event.data.msgtype === "pulldata") {
                 // request to pass a replay data chunk to the replay iframe -> fetch it from the API and send it to
                 // the iframe
-                let base_url = "{% url 'multila_admin:trackingsessions_replay_datachunk' tracking_sess.id 0 %}";
+                let base_url = "{% url 'multila_admin:trackingsession_replay_datachunk' tracking_sess.id 0 %}";
                 base_url = base_url.substring(0, base_url.length - 1);   // append which chunk index to fetch
                 fetch(base_url + event.data.data.i)
                     .then(response => response.json())
@@ -163,8 +164,8 @@ Data replay
 </ul>
 
 <div id="replay_controls">
-    <button id="replay_ctrl_play_pause">&#9654;</button>
-    <button id="replay_ctrl_stop">&#9209;</button>
+    <button id="replay_ctrl_play_pause">Play</button>
+    <button id="replay_ctrl_stop">Stop</button>
 </div>
 
 <iframe id="tracking_sess_replay_window"
