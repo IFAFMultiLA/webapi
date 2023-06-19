@@ -458,14 +458,18 @@ class ViewTests(CustomAPITestCase):
                          status.HTTP_400_BAD_REQUEST)  # missing start_time
         self.assertEqual(self.client.post_json(url, data=valid_data, auth_token='foo').status_code,
                          status.HTTP_401_UNAUTHORIZED)  # wrong auth token
-        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
-                                                          'start_time': (now + timedelta(minutes=5)).isoformat()},
-                                               auth_token=auth_token).status_code,
-                         status.HTTP_400_BAD_REQUEST)  # start time is in future
-        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
-                                                          'start_time': (now - timedelta(minutes=120)).isoformat()},
-                                               auth_token=auth_token).status_code,
-                         status.HTTP_400_BAD_REQUEST)  # start time is too long in past
+
+        response = self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                    'start_time': (now + timedelta(minutes=5)).isoformat()},
+                                         auth_token=auth_token)   # start time is in future
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), {'validation_errors': {'start_time': ['invalid timestamp']}})
+
+        response = self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                    'start_time': (now - timedelta(minutes=120)).isoformat()},
+                                         auth_token=auth_token)  # start time is too long in past
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), {'validation_errors': {'start_time': ['invalid timestamp']}})
 
         # OK without device_info
         response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
@@ -540,16 +544,19 @@ class ViewTests(CustomAPITestCase):
                          status.HTTP_400_BAD_REQUEST)  # wrong tracking_session_id
         self.assertEqual(self.client.post_json(url, data=valid_data, auth_token='foo').status_code,
                          status.HTTP_401_UNAUTHORIZED)  # wrong auth token
-        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
-                                                          'end_time': (now + timedelta(minutes=5)).isoformat(),
-                                                          'tracking_session_id': tracking_sess_id},
-                                               auth_token=auth_token).status_code,
-                         status.HTTP_400_BAD_REQUEST)  # end time is in future
-        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
-                                                          'end_time': (now - timedelta(minutes=120)).isoformat(),
-                                                          'tracking_session_id': tracking_sess_id},
-                                               auth_token=auth_token).status_code,
-                         status.HTTP_400_BAD_REQUEST)  # end time is too long in past
+        response = self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                    'end_time': (now + timedelta(minutes=5)).isoformat(),
+                                                    'tracking_session_id': tracking_sess_id},
+                                         auth_token=auth_token)  # end time is in future
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), {'validation_errors': {'end_time': ['invalid timestamp']}})
+
+        response = self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                    'end_time': (now - timedelta(minutes=120)).isoformat(),
+                                                    'tracking_session_id': tracking_sess_id},
+                                         auth_token=auth_token)    # end time is too long in past
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), {'validation_errors': {'end_time': ['invalid timestamp']}})
 
         # OK
         response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
@@ -620,22 +627,26 @@ class ViewTests(CustomAPITestCase):
                          status.HTTP_400_BAD_REQUEST)  # wrong tracking_session_id
         self.assertEqual(self.client.post_json(url, data=valid_data_no_val, auth_token='foo').status_code,
                          status.HTTP_401_UNAUTHORIZED)  # wrong auth token
-        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
-                                                          'tracking_session_id': tracking_sess_id,
-                                                          'event': {
-                                                              "time": (now + timedelta(minutes=5)).isoformat(),
-                                                              "type": "testtype"}
-                                                          },
-                                               auth_token=auth_token).status_code,
-                         status.HTTP_400_BAD_REQUEST)  # time is in future
-        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
-                                                          'tracking_session_id': tracking_sess_id,
-                                                          'event': {
-                                                              "time": (now - timedelta(minutes=120)).isoformat(),
-                                                              "type": "testtype"}
-                                                          },
-                                               auth_token=auth_token).status_code,
-                         status.HTTP_400_BAD_REQUEST)  # time is too long in past
+
+        response = self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                    'tracking_session_id': tracking_sess_id,
+                                                    'event': {
+                                                        "time": (now + timedelta(minutes=5)).isoformat(),
+                                                        "type": "testtype"}
+                                                    },
+                                         auth_token=auth_token)  # time is in future
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), {'validation_errors': {'time': ['invalid timestamp']}})
+
+        response = self.client.post_json(url, data={'sess': self.app_sess_no_auth.code,
+                                                    'tracking_session_id': tracking_sess_id,
+                                                    'event': {
+                                                        "time": (now - timedelta(minutes=120)).isoformat(),
+                                                        "type": "testtype"}
+                                                    },
+                                         auth_token=auth_token)  # time is too long in past
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.json(), {'validation_errors': {'time': ['invalid timestamp']}})
 
         # OK without event value
         response = self.client.post_json(url, data=valid_data_no_val, auth_token=auth_token)
