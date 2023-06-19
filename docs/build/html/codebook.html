@@ -103,14 +103,22 @@ single device) – integer</strong></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">event_time</span></code>: time when the event took place – UTC date and time in
 format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">event_type</span></code>: type of the event – categorical;
-<code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code> (see below for
-possible <em>learnr</em> events in <code class="docutils literal notranslate"><span class="pre">*</span></code> placeholder) or <code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code></p></li>
+<code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;input_change&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code>
+(see below for possible <em>learnr</em> events in <code class="docutils literal notranslate"><span class="pre">*</span></code> placeholder) or
+<code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">event_value</span></code>: event data – JSON; depends on <code class="docutils literal notranslate"><span class="pre">event_type</span></code>:</p>
 <ul>
 <li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>: changed window size as
 <code class="docutils literal notranslate"><span class="pre">{&quot;window_size&quot;:</span> <span class="pre">[width,</span> <span class="pre">height]}</span></code></p></li>
-<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code>: data depends on learnr event type (see
-below)</p></li>
+<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code>:</p></li>
+<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;input_change&quot;</span></code>: an object with the following keys and
+values –</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">id</span></code>: HTML ID of the tracked input element – may be empty</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">xpath</span></code>: XPath to the tracked input element</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">value</span></code>: new value of the input element</p></li>
+</ul>
+</li>
 <li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code>: raw mouse tracking data as collected with
 <a class="reference external" href="https://github.com/ineventapp/musjs">mus.js</a>; data is
 collected in chunks and must be concatenated to form the trace for

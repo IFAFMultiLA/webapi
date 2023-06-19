@@ -51,6 +51,7 @@ Application configuration
       "js": [<additional JavaScript files to load>],
       "css": [<additional CSS files to load>],
       "tracking": {
-        "mouse": <bool>  # enable/disable mouse tracking w/ mus.js
+        "mouse": <bool>,  # enable/disable mouse tracking w/ mus.js
+        "inputs": <bool>  # enable/disable tracking of input changes
       }
     }
