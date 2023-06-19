@@ -72,14 +72,21 @@ Contains data on events produced by users within a tracking session.
 -  ``event_time``: time when the event took place – UTC date and time in
    format ``Y-M-D H:M:S``
 -  ``event_type``: type of the event – categorical;
-   ``"device_info_update"``, ``"learnr_event_*"`` (see below for
-   possible *learnr* events in ``*`` placeholder) or ``"mouse"``
+   ``"device_info_update"``, ``"input_change"``, ``"learnr_event_*"``
+   (see below for possible *learnr* events in ``*`` placeholder) or
+   ``"mouse"``
 -  ``event_value``: event data – JSON; depends on ``event_type``:
 
    -  for ``"device_info_update"``: changed window size as
       ``{"window_size": [width, height]}``
-   -  for ``"learnr_event_*"``: data depends on learnr event type (see
-      below)
+   -  for ``"learnr_event_*"``:
+   -  for ``"input_change"``: an object with the following keys and
+      values –
+
+      - ``id``: HTML ID of the tracked input element – may be empty
+      - ``xpath``: XPath to the tracked input element
+      - ``value``: new value of the input element
+
    -  for ``"mouse"``: raw mouse tracking data as collected with
       `mus.js <https://github.com/ineventapp/musjs>`_; data is
       collected in chunks and must be concatenated to form the trace for
