@@ -1,0 +1,179 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block bodyclass %}{{ block.super }} app-{{ app_label }}{% endblock %}
+
+{% block extrahead %}
+
+{{ block.super }}
+
+<style>
+#replay_controls {
+    margin: 0 0 1em 0;
+}
+
+#replay_controls button {
+    cursor: pointer;
+    font-size: 1.5em;
+}
+</style>
+
+<script src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+<script src="{% static 'admin/js/jquery.init.js' %}"></script>
+
+{{ app_config|json_script:"app_config" }}
+
+<script>
+if (!$) {
+    $ = django.jQuery;
+}
+
+let frame_win = null;
+let replay_is_playing = false;   // is true while a session replay is playing
+
+/**
+ * Send a message of type `msgtype` to the parent window.
+ *
+ * This is used when the app is embedded as iframe (e.g. in "replay mode").
+ */
+function messageToIFrame(msgtype, data) {
+    data = data === undefined ? null : data;
+    frame_win.postMessage({"msgtype": msgtype, "data": data}, "{{ allowed_iframe_origin }}");
+}
+
+
+/**
+ * Update the play/pause toggle button depending on the current playback state.
+ */
+function updatePlayPauseBtn() {
+    if (replay_is_playing) {
+        $('#replay_ctrl_play_pause').html("Pause");
+    } else {
+        $('#replay_ctrl_play_pause').html("Play");
+    }
+}
+
+
+$(document).ready(function () {
+    frame_win = document.getElementById("tracking_sess_replay_window").contentWindow;
+
+    window.addEventListener('message', event => {
+        console.log("message from iframe:", event);
+        if (event.isTrusted && event.origin === "{{ allowed_iframe_origin }}") {
+            if (event.data.msgtype === "init") {
+                // request to initialize the replay iframe -> send app configuration
+                let app_config = JSON.parse(document.getElementById('app_config').textContent);
+                messageToIFrame("app_config", app_config);
+            } else if (event.data.msgtype === "pulldata") {
+                // request to pass a replay data chunk to the replay iframe -> fetch it from the API and send it to
+                // the iframe
+                let base_url = "{% url 'multila_admin:trackingsession_replay_datachunk' tracking_sess.id 0 %}";
+                base_url = base_url.substring(0, base_url.length - 1);   // append which chunk index to fetch
+                fetch(base_url + event.data.data.i)
+                    .then(response => response.json())
+                    .then(function (data) {
+                        messageToIFrame("replaydata", data);
+                    });
+            } else if (event.data.msgtype === "replay_stopped") {
+                // playback reached the end
+                replay_is_playing = false;
+                updatePlayPauseBtn();
+                setTimeout(function () {
+                    frame_win.location.replace("{{ tracking_sess.user_app_session.application_session.session_url }}&replay=1");
+                }, 1000);
+            } else {
+                console.error("event message type not understood:", event.data.msgtype);
+            }
+        }
+    });
+
+    // set up click event listener for play/pause button
+    $('#replay_ctrl_play_pause').on('click', function () {
+        replay_is_playing = !replay_is_playing;
+        updatePlayPauseBtn();
+
+        if (replay_is_playing) {
+            messageToIFrame("replay_ctrl_play");
+        } else {
+            messageToIFrame("replay_ctrl_pause");
+        }
+    });
+
+    // set up click event listener for stop button
+    $('#replay_ctrl_stop').on('click', function () {
+        replay_is_playing = false;
+        updatePlayPauseBtn();
+
+        messageToIFrame("replay_ctrl_stop");
+    });
+});
+
+</script>
+{% endblock %}
+
+{% if not is_popup %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo;
+Data replay
+</div>
+{% endblock %}
+{% endif %}
+
+{% block coltype %}{% endblock %}
+
+{% block content %}
+
+<ul>
+    <li>
+        Application:
+        <a href="{% url 'admin:api_application_change' tracking_sess.user_app_session.application_session.config.application.id %}">
+            {{ tracking_sess.user_app_session.application_session.config.application.name }}
+        </a> /
+        Configuration
+        <a href="{% url 'admin:api_applicationconfig_change' tracking_sess.user_app_session.application_session.config.id %}">
+            {{ tracking_sess.user_app_session.application_session.config.label }}
+        </a> /
+        Session
+        <a href="{% url 'admin:api_applicationsession_change' tracking_sess.user_app_session.application_session.code %}">
+            {{ tracking_sess.user_app_session.application_session.code }}
+        </a>
+    </li>
+    <li>
+        URL:
+        <a href="{{ tracking_sess.user_app_session.application_session.session_url }}" target="_blank">
+            {{ tracking_sess.user_app_session.application_session.session_url }}
+        </a>
+    </li>
+    <li>Time: {{ tracking_sess.start_time }} – {{ tracking_sess.end_time|default_if_none:"<em>unknown</em>" }}</li>
+    <li>
+        User:
+        {% if tracking_sess.user_app_session.application_session.auth_mode == "login" %}
+            <a href="{% url 'admin:auth_user_change' tracking_sess.user_app_session.user.id %}">
+                {{ tracking_sess.user_app_session.user.username }}
+            </a>
+        {% else %}
+            <em>anonymous</em>
+        {% endif %}
+    </li>
+    <li>User agent: <code>{{ tracking_sess.device_info.user_agent|default:"<em>unknown</em>" }}</code></li>
+    <li>
+        Form factor: {{ tracking_sess.device_info.form_factor|default:"<em>unknown</em>" }}
+        {% if tracking_sess.device_info.window_size %}
+            (window size {{ tracking_sess.device_info.window_size.0 }}px ⨉ {{ tracking_sess.device_info.window_size.1 }}px)
+        {% endif %}
+    </li>
+</ul>
+
+<div id="replay_controls">
+    <button id="replay_ctrl_play_pause">Play</button>
+    <button id="replay_ctrl_stop">Stop</button>
+</div>
+
+<iframe id="tracking_sess_replay_window"
+        src="{{ tracking_sess.user_app_session.application_session.session_url }}&replay=1"
+        width="{{ tracking_sess.device_info.window_size.1 }}" height="{{ tracking_sess.device_info.window_size.0 }}">
+</iframe>
+
+{% endblock %}

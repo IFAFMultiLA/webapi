@@ -347,6 +347,9 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
                     tracking_sess_serializer.save()
                     return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk},
                                         status=status.HTTP_201_CREATED)
+                else:
+                    return JsonResponse({'validation_errors': tracking_sess_serializer.errors},
+                                        status=status.HTTP_400_BAD_REQUEST)
             return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -384,6 +387,9 @@ def stop_tracking(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
                 tracking_sess_serializer.save()
                 return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk},
                                     status=status.HTTP_200_OK)
+            else:
+                return JsonResponse({'validation_errors': tracking_sess_serializer.errors},
+                                    status=status.HTTP_400_BAD_REQUEST)
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
@@ -422,8 +428,9 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
         if event_serializer.is_valid():
             event_serializer.save()
             return JsonResponse({'tracking_event_id': event_serializer.instance.pk}, status=status.HTTP_201_CREATED)
-
-        return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return JsonResponse({'validation_errors': event_serializer.errors},
+                                status=status.HTTP_400_BAD_REQUEST)
 
 
 def csrf_failure(request, reason=""):

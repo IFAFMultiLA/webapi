@@ -15,6 +15,7 @@ from glob import glob
 from datetime import datetime
 from zipfile import ZipFile, ZIP_DEFLATED
 from zoneinfo import ZoneInfo
+from urllib.parse import urlsplit, urlunsplit
 
 from django import forms
 from django.contrib import admin
@@ -25,9 +26,10 @@ from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFoun
 from django.template.response import TemplateResponse
 from django.urls import path, reverse, re_path
 from django.utils.safestring import mark_safe
+from django.shortcuts import get_object_or_404
 from django.conf import settings
 
-from .models import Application, ApplicationConfig, ApplicationSession
+from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession, TrackingEvent
 
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
@@ -135,6 +137,57 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         return super().save_model(request, obj, form, change)
 
 
+class TrackingSessionAdmin(admin.ModelAdmin):
+    list_display = ['app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events', 'replay']
+    list_select_related = True
+    list_filter = ['user_app_session__application_session__config__application__name', 'start_time', 'end_time']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(n_events=Count('trackingevent'))
+
+    @admin.display(ordering='user_app_session__application_session__config__application__name',
+                   description='Application / Config / Session')
+    def app_config_sess(self, obj):
+        """Custom display field combining the application name, configuration label and application session."""
+        app_sess = obj.user_app_session.application_session
+        app_url = reverse('multila_admin:api_application_change', args=[app_sess.config.application_id])
+        config_url = reverse('multila_admin:api_applicationconfig_change', args=[app_sess.config_id])
+        sess_url = reverse('multila_admin:api_applicationsession_change', args=[app_sess.code])
+
+        return mark_safe(f'<a href="{app_url}">{app_sess.config.application.name}</a> / '
+                         f'<a href="{config_url}">{app_sess.config.label}</a> / '
+                         f'<a href="{sess_url}">{app_sess.code}</a>')
+
+    @admin.display(ordering=None, description='URL')
+    def session_url(self, obj):
+        """Custom display field for URL pointing to application with session code attached."""
+        sess_url = obj.user_app_session.application_session.session_url()
+        return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
+
+    @admin.display(ordering='n_events', description='Num. events')
+    def n_events(self, obj):
+        """Custom display field to show the number of tracked events per tracking session."""
+        return obj.n_events
+
+    @admin.display(ordering=None, description='Replay session')
+    def replay(self, obj):
+        replay_url = reverse('multila_admin:trackingsessions_replay', args=[obj.pk])
+        if obj.n_events > 0:
+            return mark_safe(f'<a href="{replay_url}" style="font-weight:bold;font-size:1.5em">&#8634;</a>')
+        else:
+            return '-'
+
+
 # --- custom admin site ---
 
 
@@ -167,13 +220,27 @@ class MultiLAAdminSite(admin.AdminSite):
         """
         urls = super().get_urls()
         custom_urls = [
-            path('data/view/', self.admin_view(self.dataview), name='dataview'),
-            path('data/export/', self.admin_view(self.dataexport), name='dataexport'),
-            path('data/export_filelist/', self.admin_view(self.dataexport_filelist), name='dataexport_filelist'),
-            re_path(r'^data/export_download/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_download),
-                 name='dataexport_download'),
-            re_path(r'^data/export_delete/(?P<file>[\w._-]+)$', self.admin_view(self.dataexport_delete),
-                 name='dataexport_delete')
+            path('data/view/',
+                 self.admin_view(self.dataview),
+                 name='dataview'),
+            path('data/export/',
+                 self.admin_view(self.dataexport),
+                 name='dataexport'),
+            path('data/export_filelist/',
+                 self.admin_view(self.dataexport_filelist),
+                 name='dataexport_filelist'),
+            re_path(r'^data/export_download/(?P<file>[\w._-]+)$',
+                    self.admin_view(self.dataexport_download),
+                    name='dataexport_download'),
+            re_path(r'^data/export_delete/(?P<file>[\w._-]+)$',
+                    self.admin_view(self.dataexport_delete),
+                    name='dataexport_delete'),
+            path('data/trackingsession/replay/<int:tracking_sess_id>',
+                 self.admin_view(self.trackingsession_replay),
+                 name='trackingsessions_replay'),
+            path('data/trackingsession/replay/<int:tracking_sess_id>/chunk/<int:i>',
+                 self.admin_view(self.trackingsession_replay_datachunk),
+                 name='trackingsession_replay_datachunk'),
         ]
         return custom_urls + urls
 
@@ -181,8 +248,15 @@ class MultiLAAdminSite(admin.AdminSite):
         """
         Expand app list by custom views for a "data manager".
         """
-        app_list = super().get_app_list(request)
 
+        # first, remove the TrackingSession admin from the default admin menu, because we will list it under the
+        # custom "datamanager" app
+        app_list = super().get_app_list(request)
+        for app in app_list:
+            if app['app_label'] == 'api':
+                app['models'] = [m for m in app['models'] if m['object_name'] != 'TrackingSession']
+
+        # add a custom data manager app
         datamanager_app = {
             'name': 'Data manager',
             'app_label': 'datamanager',
@@ -203,6 +277,14 @@ class MultiLAAdminSite(admin.AdminSite):
                     'name': 'Export',
                     'perms': {'add': False, 'change': False, 'delete': False, 'view': True},
                     'admin_url': reverse('multila_admin:dataexport'),
+                    'add_url': None
+                },
+                {
+                    'model': TrackingSession,
+                    'object_name': 'TrackingSession',
+                    'name': 'Tracking sessions',
+                    'perms': {'add': False, 'change': False, 'delete': False, 'view': True},
+                    'admin_url': reverse('multila_admin:api_trackingsession_changelist'),
                     'add_url': None
                 }
             ]
@@ -559,6 +641,63 @@ class MultiLAAdminSite(admin.AdminSite):
 
         return TemplateResponse(request, "admin/dataexport.html", context)
 
+    def trackingsession_replay(self, request, tracking_sess_id):
+        """
+        Tracking session replay view for a tracking session identified via `tracking_sess_id`.
+        """
+        tracking_sess = get_object_or_404(TrackingSession.objects.select_related(), pk=tracking_sess_id)
+
+        # determine valid iframe origin: the scheme+host of the application session URL that will be embedded
+        sess_url = tracking_sess.user_app_session.application_session.session_url()
+        sess_url_parts = list(urlsplit(sess_url))
+        allowed_iframe_origin = urlunsplit(sess_url_parts[:2] + [''] * 3)
+
+        # set template variables
+        context = {
+            **self.each_context(request),
+            "title": "Data manager",
+            "subtitle": f"Tracking session replay for tracking session #{tracking_sess_id}",
+            "app_label": "datamanager",
+            "tracking_sess": tracking_sess,
+            "app_config": tracking_sess.user_app_session.application_session.config.config,
+            "allowed_iframe_origin": allowed_iframe_origin
+        }
+
+        request.current_app = self.name
+
+        return TemplateResponse(request, "admin/trackingsessions_replay.html", context)
+
+    def trackingsession_replay_datachunk(self, request, tracking_sess_id, i):
+        """
+        Tracking session replay view for fetching the `i`th replay data chunk of the tracking session identified
+        by `tracking_sess_id`. Returns a JSON response.
+        """
+
+        if i == 0:   # for the first chunk, also add the information about how many chunks there are
+            n_chunks = len(TrackingEvent.objects.filter(tracking_session=tracking_sess_id, type="mouse"))
+        else:
+            n_chunks = None
+
+        try:
+            event = TrackingEvent.objects.filter(tracking_session=tracking_sess_id, type="mouse").order_by("time")[i]
+        except IndexError:
+            return JsonResponse({})
+
+        #filter_frametypes = {'m', 'c', 's', 'i', 'o'}
+        # filter_frametypes = {'m'}
+        replaydata = event.value
+        # startframe = 0
+        # for f_index, f in enumerate(replaydata['frames']):
+        #     if f[0] in filter_frametypes:
+        #         startframe = f_index
+        #         break
+        #
+        # replaydata['frames'] = replaydata['frames'][startframe:]
+        filter_frametypes = {'m', 'c', 's', 'i', 'o'}
+        replaydata['frames'] = [f for f in replaydata['frames'] if f[0] in filter_frametypes]
+
+        return JsonResponse({"i": i, "replaydata": replaydata, "n_chunks": n_chunks})
+
 
 admin_site = MultiLAAdminSite(name='multila_admin')
 
@@ -566,5 +705,6 @@ admin_site = MultiLAAdminSite(name='multila_admin')
 admin_site.register(Application, ApplicationAdmin)
 admin_site.register(ApplicationConfig, ApplicationConfigAdmin)
 admin_site.register(ApplicationSession, ApplicationSessionAdmin)
+admin_site.register(TrackingSession, TrackingSessionAdmin)
 admin_site.register(User)
 admin_site.register(Group)
