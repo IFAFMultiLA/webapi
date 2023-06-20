@@ -167,7 +167,7 @@ class TrackingSessionAdmin(admin.ModelAdmin):
     This model admin is used as "read-only" admin for displaying a list of tracking sessions via the "changelist"
     action.
     """
-    list_display = ['app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events', 'replay']
+    list_display = ['app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events', 'options']
     list_select_related = True
     list_filter = ['user_app_session__application_session__config__application__name', 'start_time', 'end_time']
 
@@ -208,12 +208,14 @@ class TrackingSessionAdmin(admin.ModelAdmin):
         """Custom display field to show the number of tracked events per tracking session."""
         return obj.n_events
 
-    @admin.display(ordering=None, description='Replay session')
-    def replay(self, obj):
-        """Replay button that only contains a link."""
+    @admin.display(ordering=None, description='Options')
+    def options(self, obj):
+        """Event viewer and replay buttons."""
+        events_view_url = reverse('multila_admin:api_trackingevent_changelist') + f'?tracking_sess_id={obj.pk}'
         replay_url = reverse('multila_admin:trackingsessions_replay', args=[obj.pk])
         if obj.n_events > 0:
-            return mark_safe(f'<a href="{replay_url}" style="font-weight:bold;font-size:1.5em">&#8634;</a>')
+            return mark_safe(f'<a href="{events_view_url}" style="font-weight:bold;font-size:1.5em">&#8505;</a>&nbsp;'
+                             f'<a href="{replay_url}" style="font-weight:bold;font-size:1.5em">&#8634;</a>')
         else:
             return '-'
 
@@ -229,6 +231,7 @@ class TrackingEventAdmin(admin.ModelAdmin):
     list_filter = ['time', 'type']
     fields = ['tracking_session', ('time', 'type'), 'value_formatted_rofield']
     readonly_fields = ['value_formatted_rofield']
+    change_list_template = "admin/trackingevent_change_list.html"
 
     def has_add_permission(self, request):
         return False
@@ -243,6 +246,25 @@ class TrackingEventAdmin(admin.ModelAdmin):
         """
         Custom queryset for filtering data for a specific tracking session given by `tracking_sess_id` URL parameter.
         """
+
+        qs = super().get_queryset(request)
+
+        tracking_sess_id = request.session.get('tracking_sess_id')
+
+        if tracking_sess_id is None:
+            return tracking_sess_id
+        else:
+            return qs.filter(tracking_session=tracking_sess_id)
+
+    @admin.display(ordering=None, description='Value (JSON)')
+    def value_formatted(self, obj):
+        return mark_safe(f"<pre>{format_value_as_json(obj.value, maxlines=5)}</pre>")
+
+    @admin.display(description='Value (JSON)')
+    def value_formatted_rofield(self, obj):
+        return mark_safe(f"<pre>{format_value_as_json(obj.value)}</pre>")
+
+    def changelist_view(self, request, extra_context=None):
         tracking_sess_id = None
 
         try:
@@ -255,26 +277,26 @@ class TrackingEventAdmin(admin.ModelAdmin):
         except (TypeError, KeyError):
             pass
 
-        qs = super().get_queryset(request)
-
         if tracking_sess_id is None:
             tracking_sess_id_from_session = request.session.get('tracking_sess_id')
 
             if tracking_sess_id_from_session is None:
-                return qs
+                return super().changelist_view(request, extra_context=extra_context)
             else:
                 tracking_sess_id = tracking_sess_id_from_session
 
         request.session['tracking_sess_id'] = tracking_sess_id
-        return qs.filter(tracking_session=tracking_sess_id)
 
-    @admin.display(ordering=None, description='Value (JSON)')
-    def value_formatted(self, obj):
-        return mark_safe(f"<pre>{format_value_as_json(obj.value, maxlines=5)}</pre>")
+        tracking_sess = get_object_or_404(TrackingSession.objects.select_related(), pk=tracking_sess_id)
+        extra_context = extra_context or {}
+        extra_context.update({
+            "title": "Data manager",
+            "subtitle": f"Tracking events for tracking session #{tracking_sess_id}",
+            "app_label": "datamanager",
+            "tracking_sess": tracking_sess
+        })
 
-    @admin.display(description='Value (JSON)')
-    def value_formatted_rofield(self, obj):
-        return mark_safe(f"<pre>{format_value_as_json(obj.value)}</pre>")
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 # --- custom admin site ---
