@@ -16,6 +16,7 @@ from datetime import datetime
 from zipfile import ZipFile, ZIP_DEFLATED
 from zoneinfo import ZoneInfo
 from urllib.parse import urlsplit, urlunsplit
+import json
 
 from django import forms
 from django.contrib import admin
@@ -145,6 +146,12 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
 
 
 class TrackingSessionAdmin(admin.ModelAdmin):
+    """
+    Model admin for TrackingSession model.
+
+    This model admin is used as "read-only" admin for displaying a list of tracking sessions via the "changelist"
+    action.
+    """
     list_display = ['app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events', 'replay']
     list_select_related = True
     list_filter = ['user_app_session__application_session__config__application__name', 'start_time', 'end_time']
@@ -188,11 +195,70 @@ class TrackingSessionAdmin(admin.ModelAdmin):
 
     @admin.display(ordering=None, description='Replay session')
     def replay(self, obj):
+        """Replay button that only contains a link."""
         replay_url = reverse('multila_admin:trackingsessions_replay', args=[obj.pk])
         if obj.n_events > 0:
             return mark_safe(f'<a href="{replay_url}" style="font-weight:bold;font-size:1.5em">&#8634;</a>')
         else:
             return '-'
+
+
+class TrackingEventAdmin(admin.ModelAdmin):
+    """
+    Model admin for TrackingEvent model.
+
+    This model admin is used as "read-only" admin for displaying a list of tracking events of a tracking session via the
+    "changelist" action.
+    """
+    list_display = ['time', 'type', 'value_formatted']
+    list_filter = ['time', 'type']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        """
+        Custom queryset for filtering data for a specific tracking session given by `tracking_sess_id` URL parameter.
+        """
+        tracking_sess_id = None
+
+        try:
+            # need to get and remove the tracking_sess_id parameter (if given), otherwise the super() call will produce
+            # an error
+            request.GET._mutable = True
+            param = request.GET.pop('tracking_sess_id')
+            if isinstance(param, list) and len(param) == 1:
+                tracking_sess_id = int(param[0])
+        except (TypeError, KeyError):
+            pass
+
+        qs = super().get_queryset(request)
+
+        if tracking_sess_id is None:
+            tracking_sess_id_from_session = request.session.get('tracking_sess_id')
+
+            if tracking_sess_id_from_session is None:
+                return qs
+            else:
+                tracking_sess_id = tracking_sess_id_from_session
+
+        request.session['tracking_sess_id'] = tracking_sess_id
+        return qs.filter(tracking_session=tracking_sess_id)
+
+    @admin.display(ordering=None, description='Value (JSON)')
+    def value_formatted(self, obj):
+        formatted_lines = json.dumps(obj.value, indent=2).split('\n')
+        if len(formatted_lines) > 5:
+            formatted_lines = formatted_lines[:5] + ['...']
+
+        formatted = '\n'.join(formatted_lines)
+        return mark_safe(f"<pre>{formatted}</pre>")
 
 
 # --- custom admin site ---
@@ -261,7 +327,8 @@ class MultiLAAdminSite(admin.AdminSite):
         app_list = super().get_app_list(request)
         for app in app_list:
             if app['app_label'] == 'api':
-                app['models'] = [m for m in app['models'] if m['object_name'] != 'TrackingSession']
+                app['models'] = [m for m in app['models']
+                                 if m['object_name'] not in {'TrackingSession', 'TrackingEvent'}]
 
         # add a custom data manager app
         datamanager_app = {
@@ -713,5 +780,6 @@ admin_site.register(Application, ApplicationAdmin)
 admin_site.register(ApplicationConfig, ApplicationConfigAdmin)
 admin_site.register(ApplicationSession, ApplicationSessionAdmin)
 admin_site.register(TrackingSession, TrackingSessionAdmin)
+admin_site.register(TrackingEvent, TrackingEventAdmin)
 admin_site.register(User)
 admin_site.register(Group)
