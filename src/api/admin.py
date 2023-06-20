@@ -67,15 +67,22 @@ class ApplicationAdmin(admin.ModelAdmin):
     def get_fields(self, request, obj=None):
         fields = self.fields
         if obj:
+            # on update return all fields
             return fields
         else:
+            # on create, don't show "default application session" field, as we can't possibly have created any
+            # application session for this application, yet
             return [f for f in fields if f != 'default_application_session']
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
-        form.base_fields['default_application_session'].required = False
-        form.base_fields['default_application_session'].queryset = \
-            ApplicationSession.objects.filter(config__application=obj)
+
+        if obj:
+            # on update, set up the "default application session" field to fetch all related application sessions
+            # as options for selection
+            form.base_fields['default_application_session'].required = False
+            form.base_fields['default_application_session'].queryset = \
+                ApplicationSession.objects.filter(config__application=obj)
 
         return form
 
