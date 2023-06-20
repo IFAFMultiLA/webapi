@@ -47,6 +47,21 @@ def utc_to_default_tz(t):
     return (t + t.replace(tzinfo=DEFAULT_TZINFO).utcoffset()).replace(tzinfo=DEFAULT_TZINFO)
 
 
+def format_value_as_json(value, maxlines=None):
+    """
+    Helper function to format a Python value `value` as JSON string.
+    Set `maxlines` to a positive integer to truncate the JSON string to `maxlines` lines at maximum.
+    """
+    if maxlines is not None and (not isinstance(maxlines, int) or maxlines <= 0):
+        raise ValueError("if `maxlines` is given, it must be a strictly positive integer")
+
+    formatted_lines = json.dumps(value, indent=2).split('\n')
+    if maxlines is not None and len(formatted_lines) > maxlines:
+        formatted_lines = formatted_lines[:maxlines] + ['...']
+
+    return '\n'.join(formatted_lines)
+
+
 # --- model admins ---
 
 
@@ -212,6 +227,8 @@ class TrackingEventAdmin(admin.ModelAdmin):
     """
     list_display = ['time', 'type', 'value_formatted']
     list_filter = ['time', 'type']
+    fields = ['tracking_session', ('time', 'type'), 'value_formatted_rofield']
+    readonly_fields = ['value_formatted_rofield']
 
     def has_add_permission(self, request):
         return False
@@ -253,12 +270,11 @@ class TrackingEventAdmin(admin.ModelAdmin):
 
     @admin.display(ordering=None, description='Value (JSON)')
     def value_formatted(self, obj):
-        formatted_lines = json.dumps(obj.value, indent=2).split('\n')
-        if len(formatted_lines) > 5:
-            formatted_lines = formatted_lines[:5] + ['...']
+        return mark_safe(f"<pre>{format_value_as_json(obj.value, maxlines=5)}</pre>")
 
-        formatted = '\n'.join(formatted_lines)
-        return mark_safe(f"<pre>{formatted}</pre>")
+    @admin.display(description='Value (JSON)')
+    def value_formatted_rofield(self, obj):
+        return mark_safe(f"<pre>{format_value_as_json(obj.value)}</pre>")
 
 
 # --- custom admin site ---
