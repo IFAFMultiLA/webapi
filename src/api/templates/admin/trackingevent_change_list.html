@@ -1,0 +1,51 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block content %}
+
+<ul>
+    <li>
+        Application:
+        <a href="{% url 'admin:api_application_change' tracking_sess.user_app_session.application_session.config.application.id %}">
+            {{ tracking_sess.user_app_session.application_session.config.application.name }}
+        </a> /
+        Configuration
+        <a href="{% url 'admin:api_applicationconfig_change' tracking_sess.user_app_session.application_session.config.id %}">
+            {{ tracking_sess.user_app_session.application_session.config.label }}
+        </a> /
+        Session
+        <a href="{% url 'admin:api_applicationsession_change' tracking_sess.user_app_session.application_session.code %}">
+            {{ tracking_sess.user_app_session.application_session.code }}
+        </a>
+    </li>
+    <li>
+        URL:
+        <a href="{{ tracking_sess.user_app_session.application_session.session_url }}" target="_blank">
+            {{ tracking_sess.user_app_session.application_session.session_url }}
+        </a>
+    </li>
+    <li>Time: {{ tracking_sess.start_time }} – {{ tracking_sess.end_time|default_if_none:"<em>unknown</em>" }}</li>
+    <li>
+        User:
+        {% if tracking_sess.user_app_session.application_session.auth_mode == "login" %}
+            <a href="{% url 'admin:auth_user_change' tracking_sess.user_app_session.user.id %}">
+                {{ tracking_sess.user_app_session.user.username }}
+            </a>
+        {% else %}
+            <em>anonymous</em>
+        {% endif %}
+    </li>
+    <li>User agent: <code>{{ tracking_sess.device_info.user_agent|default:"<em>unknown</em>" }}</code></li>
+    <li>
+        Form factor: {{ tracking_sess.device_info.form_factor|default:"<em>unknown</em>" }}
+        {% if tracking_sess.device_info.window_size %}
+            (window size {{ tracking_sess.device_info.window_size.0 }}px ⨉ {{ tracking_sess.device_info.window_size.1 }}px)
+        {% endif %}
+    </li>
+</ul>
+
+<p><a href="{% url 'multila_admin:trackingsessions_replay' tracking_sess.pk %}">&#8634; Replay tracking data</a></p>
+
+{{ block.super }}
+
+{% endblock %}
