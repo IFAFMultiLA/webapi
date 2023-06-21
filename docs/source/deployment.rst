@@ -91,7 +91,8 @@ Publishing updates
 
 - locally, run ``make testsync`` and ``make sync`` to publish updated files to the server
 - on the server, optional run ``make migrate`` to update the database and run ``make restart_web`` to restart the web
-  application
+  application (there is a shortcut ``make server_restart_web`` that you can run *locally* in order to restart the web
+  application on the server)
 - if there are changes in the static files, you should run ``make collectstatic`` before ``make sync`` and then run
   ``make copy_static`` on the server
 - if there are changes in the dependencies, you need to rebuild the container as decribed above under

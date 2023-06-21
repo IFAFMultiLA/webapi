@@ -64,3 +64,6 @@ download_dbbackup:
 
 adminer_tunnel:
 	ssh -N -L 8081:localhost:8081 $(SERVER)
+
+server_restart_web:
+	ssh $(SERVER) 'cd $(APPDIR) && make restart_web'

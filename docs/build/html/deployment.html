@@ -130,7 +130,8 @@ ProxyPassReverse /api/ http://0.0.0.0:8000/
 <ul class="simple">
 <li><p>locally, run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">testsync</span></code> and <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">sync</span></code> to publish updated files to the server</p></li>
 <li><p>on the server, optional run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">migrate</span></code> to update the database and run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">restart_web</span></code> to restart the web
-application</p></li>
+application (there is a shortcut <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">server_restart_web</span></code> that you can run <em>locally</em> in order to restart the web
+application on the server)</p></li>
 <li><p>if there are changes in the static files, you should run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">collectstatic</span></code> before <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">sync</span></code> and then run
 <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">copy_static</span></code> on the server</p></li>
 <li><p>if there are changes in the dependencies, you need to rebuild the container as decribed above under
