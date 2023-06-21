@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 
 
 HASH_KEY = settings.SECRET_KEY.encode()[:32]   # hash salt
-APPLICATION_CONFIG_DEFAULT_JSON = dict(**{
+APPLICATION_CONFIG_DEFAULT_JSON = {
     "exclude": [],
     "js": [],
     "css": [],
@@ -22,7 +22,7 @@ APPLICATION_CONFIG_DEFAULT_JSON = dict(**{
         "mouse": True,
         "inputs": True
     }
-})
+}
 
 
 def max_options_length(opts):
@@ -62,7 +62,7 @@ class ApplicationConfig(models.Model):
     application = models.ForeignKey(Application, on_delete=models.CASCADE)
     label = models.CharField('Configuration label', max_length=128, blank=False,
                              help_text='A unique label to identify this configuration.')
-    config = models.JSONField('Configuration', blank=True, default=APPLICATION_CONFIG_DEFAULT_JSON)
+    config = models.JSONField('Configuration', blank=True, default=lambda: APPLICATION_CONFIG_DEFAULT_JSON)
     updated = models.DateTimeField('Last update', auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
