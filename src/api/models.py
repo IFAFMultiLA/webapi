@@ -13,7 +13,16 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
-hash_key = settings.SECRET_KEY.encode()[:32]   # hash salt
+HASH_KEY = settings.SECRET_KEY.encode()[:32]   # hash salt
+APPLICATION_CONFIG_DEFAULT_JSON = dict(**{
+    "exclude": [],
+    "js": [],
+    "css": [],
+    "tracking": {
+        "mouse": True,
+        "inputs": True
+    }
+})
 
 
 def max_options_length(opts):
@@ -53,7 +62,7 @@ class ApplicationConfig(models.Model):
     application = models.ForeignKey(Application, on_delete=models.CASCADE)
     label = models.CharField('Configuration label', max_length=128, blank=False,
                              help_text='A unique label to identify this configuration.')
-    config = models.JSONField('Configuration', blank=True)
+    config = models.JSONField('Configuration', blank=True, default=APPLICATION_CONFIG_DEFAULT_JSON)
     updated = models.DateTimeField('Last update', auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
@@ -91,7 +100,7 @@ class ApplicationSession(models.Model):
         # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
         # from the configuration and the current time
         data = json.dumps(self.config.config).encode() + current_time_bytes()
-        self.code = hashlib.blake2s(data, digest_size=5, key=hash_key).hexdigest()
+        self.code = hashlib.blake2s(data, digest_size=5, key=HASH_KEY).hexdigest()
 
         return self.code
 
@@ -134,7 +143,7 @@ class UserApplicationSession(models.Model):
         # generate a code of length 64 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
         # from the application session code and the current time
         data = self.application_session.code.encode() + current_time_bytes()
-        self.code = hashlib.blake2s(data, digest_size=32, key=hash_key).hexdigest()
+        self.code = hashlib.blake2s(data, digest_size=32, key=HASH_KEY).hexdigest()
 
         return self.code
 
