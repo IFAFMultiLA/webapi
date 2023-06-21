@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
+from django.forms.models import ModelFormMetaclass
 from django.template.response import TemplateResponse
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
@@ -703,6 +704,14 @@ class ModelAdminTests(TestCase):
 
         app_from_db = Application.objects.get(name="testapp")
         self.assertEqual(app_from_db.pk, app.pk)
+
+        form = modeladm.get_form(self.request, obj=None)
+        self.assertIsInstance(form, ModelFormMetaclass)
+        self.assertNotIn('default_application_session', form.base_fields)
+
+        form = modeladm.get_form(self.request, obj=app)
+        self.assertIsInstance(form, ModelFormMetaclass)
+        self.assertIn('default_application_session', form.base_fields)
 
         obj_views_args = dict(object_id=str(app.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
