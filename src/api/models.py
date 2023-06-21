@@ -42,7 +42,10 @@ class Application(models.Model):
     default_application_session = models.ForeignKey('ApplicationSession', null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
-        return f'Application #{self.pk} "{self.name}" at {self.url}'
+        return f'{self.name} at {self.url} (#{self.pk})'
+
+    class Meta:
+        ordering = ["name"]
 
 
 class ApplicationConfig(models.Model):
@@ -55,7 +58,7 @@ class ApplicationConfig(models.Model):
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
-        return f'Application configuration #{self.pk} "{self.label}" for application #{self.application_id}'
+        return f'{self.application.name} (#{self.application_id}) / configuration "{self.label}" (#{self.id})'
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['application', 'label'], name='unique_app_label')]
@@ -102,7 +105,8 @@ class ApplicationSession(models.Model):
         return f'{baseurl}?sess={self.code}'
 
     def __str__(self):
-        return f'Application session "{self.code}" (auth. "{self.auth_mode}") for configuration #{self.config_id}'
+        return f'Application session "{self.code}" (auth. "{self.auth_mode}") ' \
+               f'for configuration "{self.config.label}" (#{self.config_id})'
 
 
 class UserApplicationSession(models.Model):
