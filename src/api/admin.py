@@ -36,6 +36,9 @@ from .models import Application, ApplicationConfig, ApplicationSession, Tracking
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 
 
+# --- shared utilities ---
+
+
 def utc_to_default_tz(t):
     """
     Helper function to add the default time zone set in `settings.TIME_ZONE` and its respective offset to a datetime
@@ -60,6 +63,11 @@ def format_value_as_json(value, maxlines=None):
         formatted_lines = formatted_lines[:maxlines] + ['...']
 
     return '\n'.join(formatted_lines)
+
+
+class JSONEncoderWithIdent(json.JSONEncoder):
+    def __init__(self, *args, indent, **kwargs):
+        super().__init__(*args, indent=2, **kwargs)
 
 
 # --- model admins ---
@@ -131,6 +139,15 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
         obj.updated_by = request.user
         return super().save_model(request, obj, form, change)
 
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """
+        Adjust form fields for specific model fields.
+        """
+        if db_field.name == 'config':
+            # pretty formatting for configuration JSON field
+            kwargs['encoder'] = JSONEncoderWithIdent
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
 
 class ApplicationSessionAdmin(admin.ModelAdmin):
     """
@@ -164,7 +181,11 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         return super().save_model(request, obj, form, change)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Adjust form field for specific foreign key model fields.
+        """
         if db_field.name == "config":
+            # queryset for application configuration choices
             kwargs['queryset'] = ApplicationConfig.objects.select_related('application')\
                 .order_by('application__name', 'label')
 
