@@ -90,6 +90,10 @@ class ApplicationAdmin(admin.ModelAdmin):
             # application session for this application, yet
             return [f for f in fields if f != 'default_application_session']
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('default_application_session__config')
+
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
 
@@ -158,6 +162,13 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         if not change:
             obj.generate_code()
         return super().save_model(request, obj, form, change)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "config":
+            kwargs['queryset'] = ApplicationConfig.objects.select_related('application')\
+                .order_by('application__name', 'label')
+
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 class TrackingSessionAdmin(admin.ModelAdmin):
