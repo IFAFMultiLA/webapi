@@ -17,7 +17,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
     UserApplicationSession, User, TrackingSession, TrackingEvent
-from .admin import admin_site, ApplicationAdmin
+from .admin import admin_site, ApplicationAdmin, ApplicationConfigAdmin
 
 
 # ----- helper functions -----
@@ -705,14 +705,38 @@ class ModelAdminTests(TestCase):
         app_from_db = Application.objects.get(name="testapp")
         self.assertEqual(app_from_db.pk, app.pk)
 
+        # check that default_application_session is not part of the form when creating a new application entry
         form = modeladm.get_form(self.request, obj=None)
         self.assertIsInstance(form, ModelFormMetaclass)
         self.assertNotIn('default_application_session', form.base_fields)
 
+        # check that default_application_session is part of the form when update an existing application entry
         form = modeladm.get_form(self.request, obj=app)
         self.assertIsInstance(form, ModelFormMetaclass)
         self.assertIn('default_application_session', form.base_fields)
 
         obj_views_args = dict(object_id=str(app.pk))
+        views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
+        self._check_modeladmin_default_views(modeladm, views_args)
+
+    def test_applicationconfig_admin(self):
+        modeladm = ApplicationConfigAdmin(ApplicationConfig, admin_site)
+
+        app = Application(name="testapp", url="http://testapp.com")
+        app.save()
+        appconfig = ApplicationConfig(application=app,
+                                      label="testconfig",
+                                      config={"key": "value"})
+        del app
+
+        form = modeladm.get_form(self.request, appconfig, change=True)
+        modeladm.save_model(self.request, appconfig, form, change=True)
+        self.assertEqual(appconfig.updated_by, self.request.user)
+        self.assertIsNotNone(appconfig.updated)
+
+        appconfig_from_db = ApplicationConfig.objects.get(label="testconfig")
+        self.assertEqual(appconfig_from_db.pk, appconfig.pk)
+
+        obj_views_args = dict(object_id=str(appconfig.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
         self._check_modeladmin_default_views(modeladm, views_args)
