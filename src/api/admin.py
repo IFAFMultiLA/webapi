@@ -281,10 +281,10 @@ class TrackingEventAdmin(admin.ModelAdmin):
 
         qs = super().get_queryset(request)
 
-        tracking_sess_id = request.session.get('tracking_sess_id')
+        tracking_sess_id = request.session.get('tracking_sess_id') if hasattr(request, 'session') else None
 
         if tracking_sess_id is None:
-            return tracking_sess_id
+            return qs
         else:
             return qs.filter(tracking_session=tracking_sess_id)
 
@@ -310,14 +310,16 @@ class TrackingEventAdmin(admin.ModelAdmin):
             pass
 
         if tracking_sess_id is None:
-            tracking_sess_id_from_session = request.session.get('tracking_sess_id')
+            tracking_sess_id_from_session = request.session.get('tracking_sess_id') \
+                if hasattr(request, 'session') else None
 
             if tracking_sess_id_from_session is None:
                 return super().changelist_view(request, extra_context=extra_context)
             else:
                 tracking_sess_id = tracking_sess_id_from_session
 
-        request.session['tracking_sess_id'] = tracking_sess_id
+        if hasattr(request, 'session'):
+            request.session['tracking_sess_id'] = tracking_sess_id
 
         tracking_sess = get_object_or_404(TrackingSession.objects.select_related(), pk=tracking_sess_id)
         extra_context = extra_context or {}
