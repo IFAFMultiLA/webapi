@@ -7,16 +7,19 @@ Automated tests.
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from django.core.exceptions import PermissionDenied
 from django.conf import settings
-from django.test import TestCase
+from django.forms.models import ModelFormMetaclass
+from django.template.response import TemplateResponse
+from django.test import TestCase, RequestFactory
 from django.urls import reverse
-from django.contrib.admin.sites import all_sites
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
-from unittest_parametrize import parametrize, param, ParametrizedTestCase
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
     UserApplicationSession, User, TrackingSession, TrackingEvent
+from .admin import admin_site, ApplicationAdmin, ApplicationConfigAdmin, ApplicationSessionAdmin, \
+    TrackingSessionAdmin, TrackingEventAdmin
 
 
 # ----- helper functions -----
@@ -676,43 +679,126 @@ class ViewTests(CustomAPITestCase):
 # ----- admin -----
 
 
-each_model_admin = parametrize(
-    "site,model,model_admin",
-    [
-        param(
-            site,
-            model,
-            model_admin,
-            id=f"{site.name}_{str(model_admin).replace('.', '_')}",
-        )
-        for site in all_sites
-        for model, model_admin in site._registry.items()
-    ],
-)
+class ModelAdminTests(TestCase):
+    def _check_modeladmin_default_views(self, modeladm, view_args=None, check_views=None):
+        view_args = view_args or {}
+        check_views = check_views or ('add_view', 'change_view', 'changelist_view', 'delete_view', 'history_view')
+        for viewfn_name in check_views:
+            viewfn = getattr(modeladm, viewfn_name)
+            args = view_args.get(viewfn_name, {})
+            response = viewfn(self.request, **args)
+            self.assertIsInstance(response, TemplateResponse)
+            self.assertEqual(response.status_code, 200)
 
-
-class ModelAdminTests(ParametrizedTestCase, TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_superuser(username="admin", email="admin@example.com", password="test")
+        user = User.objects.create_superuser(username="admin", email="admin@example.com", password="test")
+        cls.request = RequestFactory().get('/admin')
+        cls.request.user = user
 
-    def setUp(self):
-        self.client.force_login(self.user)
+    def test_application_admin(self):
+        modeladm = ApplicationAdmin(Application, admin_site)
 
-    def make_url(self, site, model, page):
-        return reverse(f"{site.name}:{model._meta.app_label}_{model._meta.model_name}_{page}")
+        app = Application(name="testapp", url="http://testapp.com")
 
-    @each_model_admin
-    def test_changelist(self, site, model, model_admin):
-        url = self.make_url(site, model, "changelist")
-        response = self.client.get(url, {"q": "example.com"})
-        assert response.status_code == status.HTTP_200_OK
+        # check that "updated" and "updated_by" are correctly set
+        form = modeladm.get_form(self.request, change=False)
+        modeladm.save_model(self.request, app, form, change=False)
+        self.assertEqual(app.updated_by, self.request.user)
+        self.assertIsNotNone(app.updated)
 
-    @each_model_admin
-    def test_add(self, site, model, model_admin):
-        url = self.make_url(site, model, "add")
-        response = self.client.get(url)
-        assert response.status_code in (
-            status.HTTP_200_OK,
-            status.HTTP_403_FORBIDDEN,  # some admin classes blanket disallow "add"
-        )
+        form = modeladm.get_form(self.request, app, change=True)
+        modeladm.save_model(self.request, app, form, change=True)
+        self.assertEqual(app.updated_by, self.request.user)
+        self.assertIsNotNone(app.updated)
+
+        # the instance in the DB is the same
+        app_from_db = Application.objects.get(name="testapp")
+        self.assertEqual(app_from_db.pk, app.pk)
+
+        # check that default_application_session is not part of the form when creating a new application entry
+        form = modeladm.get_form(self.request, obj=None)
+        self.assertIsInstance(form, ModelFormMetaclass)
+        self.assertNotIn('default_application_session', form.base_fields)
+
+        # check that default_application_session is part of the form when update an existing application entry
+        form = modeladm.get_form(self.request, obj=app)
+        self.assertIsInstance(form, ModelFormMetaclass)
+        self.assertIn('default_application_session', form.base_fields)
+
+        obj_views_args = dict(object_id=str(app.pk))
+        views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
+        self._check_modeladmin_default_views(modeladm, views_args)
+
+    def test_applicationconfig_admin(self):
+        modeladm = ApplicationConfigAdmin(ApplicationConfig, admin_site)
+
+        app = Application(name="testapp", url="http://testapp.com")
+        app.save()
+        appconfig = ApplicationConfig(application=app,
+                                      label="testconfig",
+                                      config={"key": "value"})
+        del app
+
+        # check that "updated" and "updated_by" are correctly set
+        form = modeladm.get_form(self.request, change=False)
+        modeladm.save_model(self.request, appconfig, form, change=False)
+        self.assertEqual(appconfig.updated_by, self.request.user)
+        self.assertIsNotNone(appconfig.updated)
+
+        form = modeladm.get_form(self.request, appconfig, change=True)
+        modeladm.save_model(self.request, appconfig, form, change=True)
+        self.assertEqual(appconfig.updated_by, self.request.user)
+        self.assertIsNotNone(appconfig.updated)
+
+        # the instance in the DB is the same
+        appconfig_from_db = ApplicationConfig.objects.get(label="testconfig")
+        self.assertEqual(appconfig_from_db.pk, appconfig.pk)
+
+        obj_views_args = dict(object_id=str(appconfig.pk))
+        views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
+        self._check_modeladmin_default_views(modeladm, views_args)
+
+    def test_applicationsession_admin(self):
+        modeladm = ApplicationSessionAdmin(ApplicationSession, admin_site)
+
+        app = Application(name="testapp", url="http://testapp.com", updated_by=self.request.user)
+        app.save()
+        appconfig = ApplicationConfig(application=app,
+                                      label="testconfig",
+                                      config={"key": "value"},
+                                      updated_by=self.request.user)
+        appconfig.save()
+        appsess = ApplicationSession(config=appconfig, auth_mode='none')
+        del app
+
+        # check that a session code is generated
+        form = modeladm.get_form(self.request, change=False)
+        modeladm.save_model(self.request, appsess, form, change=False)
+        self.assertIsInstance(appsess.code, str)
+        self.assertEqual(len(appsess.code), 10)
+        self.assertEqual(appsess.updated_by, self.request.user)
+        self.assertIsNotNone(appsess.updated)
+
+        # check that "updated" and "updated_by" are correctly set on update
+        form = modeladm.get_form(self.request, appsess, change=True)
+        modeladm.save_model(self.request, appsess, form, change=True)
+        self.assertEqual(appsess.updated_by, self.request.user)
+        self.assertIsNotNone(appsess.updated)
+
+        appsess_from_db = ApplicationSession.objects.get(config=appconfig)
+        self.assertEqual(appsess_from_db.pk, appsess.pk)
+
+        obj_views_args = dict(object_id=str(appsess.pk))
+        views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
+        self._check_modeladmin_default_views(modeladm, views_args)
+
+    def test_trackingsession_admin(self):
+        modeladm = TrackingSessionAdmin(TrackingSession, admin_site)
+
+        self._check_modeladmin_default_views(modeladm, check_views=['changelist_view'])
+
+    def test_trackingevent_admin(self):
+        modeladm = TrackingEventAdmin(TrackingEvent, admin_site)
+
+        self._check_modeladmin_default_views(modeladm, check_views=['changelist_view'])
