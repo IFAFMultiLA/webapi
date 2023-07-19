@@ -25,6 +25,7 @@ Initial deployment
       #  image: adminer
       #  ports:
       #    - 127.0.0.1:8081:8080
+      #  restart: always
 
       db:
         image: postgres
@@ -35,6 +36,8 @@ Initial deployment
           - 'POSTGRES_USER=admin'
           - 'POSTGRES_PASSWORD=<CHANGE_THIS>'
           - 'POSTGRES_DB=multila'
+        restart: always
+
       web:
         build:
           context: ..
@@ -53,6 +56,8 @@ Initial deployment
           - 'SECRET_KEY=<CHANGE_THIS>'
         depends_on:
           - db
+        restart: always
+
 
 2. Make sure the correct server and directory is entered in ``Makefile`` under ``SERVER`` and ``APPDIR``. Then run:
 
