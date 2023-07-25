@@ -44,7 +44,9 @@
     </li>
 </ul>
 
-<p><a href="{% url 'multila_admin:trackingsessions_replay' tracking_sess.pk %}">&#8634; Replay tracking data</a></p>
+{% if tracking_sess.trackingevent_set.count > 0 %}
+    <p><a href="{% url 'multila_admin:trackingsessions_replay' tracking_sess.pk %}">&#8634; Replay tracking data</a></p>
+{% endif %}
 
 {{ block.super }}
 
