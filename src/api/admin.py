@@ -199,7 +199,8 @@ class TrackingSessionAdmin(admin.ModelAdmin):
     This model admin is used as "read-only" admin for displaying a list of tracking sessions via the "changelist"
     action.
     """
-    list_display = ['app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events', 'options']
+    list_display = ['tracking_sess_id', 'app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events',
+                    'options']
     list_select_related = True
     list_filter = ['user_app_session__application_session__config__application__name', 'start_time', 'end_time']
 
@@ -215,6 +216,11 @@ class TrackingSessionAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         return qs.annotate(n_events=Count('trackingevent'))
+
+    @admin.display(description='ID')
+    def tracking_sess_id(self, obj):
+        events_view_url = reverse('multila_admin:api_trackingevent_changelist') + f'?tracking_sess_id={obj.pk}'
+        return mark_safe(f'<a href="{events_view_url}">{obj.pk}</a>')
 
     @admin.display(ordering='user_app_session__application_session__config__application__name',
                    description='Application / Config / Session')
@@ -245,11 +251,12 @@ class TrackingSessionAdmin(admin.ModelAdmin):
         """Event viewer and replay buttons."""
         events_view_url = reverse('multila_admin:api_trackingevent_changelist') + f'?tracking_sess_id={obj.pk}'
         replay_url = reverse('multila_admin:trackingsessions_replay', args=[obj.pk])
+        events_view_link = f'<a href="{events_view_url}" style="font-weight:bold;font-size:1.5em">&#8505;</a>&nbsp;'
         if obj.n_events > 0:
-            return mark_safe(f'<a href="{events_view_url}" style="font-weight:bold;font-size:1.5em">&#8505;</a>&nbsp;'
-                             f'<a href="{replay_url}" style="font-weight:bold;font-size:1.5em">&#8634;</a>')
+            link = f'{events_view_link}<a href="{replay_url}" style="font-weight:bold;font-size:1.5em">&#8634;</a>'
         else:
-            return '-'
+            link = events_view_link
+        return mark_safe(link)
 
 
 class TrackingEventAdmin(admin.ModelAdmin):
