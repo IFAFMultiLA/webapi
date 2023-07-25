@@ -20,6 +20,7 @@ import json
 
 from django import forms
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin, GroupAdmin
 from django.contrib.auth.models import User, Group
 from django.db.models import Count, Max, Avg, F
 from django.db import connection as db_conn
@@ -860,5 +861,5 @@ admin_site.register(ApplicationConfig, ApplicationConfigAdmin)
 admin_site.register(ApplicationSession, ApplicationSessionAdmin)
 admin_site.register(TrackingSession, TrackingSessionAdmin)
 admin_site.register(TrackingEvent, TrackingEventAdmin)
-admin_site.register(User)
-admin_site.register(Group)
+admin_site.register(User, UserAdmin)
+admin_site.register(Group, GroupAdmin)
