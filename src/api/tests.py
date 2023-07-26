@@ -875,6 +875,76 @@ class ViewTests(CustomAPITestCase):
             'tracking_session_id': tracking_sess_id
         }, auth_token=auth_token).status_code, status.HTTP_200_OK)
 
+    def test_user_feedback(self):
+        # request application session – also sets CSRF token in cookie
+        response = self.client.get(reverse('session'), {'sess': self.app_sess_no_auth.code})
+        auth_token = response.json()['user_code']
+
+        # start tracking
+        response = self.client.post_json(reverse('start_tracking'),
+                                         data={'sess': self.app_sess_no_auth.code,
+                                               'start_time': tznow().isoformat()},
+                                         auth_token=auth_token)
+
+        tracking_sess_id = response.json()['tracking_session_id']
+
+        # test user feedback
+        url = reverse('user_feedback')
+        base_data = {'sess': self.app_sess_no_auth.code, 'content_section': '#foo'}
+        valid_data_no_track = dict(**base_data, score=3, text="bar")
+        valid_data_with_track = dict(**base_data, tracking_session=tracking_sess_id, score=3, text="bar")
+
+        # failures
+        self.assertEqual(self.client.get(url, data=valid_data_no_track, auth_token=auth_token).status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)  # wrong method
+        self.assertEqual(self.client.post_json(url, data={}, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # no data
+        self.assertEqual(self.client.post_json(url, data={'sess': 'foo'}, auth_token=auth_token).status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong application session
+        self.assertEqual(self.client.post_json(url, data=base_data,
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing score or text
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code, 'score': 3},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing content_section
+        self.assertEqual(self.client.post_json(url, data=dict(**valid_data_no_track, tracking_session=0),
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # wrong tracking_session
+        self.assertEqual(self.client.post_json(url, data=valid_data_no_track, auth_token='foo').status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong auth token
+
+        # TODO:
+        # - check invalid score
+        # - check duplicate
+        # - check obeys app config
+        # - check with valid data
+        # - check valid only score
+        # - check valid only text
+
+        # # OK without event value
+        # response = self.client.post_json(url, data=valid_data_no_val, auth_token=auth_token)
+        # self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # tracking_event = TrackingEvent.objects.get(tracking_session_id=tracking_sess_id)
+        # self.assertEqual(response.json(), {'tracking_event_id': tracking_event.id})
+        # self.assertEqual(tracking_event.time, now.astimezone(timezone.utc))
+        # self.assertEqual(tracking_event.type, test_event_no_val["type"])
+        # self.assertIsNone(tracking_event.value)
+        #
+        # # OK with event value
+        # response = self.client.post_json(url, data=valid_data_with_val, auth_token=auth_token)
+        # self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # tracking_event = TrackingEvent.objects.get(id=response.json()['tracking_event_id'])
+        # self.assertEqual(tracking_event.time, now.astimezone(timezone.utc))
+        # self.assertEqual(tracking_event.type, test_event_with_val["type"])
+        # self.assertEqual(tracking_event.value, test_event_with_val["value"])
+        #
+        # # stop tracking
+        # self.assertEqual(self.client.post_json(reverse('start_tracking'), data={
+        #     'sess': self.app_sess_no_auth.code,
+        #     'end_time': tznow().isoformat(),
+        #     'tracking_session_id': tracking_sess_id
+        # }, auth_token=auth_token).status_code, status.HTTP_200_OK)
+
 
 # ----- admin -----
 

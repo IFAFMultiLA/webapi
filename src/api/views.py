@@ -9,6 +9,7 @@ be formatted in ISO 8601 format.
 
 from functools import wraps
 
+from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -322,9 +323,9 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
     2. Optional: See how to obtain a tracking session ID `<TRACKING_SESSION_ID>` and all other required codes/tokens in
        the docs for `start_tracking`.
 
-    3. Then run the following (the "tracking_session_id" part is optional; one of "score" and "text" is optional):
+    3. Then run the following (the "tracking_session" part is optional; one of "score" and "text" is optional):
 
-        curl -d '{"sess": "<SESS_CODE>", "tracking_session_id": "<TRACKING_SESSION_ID>",
+        curl -d '{"sess": "<SESS_CODE>", "tracking_session": "<TRACKING_SESSION_ID>",
                   "content_section": "<CONTENT_SECTION>", "score": <SCORE>, "text": "<COMMENT>"}' \
              -c /tmp/cookies.txt -b /tmp/cookies.txt \
              -H "X-CSRFToken: <CSRFTOKEN>" \
@@ -351,13 +352,23 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
         if not config_fb_quali and 'text' in parsed_data:
             del parsed_data['text']
 
+        # if we have a tracking session, make sure it belongs to the user app. session
+        if 'tracking_session' in parsed_data:
+            try:
+                tracking_sess = TrackingSession.objects.get(id=parsed_data['tracking_session'])
+                if tracking_sess.user_app_session_id != user_app_sess_obj.pk:
+                    return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+            except TrackingSession.DoesNotExist:
+                return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
         # serialize and validate passed data
         user_feedback_serializer = UserFeedbackSerializer(data=parsed_data)
 
         if user_feedback_serializer.is_valid():
             try:
                 # store to DB
-                user_feedback_serializer.save()
+                with transaction.atomic():
+                    user_feedback_serializer.save()
             except IntegrityError:   # DB constrain failed
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
