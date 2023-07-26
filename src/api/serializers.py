@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import TrackingSession, TrackingEvent
+from .models import TrackingSession, TrackingEvent, UserFeedback
 
 
 # maximum age  of sent event timestamps
@@ -54,3 +54,10 @@ class TrackingEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrackingEvent
         fields = ['tracking_session', 'time', 'type', 'value']
+
+
+class UserFeedbackSerializer(serializers.ModelSerializer):
+    """Model serializer for UserFeedback"""
+    class Meta:
+        model = UserFeedback
+        fields = ['user_app_session', 'tracking_session', 'content_section', 'score', 'text']

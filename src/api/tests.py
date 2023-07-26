@@ -18,6 +18,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
     UserApplicationSession, User, TrackingSession, TrackingEvent, UserFeedback
+from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 from .admin import admin_site, ApplicationAdmin, ApplicationConfigAdmin, ApplicationSessionAdmin, \
     TrackingSessionAdmin, TrackingEventAdmin
 
@@ -140,7 +141,7 @@ class UserApplicationSessionModelTests(TestCase):
 
 class UserFeedbackModelTests(TestCase):
     """
-    Test case for ApplicationSession model.
+    Test case for UserFeedback model.
     """
 
     def setUp(self):
@@ -191,8 +192,8 @@ class UserFeedbackModelTests(TestCase):
 
     def test_user_feedback_unique_constraint(self):
         args = dict(user_app_session=self.user_app_sess, content_section='#uniquetest1')
-        feedback1 = UserFeedback.objects.create(**args)
-        feedback2 = UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#uniquetest2')
+        UserFeedback.objects.create(**args)
+        UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#uniquetest2')
 
         with self.assertRaisesRegex(IntegrityError, r'unique_userappsess_content_section'):
             UserFeedback.objects.create(**args)
@@ -212,6 +213,118 @@ class UserFeedbackModelTests(TestCase):
         data['score'] = 6
         form = UserFeedbackForm(data)
         self.assertFalse(form.is_valid())
+
+
+# ----- serializers -----
+
+
+class TrackingSessionSerializerTests(TestCase):
+    """
+    Test case for tracking session serializer.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        self.user_app_sess = UserApplicationSession(application_session=app_sess)
+        self.user_app_sess.generate_code()
+        self.user_app_sess.save()
+
+    def test_serializer(self):
+        for whichtime in ('start_time', 'end_time'):
+            for tdelta, expect_valid in ((dict(minutes=-6), False),
+                                         (dict(minutes=-3), True),
+                                         (dict(minutes=0), True),
+                                         (dict(seconds=1), True),
+                                         (dict(seconds=10), False)):
+                data = dict(user_app_session=self.user_app_sess.pk, device_info='foo')
+                data['start_time'] = tznow()
+                data[whichtime] = tznow() + timedelta(**tdelta)
+                ser = TrackingSessionSerializer(data=data)
+                valid = ser.is_valid()
+                self.assertEqual(valid, expect_valid)
+
+
+class TrackingEventSerializerTests(TestCase):
+    """
+    Test case for tracking event serializer.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        user_app_sess = UserApplicationSession(application_session=app_sess)
+        user_app_sess.generate_code()
+        user_app_sess.save()
+        # create a tracking session
+        self.tracking_sess = TrackingSession.objects.create(user_app_session=user_app_sess,
+                                                            start_time=tznow())
+
+    def test_serializer(self):
+        for tdelta, expect_valid in ((dict(minutes=-6), False),
+                                     (dict(minutes=-3), True),
+                                     (dict(minutes=0), True),
+                                     (dict(seconds=1), True),
+                                     (dict(seconds=10), False)):
+            data = dict(tracking_session=self.tracking_sess.pk,
+                        time=tznow() + timedelta(**tdelta),
+                        type='foo',
+                        value='bar')
+            ser = TrackingEventSerializer(data=data)
+            valid = ser.is_valid()
+            self.assertEqual(valid, expect_valid)
+
+
+class UserFeedbackSerializerTests(TestCase):
+    """
+    Test case for user feedback serializer.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        self.user_app_sess = UserApplicationSession(application_session=app_sess)
+        self.user_app_sess.generate_code()
+        self.user_app_sess.save()
+        # create a tracking session
+        self.tracking_sess = TrackingSession.objects.create(user_app_session=self.user_app_sess,
+                                                            start_time=tznow())
+
+    def test_serializer(self):
+        for tracking_sess in (None, self.tracking_sess):
+            for score in range(-1, 6):
+                data = dict(user_app_session=self.user_app_sess.pk,
+                            tracking_session=tracking_sess.pk if tracking_sess else None,
+                            content_section='#foo',
+                            score=score,
+                            text='bar')
+                ser = UserFeedbackSerializer(data=data)
+                valid = ser.is_valid()
+                if 0 <= score <= 5:
+                    self.assertTrue(valid)
+                else:
+                    self.assertFalse(valid)
 
 
 # ----- views -----

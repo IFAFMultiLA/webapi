@@ -20,7 +20,8 @@ from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view
 
-from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application
+from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application, \
+    UserFeedback
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer
 
 
@@ -306,6 +307,16 @@ def register_user(request):
             return HttpResponse(status=status.HTTP_201_CREATED)
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@require_user_session_token
+def user_feedback(request, user_app_sess_obj, parsed_data):
+    if request.method == 'POST':
+        parsed_data['user_app_session'] = user_app_sess_obj.pk
+
+
+
 
 
 @api_view(['POST'])
