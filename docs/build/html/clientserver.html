@@ -78,9 +78,14 @@ accordingly</p></li>
   <span class="s2">&quot;exclude&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">HTML</span> <span class="n">element</span> <span class="n">IDs</span> <span class="n">to</span> <span class="n">exclude</span><span class="o">&gt;</span><span class="p">],</span>
   <span class="s2">&quot;js&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">additional</span> <span class="n">JavaScript</span> <span class="n">files</span> <span class="n">to</span> <span class="n">load</span><span class="o">&gt;</span><span class="p">],</span>
   <span class="s2">&quot;css&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">&lt;</span><span class="n">additional</span> <span class="n">CSS</span> <span class="n">files</span> <span class="n">to</span> <span class="n">load</span><span class="o">&gt;</span><span class="p">],</span>
-  <span class="s2">&quot;tracking&quot;</span><span class="p">:</span> <span class="p">{</span>
-    <span class="s2">&quot;mouse&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span><span class="p">,</span>  <span class="c1"># enable/disable mouse tracking w/ mus.js</span>
-    <span class="s2">&quot;inputs&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span>  <span class="c1"># enable/disable tracking of input changes</span>
+  <span class="s2">&quot;feedback&quot;</span><span class="p">:</span> <span class="p">{</span>       <span class="c1"># enable/disable specific user feedback features</span>
+    <span class="s2">&quot;quantitative&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span><span class="p">,</span>  <span class="c1"># point based feedback (5-star assessment)</span>
+    <span class="s2">&quot;qualitative&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span>    <span class="c1"># free form text based feedback</span>
+  <span class="p">},</span>
+  <span class="s2">&quot;tracking&quot;</span><span class="p">:</span> <span class="p">{</span>       <span class="c1"># enable/disable specific tracking features</span>
+    <span class="s2">&quot;mouse&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span><span class="p">,</span>    <span class="c1"># mouse tracking w/ mus.js</span>
+    <span class="s2">&quot;inputs&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span><span class="p">,</span>   <span class="c1"># tracking of input changes</span>
+    <span class="s2">&quot;chapters&quot;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">bool</span><span class="o">&gt;</span>  <span class="c1"># tracking of switching betw. chapters</span>
   <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
