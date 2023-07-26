@@ -12,16 +12,21 @@ from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.contrib.auth.models import User
-
+from django.db.models import Q
 
 HASH_KEY = settings.SECRET_KEY.encode()[:32]   # hash salt
 APPLICATION_CONFIG_DEFAULT_JSON = {
     "exclude": [],
     "js": [],
     "css": [],
+    "feedback": {
+        "quantitative": True,
+        "qualitative": True
+    },
     "tracking": {
         "mouse": True,
-        "inputs": True
+        "inputs": True,
+        "chapters": True
     }
 }
 
@@ -196,24 +201,30 @@ class UserFeedback(models.Model):
     # an HTML XPath string referring to the content section for which the feedback was given
     content_section = models.CharField('Content section identifier', max_length=1024, blank=False)
 
-    # quantitative feedback given as integer score in range [0, 5];
+    # quantitative feedback given as integer score in range [1, 5];
     # NULL means no score given by user (either because quant. feedback was disabled or because user didn't provide
     # such feedback)
     score = models.SmallIntegerField('Feedback score', null=True, default=None,
-                                     validators=[MinValueValidator(0), MaxValueValidator(5)])
+                                     validators=[MinValueValidator(1), MaxValueValidator(5)])
 
     # qualitative feedback given as free form text;
     # NULL means no feedback given by user because qual. feedback was disabled; if qual. feedback was enabled but
     # no such feedback was given by the user, the field contains an empty string
     text = models.TextField('Feedback text', null=True, default=None)
 
+    created = models.DateTimeField('Creation time', auto_now_add=True)
+
     def __str__(self):
         return f'User feedback #{self.pk} for user application session #{self.user_app_session_id} on content ' \
-               f'section {self.content_section}'
+               f'section {self.content_section}, created on {self.created}'
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['user_app_session', 'content_section'],
-                                               name='unique_userappsess_content_section')]
+        constraints = [
+            models.UniqueConstraint(fields=['user_app_session', 'content_section'],
+                                    name='unique_userappsess_content_section'),
+            models.CheckConstraint(check=Q(score__isnull=False) | Q(text__isnull=False),
+                                   name="either_score_or_text_must_be_given")
+        ]
 
 
 class TrackingEvent(models.Model):

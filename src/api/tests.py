@@ -162,21 +162,23 @@ class UserFeedbackModelTests(TestCase):
                                                             start_time=tznow())
 
     def test_user_feedback_linked_to_user_app_sess(self):
-        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#foo')
+        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#foo', text='bar')
         self.assertIs(feedback.user_app_session, self.user_app_sess)
         self.assertIs(feedback.tracking_session, None)
         self.assertEqual(feedback.content_section, '#foo')
         self.assertIsNone(feedback.score)
-        self.assertIsNone(feedback.text)
+        self.assertEqual(feedback.text, 'bar')
+        self.assertIsInstance(feedback.created, datetime)
 
     def test_user_feedback_linked_to_tracking_sess(self):
         feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess, tracking_session=self.tracking_sess,
-                                               content_section='#foo')
+                                               content_section='#foo', score=1)
         self.assertIs(feedback.user_app_session, self.user_app_sess)
         self.assertIs(feedback.tracking_session, self.tracking_sess)
         self.assertEqual(feedback.content_section, '#foo')
-        self.assertIsNone(feedback.score)
+        self.assertEqual(feedback.score, 1)
         self.assertIsNone(feedback.text)
+        self.assertIsInstance(feedback.created, datetime)
 
     def test_user_feedback_all_fields_set(self):
         feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess,
@@ -189,13 +191,19 @@ class UserFeedbackModelTests(TestCase):
         self.assertEqual(feedback.content_section, '#foo')
         self.assertEqual(feedback.score, 2)
         self.assertEqual(feedback.text, 'bar')
+        self.assertIsInstance(feedback.created, datetime)
 
     def test_user_feedback_unique_constraint(self):
-        args = dict(user_app_session=self.user_app_sess, content_section='#uniquetest1')
+        args = dict(user_app_session=self.user_app_sess, content_section='#uniquetest1', score=2)
         UserFeedback.objects.create(**args)
-        UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#uniquetest2')
+        UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#uniquetest2', score=3)
 
         with self.assertRaisesRegex(IntegrityError, r'unique_userappsess_content_section'):
+            UserFeedback.objects.create(**args)
+
+    def test_user_feedback_either_score_or_text_must_be_given_constraint(self):
+        args = dict(user_app_session=self.user_app_sess, content_section='#uniquetest1')
+        with self.assertRaisesRegex(IntegrityError, r'either_score_or_text_must_be_given'):
             UserFeedback.objects.create(**args)
 
     def test_user_feedback_score_validators(self):
@@ -321,7 +329,7 @@ class UserFeedbackSerializerTests(TestCase):
                             text='bar')
                 ser = UserFeedbackSerializer(data=data)
                 valid = ser.is_valid()
-                if 0 <= score <= 5:
+                if 1 <= score <= 5:
                     self.assertTrue(valid)
                 else:
                     self.assertFalse(valid)

@@ -21,9 +21,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 
 from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application, \
-    UserFeedback
-from .serializers import TrackingSessionSerializer, TrackingEventSerializer
-
+    UserFeedback, APPLICATION_CONFIG_DEFAULT_JSON
+from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 
 # --- constants ---
 
@@ -312,11 +311,61 @@ def register_user(request):
 @api_view(['POST'])
 @require_user_session_token
 def user_feedback(request, user_app_sess_obj, parsed_data):
+    """
+    Post user feedback data within a user application session and optionally within a tracking session.
+
+    Checking this view locally with `curl`:
+
+    1. See how to obtain a user application session token `<AUTH_TOKEN>` and all other required codes/tokens in the
+       docs for `app_session_login` (when login is required) or `app_session` (when no login is required).
+
+    2. Optional: See how to obtain a tracking session ID `<TRACKING_SESSION_ID>` and all other required codes/tokens in
+       the docs for `start_tracking`.
+
+    3. Then run the following (the "tracking_session_id" part is optional; one of "score" and "text" is optional):
+
+        curl -d '{"sess": "<SESS_CODE>", "tracking_session_id": "<TRACKING_SESSION_ID>",
+                  "content_section": "<CONTENT_SECTION>", "score": <SCORE>, "text": "<COMMENT>"}' \
+             -c /tmp/cookies.txt -b /tmp/cookies.txt \
+             -H "X-CSRFToken: <CSRFTOKEN>" \
+             -H "Authorization: Token <AUTH_TOKEN>" \
+             -H "Content-Type: application/json" \
+             -i http://127.0.0.1:8000/user_feedback/
+
+    Returns an HTTP 201 response on success.
+    """
+
     if request.method == 'POST':
         parsed_data['user_app_session'] = user_app_sess_obj.pk
 
+        # get the app. config. for this app. session
+        app_config = user_app_sess_obj.application_session.config.config
+        feedback_defaults = APPLICATION_CONFIG_DEFAULT_JSON['feedback']
+        config_feedback = app_config.get('feedback', {})
+        config_fb_quant = config_feedback.get('quantitative', feedback_defaults['quantitative'])
+        config_fb_quali = config_feedback.get('qualitative', feedback_defaults['qualitative'])
 
+        # remove data that should not be there according to the configuration
+        if not config_fb_quant and 'score' in parsed_data:
+            del parsed_data['score']
+        if not config_fb_quali and 'text' in parsed_data:
+            del parsed_data['text']
 
+        # serialize and validate passed data
+        user_feedback_serializer = UserFeedbackSerializer(data=parsed_data)
+
+        if user_feedback_serializer.is_valid():
+            try:
+                # store to DB
+                user_feedback_serializer.save()
+            except IntegrityError:   # DB constrain failed
+                return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+            # all OK
+            return HttpResponse(status=status.HTTP_201_CREATED)
+        else:
+            return JsonResponse({'validation_errors': user_feedback_serializer.errors},
+                                status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
