@@ -178,12 +178,16 @@ class TrackingSession(models.Model):
 
 class UserFeedback(models.Model):
     """
-    User feedback given by a user for a specific content section of an application. If this feedback is given during
-    a tracking session, it is linked to it via the `tracking_session` field. If tracking is disabled or declined the
-    `tracking_session` field is set to NULL. In any case, the feedback is linked to an application session.
+    User feedback given by a user (identified via user application session in field `user_app_session`) for a specific
+    content section of an application. If this feedback is given during a tracking session, it is linked to it via the
+    `tracking_session` field. If tracking is disabled or declined the `tracking_session` field is set to NULL.
+
+    Only one user feedback is allowed by user application session and content section (see "unique constraint" in
+    `Meta` class).
     """
-    # the application session for which the feedback was given; this is set even when tracking was disabled or declined
-    application_session = models.ForeignKey(ApplicationSession, on_delete=models.CASCADE)
+    # the user application session for which the feedback was given;
+    # this is set even when tracking was disabled or declined
+    user_app_session = models.ForeignKey(UserApplicationSession, on_delete=models.CASCADE)
 
     # the tracking session in which the feedback was given; if tracking was disabled or declined by the user, this field
     # will be NULL
@@ -202,6 +206,14 @@ class UserFeedback(models.Model):
     # NULL means no feedback given by user because qual. feedback was disabled; if qual. feedback was enabled but
     # no such feedback was given by the user, the field contains an empty string
     text = models.TextField('Feedback text', null=True, default=None)
+
+    def __str__(self):
+        return f'User feedback #{self.pk} for user application session #{self.user_app_session_id} on content ' \
+               f'section {self.content_section}'
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user_app_session', 'content_section'],
+                                               name='unique_userappsess_content_section')]
 
 
 class TrackingEvent(models.Model):

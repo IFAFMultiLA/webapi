@@ -8,15 +8,16 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from django.forms.models import ModelFormMetaclass
+from django.forms.models import ModelFormMetaclass, ModelForm
 from django.template.response import TemplateResponse
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
+from django.db.utils import IntegrityError
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
-    UserApplicationSession, User, TrackingSession, TrackingEvent
+    UserApplicationSession, User, TrackingSession, TrackingEvent, UserFeedback
 from .admin import admin_site, ApplicationAdmin, ApplicationConfigAdmin, ApplicationSessionAdmin, \
     TrackingSessionAdmin, TrackingEventAdmin
 
@@ -28,45 +29,7 @@ def tznow():
     return datetime.now(ZoneInfo(settings.TIME_ZONE))
 
 
-# ----- views -----
-
-
-class CustomAPIClient(APIClient):
-    """
-    Extended test client based on APIClient.
-    """
-    def post_json(self, path, data=None, follow=False, **extra):
-        """
-        POST request in JSON format.
-        """
-        return self.post(path, data=data, format='json', follow=follow, **extra)
-
-    def post(self, path, data=None, format=None, content_type=None, follow=False, **extra):
-        """POST request with optional "extras", i.e. CSRF token / auth token."""
-        self._handle_extra(extra)
-        return super().post(path, data=data, format=format, content_type=content_type, follow=follow, **extra)
-
-    def get(self, path, data=None, follow=False, **extra):
-        """GET request with optional "extras", i.e. CSRF token / auth token."""
-        self._handle_extra(extra)
-        return super().get(path, data=data, follow=follow, **extra)
-
-    def _handle_extra(self, extra):
-        """Handle extras, i.e. CSRF token / auth token."""
-        omit_csrftoken = extra.pop('omit_csrftoken', False)
-        if 'csrftoken' in self.cookies and not omit_csrftoken:
-            extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
-
-        auth_token = extra.pop('auth_token', None)
-        if auth_token:
-            extra['HTTP_AUTHORIZATION'] = f'Token {auth_token}'
-
-
-class CustomAPITestCase(APITestCase):
-    """
-    Extended test case using CustomAPIClient.
-    """
-    client_class = CustomAPIClient
+# ----- models -----
 
 
 class ModelsCommonTests(TestCase):
@@ -173,6 +136,123 @@ class UserApplicationSessionModelTests(TestCase):
         self.assertIs(code, user_app_sess.code)
         self.assertIsInstance(code, str)
         self.assertTrue(len(code) == 64)
+
+
+class UserFeedbackModelTests(TestCase):
+    """
+    Test case for ApplicationSession model.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        self.user_app_sess = UserApplicationSession(application_session=app_sess)
+        self.user_app_sess.generate_code()
+        self.user_app_sess.save()
+        # create a tracking session
+        self.tracking_sess = TrackingSession.objects.create(user_app_session=self.user_app_sess,
+                                                            start_time=tznow())
+
+    def test_user_feedback_linked_to_user_app_sess(self):
+        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#foo')
+        self.assertIs(feedback.user_app_session, self.user_app_sess)
+        self.assertIs(feedback.tracking_session, None)
+        self.assertEqual(feedback.content_section, '#foo')
+        self.assertIsNone(feedback.score)
+        self.assertIsNone(feedback.text)
+
+    def test_user_feedback_linked_to_tracking_sess(self):
+        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess, tracking_session=self.tracking_sess,
+                                               content_section='#foo')
+        self.assertIs(feedback.user_app_session, self.user_app_sess)
+        self.assertIs(feedback.tracking_session, self.tracking_sess)
+        self.assertEqual(feedback.content_section, '#foo')
+        self.assertIsNone(feedback.score)
+        self.assertIsNone(feedback.text)
+
+    def test_user_feedback_all_fields_set(self):
+        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess,
+                                               tracking_session=self.tracking_sess,
+                                               content_section='#foo',
+                                               score=2,
+                                               text='bar')
+        self.assertIs(feedback.user_app_session, self.user_app_sess)
+        self.assertIs(feedback.tracking_session, self.tracking_sess)
+        self.assertEqual(feedback.content_section, '#foo')
+        self.assertEqual(feedback.score, 2)
+        self.assertEqual(feedback.text, 'bar')
+
+    def test_user_feedback_unique_constraint(self):
+        args = dict(user_app_session=self.user_app_sess, content_section='#uniquetest1')
+        feedback1 = UserFeedback.objects.create(**args)
+        feedback2 = UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#uniquetest2')
+
+        with self.assertRaisesRegex(IntegrityError, r'unique_userappsess_content_section'):
+            UserFeedback.objects.create(**args)
+
+    def test_user_feedback_score_validators(self):
+        class UserFeedbackForm(ModelForm):
+            class Meta:
+                model = UserFeedback
+                fields = ['user_app_session', 'content_section', 'score']
+
+        data = dict(user_app_session=self.user_app_sess.pk,
+                    content_section='#foo',
+                    score=-1)
+        form = UserFeedbackForm(data)
+        self.assertFalse(form.is_valid())
+
+        data['score'] = 6
+        form = UserFeedbackForm(data)
+        self.assertFalse(form.is_valid())
+
+
+# ----- views -----
+
+
+class CustomAPIClient(APIClient):
+    """
+    Extended test client based on APIClient.
+    """
+    def post_json(self, path, data=None, follow=False, **extra):
+        """
+        POST request in JSON format.
+        """
+        return self.post(path, data=data, format='json', follow=follow, **extra)
+
+    def post(self, path, data=None, format=None, content_type=None, follow=False, **extra):
+        """POST request with optional "extras", i.e. CSRF token / auth token."""
+        self._handle_extra(extra)
+        return super().post(path, data=data, format=format, content_type=content_type, follow=follow, **extra)
+
+    def get(self, path, data=None, follow=False, **extra):
+        """GET request with optional "extras", i.e. CSRF token / auth token."""
+        self._handle_extra(extra)
+        return super().get(path, data=data, follow=follow, **extra)
+
+    def _handle_extra(self, extra):
+        """Handle extras, i.e. CSRF token / auth token."""
+        omit_csrftoken = extra.pop('omit_csrftoken', False)
+        if 'csrftoken' in self.cookies and not omit_csrftoken:
+            extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
+
+        auth_token = extra.pop('auth_token', None)
+        if auth_token:
+            extra['HTTP_AUTHORIZATION'] = f'Token {auth_token}'
+
+
+class CustomAPITestCase(APITestCase):
+    """
+    Extended test case using CustomAPIClient.
+    """
+    client_class = CustomAPIClient
 
 
 class ViewTests(CustomAPITestCase):
