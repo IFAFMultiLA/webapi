@@ -38,7 +38,7 @@ migrate:
 	docker $(EXEC) python manage.py migrate || python src/manage.py migrate
 
 dump:
-	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`$(NOW)`.json.gz || python src/manage.py dumpdata -o /fixtures/dump-`$(NOW)`.json.gz
+	docker $(EXEC) python manage.py dumpdata -o /fixtures/dump-`$(NOW)`.json.gz || python src/manage.py dumpdata -o data/fixtures/dump-`$(NOW)`.json.gz
 
 dbbackup:
 	docker $(EXECDB) /bin/bash -c 'pg_dump -U admin -F c multila > /data_backup/local_dev_multila-`$(NOW)`.pgdump'

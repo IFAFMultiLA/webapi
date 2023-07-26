@@ -7,7 +7,6 @@ Automated tests.
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from django.core.exceptions import PermissionDenied
 from django.conf import settings
 from django.forms.models import ModelFormMetaclass
 from django.template.response import TemplateResponse

@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -57,12 +58,16 @@ class Application(models.Model):
         ordering = ["name"]
 
 
+def application_config_default_json_instance():
+    return APPLICATION_CONFIG_DEFAULT_JSON
+
+
 class ApplicationConfig(models.Model):
     """A configuration for an application."""
     application = models.ForeignKey(Application, on_delete=models.CASCADE)
     label = models.CharField('Configuration label', max_length=128, blank=False,
                              help_text='A unique label to identify this configuration.')
-    config = models.JSONField('Configuration', blank=True, default=lambda: APPLICATION_CONFIG_DEFAULT_JSON)
+    config = models.JSONField('Configuration', blank=True, default=application_config_default_json_instance)
     updated = models.DateTimeField('Last update', auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
@@ -169,6 +174,34 @@ class TrackingSession(models.Model):
     def __str__(self):
         return f'Tracking session #{self.pk} for user application session #{self.user_app_session_id} in time range ' \
                f'{self.start_time} to {self.end_time if self.end_time else "(ongoing)"}'
+
+
+class UserFeedback(models.Model):
+    """
+    User feedback given by a user for a specific content section of an application. If this feedback is given during
+    a tracking session, it is linked to it via the `tracking_session` field. If tracking is disabled or declined the
+    `tracking_session` field is set to NULL. In any case, the feedback is linked to an application session.
+    """
+    # the application session for which the feedback was given; this is set even when tracking was disabled or declined
+    application_session = models.ForeignKey(ApplicationSession, on_delete=models.CASCADE)
+
+    # the tracking session in which the feedback was given; if tracking was disabled or declined by the user, this field
+    # will be NULL
+    tracking_session = models.ForeignKey(TrackingSession, null=True, default=None, on_delete=models.CASCADE)
+
+    # an HTML XPath string referring to the content section for which the feedback was given
+    content_section = models.CharField('Content section identifier', max_length=1024, blank=False)
+
+    # quantitative feedback given as integer score in range [0, 5];
+    # NULL means no score given by user (either because quant. feedback was disabled or because user didn't provide
+    # such feedback)
+    score = models.SmallIntegerField('Feedback score', null=True, default=None,
+                                     validators=[MinValueValidator(0), MaxValueValidator(5)])
+
+    # qualitative feedback given as free form text;
+    # NULL means no feedback given by user because qual. feedback was disabled; if qual. feedback was enabled but
+    # no such feedback was given by the user, the field contains an empty string
+    text = models.TextField('Feedback text', null=True, default=None)
 
 
 class TrackingEvent(models.Model):
