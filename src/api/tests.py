@@ -897,7 +897,7 @@ class ViewTests(CustomAPITestCase):
 
         tracking_sess_id = response.json()['tracking_session_id']
 
-        # test user feedback
+        # --- test user feedback POST method ---
         url = reverse('user_feedback')
         base_data = {'sess': self.app_sess_no_auth.code, 'content_section': '#foo'}
         base_data_other_section = {'sess': self.app_sess_no_auth.code, 'content_section': '#foo2'}
@@ -905,8 +905,6 @@ class ViewTests(CustomAPITestCase):
         valid_data_with_track = dict(**base_data_other_section, tracking_session=tracking_sess_id, score=3, text="bar")
 
         # failures
-        self.assertEqual(self.client.get(url, data=valid_data_no_track, auth_token=auth_token).status_code,
-                         status.HTTP_405_METHOD_NOT_ALLOWED)  # wrong method
         self.assertEqual(self.client.post_json(url, data={}, auth_token=auth_token).status_code,
                          status.HTTP_400_BAD_REQUEST)  # no data
         self.assertEqual(self.client.post_json(url, data={'sess': 'foo'}, auth_token=auth_token).status_code,
@@ -1001,6 +999,38 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(user_feedback_obj.content_section, valid_data_no_track_no_score['content_section'])
         self.assertIsNone(user_feedback_obj.score)
         self.assertEqual(user_feedback_obj.text, valid_data_no_track_no_score['text'])
+
+        # --- test user feedback GET method ---
+        valid_data = {'sess': self.app_sess_no_auth.code}
+
+        # missing auth token
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_401_UNAUTHORIZED)
+        # wrong auth token
+        self.assertEqual(self.client.get(url, valid_data, auth_token='foo').status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+        # missing data
+        self.assertEqual(self.client.get(url, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST)
+        # wrong sess ID
+        self.assertEqual(self.client.get(url, {'sess': 'foo'}, auth_token=auth_token).status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+        # OK
+        response = self.client.get(url, valid_data, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        respdata = response.json()
+        self.assertEqual(set(respdata.keys()), {'user_feedback'})
+        self.assertIsInstance(respdata['user_feedback'], list)
+        self.assertEqual(len(respdata['user_feedback']), 4)
+
+        for fbdata in respdata['user_feedback']:
+            self.assertEqual(set(fbdata.keys()), {'content_section', 'score', 'text'})
+            self.assertIsInstance(fbdata['content_section'], str)
+            self.assertTrue(len(fbdata['content_section']) > 0)
+            if fbdata['score'] is not None:
+                self.assertIsInstance(fbdata['score'], int)
+                self.assertTrue(1 <= fbdata['score'] <= 5)
+            if fbdata['text'] is not None:
+                self.assertIsInstance(fbdata['text'], str)
 
 
 # ----- admin -----
