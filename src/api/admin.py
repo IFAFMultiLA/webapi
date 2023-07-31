@@ -296,7 +296,7 @@ class UserFeedbackAdmin(admin.ModelAdmin):
 
         if not filter_id or not filter_by:
             required_get_params_text = ', '.join(p + '_id' for p in required_get_params)
-            raise ValueError(f'this view requires one if the followong GET parameters: {required_get_params_text}')
+            raise ValueError(f'this view requires one of the followong GET parameters: {required_get_params_text}')
 
         if hasattr(request, 'session'):
             request.session['filter_id'] = filter_id

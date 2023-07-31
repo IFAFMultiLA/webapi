@@ -20,7 +20,7 @@ from .models import max_options_length, current_time_bytes, Application, Applica
     UserApplicationSession, User, TrackingSession, TrackingEvent, UserFeedback
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 from .admin import admin_site, ApplicationAdmin, ApplicationConfigAdmin, ApplicationSessionAdmin, \
-    TrackingSessionAdmin, TrackingEventAdmin
+    TrackingSessionAdmin, TrackingEventAdmin, UserFeedbackAdmin
 
 
 # ----- helper functions -----
@@ -1037,13 +1037,13 @@ class ViewTests(CustomAPITestCase):
 
 
 class ModelAdminTests(TestCase):
-    def _check_modeladmin_default_views(self, modeladm, view_args=None, check_views=None):
+    def _check_modeladmin_default_views(self, modeladm, view_args=None, check_views=None, custom_request=None):
         view_args = view_args or {}
         check_views = check_views or ('add_view', 'change_view', 'changelist_view', 'delete_view', 'history_view')
         for viewfn_name in check_views:
             viewfn = getattr(modeladm, viewfn_name)
             args = view_args.get(viewfn_name, {})
-            response = viewfn(self.request, **args)
+            response = viewfn(custom_request or self.request, **args)
             self.assertIsInstance(response, TemplateResponse)
             self.assertEqual(response.status_code, 200)
 
@@ -1149,6 +1149,32 @@ class ModelAdminTests(TestCase):
         obj_views_args = dict(object_id=str(appsess.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
         self._check_modeladmin_default_views(modeladm, views_args)
+
+    def test_userfeedback_admin(self):
+        modeladm = UserFeedbackAdmin(UserFeedback, admin_site)
+
+        app = Application(name="testapp", url="http://testapp.com", updated_by=self.request.user)
+        app.save()
+        appconfig = ApplicationConfig(application=app,
+                                      label="testconfig",
+                                      config={"key": "value"},
+                                      updated_by=self.request.user)
+        appconfig.save()
+        appsess = ApplicationSession(config=appconfig, auth_mode='none')
+        appsess.generate_code()
+        appsess.save()
+
+        for filter_by, filter_obj in (
+                ('application', app),
+                ('applicationconfig', appconfig),
+                ('applicationsession', appsess),
+        ):
+            custom_request = RequestFactory().get('/admin', data={filter_by + '_id': filter_obj.pk})
+            custom_request.user = self.request.user
+
+            self._check_modeladmin_default_views(modeladm,
+                                                 check_views=['changelist_view'],
+                                                 custom_request=custom_request)
 
     def test_trackingsession_admin(self):
         modeladm = TrackingSessionAdmin(TrackingSession, admin_site)
