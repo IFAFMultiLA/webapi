@@ -457,6 +457,12 @@ class MultiLAAdminSite(admin.AdminSite):
         def default_format(v, _=None):
             return '-' if v is None else v
 
+        def format_rounded(v, _):
+            if v is None:
+                return default_format(v)
+            else:
+                return str(round(v, 2))
+
         def format_timedelta(t, _):
             if t is None:
                 return default_format(t)
@@ -496,6 +502,8 @@ class MultiLAAdminSite(admin.AdminSite):
             'n_users': 'Total num. users',
             'n_nonanon_users': 'Registered users',
             'n_nonanon_logins': 'Logins of registered users',
+            'n_feedback': 'Num. of feedback items',
+            'avg_feedback_score': 'Avg. feedback score',
             'n_trackingsess': 'Num. tracking sessions',
             'most_recent_trackingsess': 'Most recently started tracking session',
             'avg_trackingsess_duration': 'Avg. tracking session duration',
@@ -505,6 +513,7 @@ class MultiLAAdminSite(admin.AdminSite):
 
         # map field names to custom formating functions
         COLUMN_FORMATING = {
+            'avg_feedback_score': format_rounded,
             'avg_trackingsess_duration': format_timedelta,
             'most_recent_trackingsess': format_datetime,
             'most_recent_event': format_datetime,
@@ -533,11 +542,13 @@ class MultiLAAdminSite(admin.AdminSite):
         usersess_expr = 'applicationconfig__applicationsession__userapplicationsession'
         trackingsess_expr = usersess_expr + '__trackingsession'
         trackingevent_expr = trackingsess_expr + '__trackingevent'
+        userfeedback_expr = usersess_expr + '__userfeedback'
 
         # fields that are always fetched
         toplevel_fields = ['name', 'url']
-        stats_fields = ['n_users', 'n_nonanon_users', 'n_nonanon_logins', 'n_trackingsess',
-                        'most_recent_trackingsess', 'avg_trackingsess_duration', 'n_events', 'most_recent_event']
+        stats_fields = ['n_users', 'n_nonanon_users', 'n_nonanon_logins', 'n_feedback', 'avg_feedback_score',
+                        'n_trackingsess', 'most_recent_trackingsess', 'avg_trackingsess_duration', 'n_events',
+                        'most_recent_event']
 
         # fields specific for aggregation level
         if groupby == 'app':
@@ -564,6 +575,8 @@ class MultiLAAdminSite(admin.AdminSite):
             .annotate(n_users=Count(usersess_expr, distinct=True),
                       n_nonanon_users=Count(usersess_expr + '__user', distinct=True),
                       n_nonanon_logins=Count(usersess_expr + '__user', distinct=False),
+                      n_feedback=Count(userfeedback_expr, distinct=True),
+                      avg_feedback_score=Avg(userfeedback_expr + '__score'),
                       n_trackingsess=Count(trackingsess_expr, distinct=True),
                       most_recent_trackingsess=Max(trackingsess_expr + '__start_time'),
                       avg_trackingsess_duration=Avg(F(trackingsess_expr + '__end_time')
