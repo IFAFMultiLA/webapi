@@ -200,11 +200,11 @@ class UserFeedbackAdmin(admin.ModelAdmin):
     This model admin is used as "read-only" admin for displaying a list of user feedback items for an application,
     an application config. or application session.
     """
-    list_display = ['tracking_session', 'content_section', 'score', 'text_truncated']
-    list_display_links = ['content_section', 'score', 'text_truncated']
-    list_filter = ['content_section', 'score']
-    fields = ['tracking_session', 'content_section', 'score', 'text']
-    readonly_fields = ['tracking_session', 'content_section', 'score', 'text']
+    list_display = ['tracking_session', 'created', 'content_section', 'score', 'text_truncated']
+    list_display_links = ['created', 'content_section', 'score', 'text_truncated']
+    list_filter = ['created', 'content_section', 'score']
+    fields = ['tracking_session', 'created', 'content_section', 'score', 'text']
+    readonly_fields = ['tracking_session', 'created', 'content_section', 'score', 'text']
 
     def has_add_permission(self, request):
         return False
@@ -819,8 +819,8 @@ class MultiLAAdminSite(admin.AdminSite):
             QUERIES_AND_FIELDS = {
                 "app_sessions": (
                     "SELECT {fields} FROM api_application a "
-                        "LEFT JOIN api_applicationconfig ac on a.id = ac.application_id "
-                        "LEFT JOIN api_applicationsession asess on ac.id = asess.config_id",
+                        "LEFT JOIN api_applicationconfig ac ON a.id = ac.application_id "
+                        "LEFT JOIN api_applicationsession asess ON ac.id = asess.config_id",
                     "WHERE asess.code = %s",
                     (
                         ("a.id", "app_id"),
@@ -834,7 +834,7 @@ class MultiLAAdminSite(admin.AdminSite):
                 ),
                 "tracking_sessions": (
                     "SELECT {fields} FROM api_userapplicationsession ua "
-                        "LEFT JOIN api_trackingsession t on ua.id = t.user_app_session_id",
+                        "LEFT JOIN api_trackingsession t ON ua.id = t.user_app_session_id",
                     "WHERE ua.application_session_id = %s",
                     (
                         ("ua.application_session_id", "app_sess_code"),
@@ -846,10 +846,25 @@ class MultiLAAdminSite(admin.AdminSite):
                         ("t.device_info", "track_sess_device_info"),
                     )
                 ),
+                "user_feedback": (
+                    "SELECT {fields} FROM api_userfeedback fb "
+                        "LEFT JOIN api_userapplicationsession ua ON fb.user_app_session_id = ua.id",
+                    "WHERE ua.application_session_id = %s",
+                    (
+                        ("ua.application_session_id", "app_sess_code"),
+                        ("ua.code", "user_app_sess_code"),
+                        ("ua.user_id", "user_app_sess_user_id"),
+                        ("fb.tracking_session_id", "track_sess_id"),
+                        ("fb.created", "feedback_created"),
+                        ("fb.content_section", "feedback_content_section"),
+                        ("fb.score", "feedback_score"),
+                        ("fb.text", "feedback_text"),
+                    )
+                ),
                 "tracking_events": (
                     "SELECT {fields} FROM api_trackingevent e "
-                        "LEFT JOIN api_trackingsession t on e.tracking_session_id = t.id "
-                        "LEFT JOIN api_userapplicationsession ua on t.user_app_session_id = ua.id",
+                        "LEFT JOIN api_trackingsession t ON e.tracking_session_id = t.id "
+                        "LEFT JOIN api_userapplicationsession ua ON t.user_app_session_id = ua.id",
                     "WHERE ua.application_session_id = %s",
                     (
                         ("t.id", "track_sess_id"),
