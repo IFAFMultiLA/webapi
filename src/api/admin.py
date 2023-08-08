@@ -200,7 +200,7 @@ class UserFeedbackAdmin(admin.ModelAdmin):
     This model admin is used as "read-only" admin for displaying a list of user feedback items for an application,
     an application config. or application session.
     """
-    list_display = ['tracking_session', 'created', 'content_section', 'score', 'text_truncated']
+    list_display = ['tracking_session_short', 'created', 'content_section', 'score', 'text_truncated']
     list_display_links = ['created', 'content_section', 'score', 'text_truncated']
     list_filter = ['created', 'content_section', 'score']
     fields = ['tracking_session', 'created', 'content_section', 'score', 'text']
@@ -222,9 +222,9 @@ class UserFeedbackAdmin(admin.ModelAdmin):
             # prepend additional column(s) depending on filter
             filter_by = request.session['filter_by']
             if filter_by == 'application':
-                prepend = ['applicationconfig', 'applicationsession']
+                prepend = ['app_config_short', 'app_session_short']
             elif filter_by == 'applicationconfig':
-                prepend = ['applicationsession']
+                prepend = ['app_session_short']
             else:
                 prepend = []
 
@@ -252,6 +252,26 @@ class UserFeedbackAdmin(admin.ModelAdmin):
             return qs.select_related().filter(**filterkwargs)
         else:
             return qs
+
+    @admin.display(description='Application configuration')
+    def app_config_short(self, obj):
+        pk = obj.user_app_session.application_session.config.pk
+        app_config_url = reverse('multila_admin:api_applicationconfig_change', args=[pk])
+        return mark_safe(f'<a href="{app_config_url}">#{pk}')
+
+    @admin.display(description='Application session')
+    def app_session_short(self, obj):
+        pk = obj.user_app_session.application_session.pk
+        app_sess_url = reverse('multila_admin:api_applicationsession_change', args=[pk])
+        return mark_safe(f'<a href="{app_sess_url}">{pk}')
+
+    @admin.display(description='Tracking session')
+    def tracking_session_short(self, obj):
+        if obj.tracking_session:
+            tracking_sess_url = reverse('multila_admin:api_trackingsession_change', args=[obj.tracking_session.pk])
+            return mark_safe(f'<a href="{tracking_sess_url}">#{obj.tracking_session.pk}')
+        else:
+            return '-'
 
     @admin.display(description='Text')
     def text_truncated(self, obj):

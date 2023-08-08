@@ -375,9 +375,9 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
             del parsed_data['text']
 
         # if we have a tracking session, make sure it belongs to the user app. session
-        if 'tracking_session' in parsed_data:
+        if tracking_session := parsed_data.get('tracking_session', None):
             try:
-                tracking_sess = TrackingSession.objects.get(id=parsed_data['tracking_session'])
+                tracking_sess = TrackingSession.objects.get(id=tracking_session)
                 if tracking_sess.user_app_session_id != user_app_sess_obj.pk:
                     return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
             except TrackingSession.DoesNotExist:
@@ -387,6 +387,18 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
         user_feedback_serializer = UserFeedbackSerializer(data=parsed_data)
 
         if user_feedback_serializer.is_valid():
+            # see if we already have an existing user feedback instance to perform an update
+            try:
+                user_feedback_obj = UserFeedback.objects.get(user_app_session=parsed_data['user_app_session'],
+                                                             content_section=parsed_data['content_section'])
+
+                # perform an update
+                user_feedback_serializer.instance = user_feedback_obj
+                response_status = status.HTTP_200_OK
+            except UserFeedback.DoesNotExist:
+                # create a new user feedback instance
+                response_status = status.HTTP_201_CREATED
+
             try:
                 # store to DB
                 with transaction.atomic():
@@ -395,7 +407,7 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
             # all OK
-            return HttpResponse(status=status.HTTP_201_CREATED)
+            return HttpResponse(status=response_status)
         else:
             return JsonResponse({'validation_errors': user_feedback_serializer.errors},
                                 status=status.HTTP_400_BAD_REQUEST)

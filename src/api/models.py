@@ -210,7 +210,7 @@ class UserFeedback(models.Model):
     # qualitative feedback given as free form text;
     # NULL means no feedback given by user because qual. feedback was disabled; if qual. feedback was enabled but
     # no such feedback was given by the user, the field contains an empty string
-    text = models.TextField('Feedback text', null=True, default=None)
+    text = models.TextField('Feedback text', null=True, default=None, blank=True)
 
     created = models.DateTimeField('Creation time', auto_now_add=True)
 
