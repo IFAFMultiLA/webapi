@@ -71,15 +71,15 @@ specific application session) – character string</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">user_app_sess_user_id</span></code>: user ID for registered users; no further
 data on individual users is provided in this dataset – integer for
 registered users or NA for anonymous users</p></li>
-<li><p><strong>``track_sess_id``: tracking session ID (ID indicating for a
+<li><p><strong>``track_sess_id``: tracking session ID (ID indicating a
 continuous interaction of a user with the application session on a
 single device) – integer</strong></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">track_sess_start</span></code>: start of the tracking session (first visit of a
 user on this device for this application session) – UTC date and time
-in format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S</span></code></p></li>
+in format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S.ms</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">track_sess_end</span></code>: end of the tracking session (user closes the
 browser window of logs out) – UTC date and time in format
-<code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S</span></code></p></li>
+<code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S.ms</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">track_sess_device_info</span></code>: information on the device used by the
 user in this tracking session – JSON with the following information:</p>
 <ul>
@@ -93,15 +93,42 @@ string</p></li>
 </li>
 </ul>
 </section>
+<section id="file-user-feedback-csv">
+<h2>File <code class="docutils literal notranslate"><span class="pre">user_feedback.csv</span></code><a class="headerlink" href="#file-user-feedback-csv" title="Permalink to this heading">¶</a></h2>
+<p>Contains data on user feedback provided by users during a user application
+session.</p>
+<ul class="simple">
+<li><p><strong>``app_sess_code``: session code of the application session (session
+code for a configured application that was shared to the users) –
+character string</strong></p></li>
+<li><p><strong>``user_app_sess_code``: user application session code (session code
+for an individual anonymous or registered user interacting with a
+specific application session) – character string</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">user_app_sess_user_id</span></code>: user ID for registered users; no further
+data on individual users is provided in this dataset – integer for
+registered users or NA for anonymous users</p></li>
+<li><p><strong>``track_sess_id``: optional tracking session ID (ID indicating a
+continuous interaction of a user with the application session on a
+single device) – integer</strong></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">feedback_created</span></code>: time when the event took place – UTC date and time in
+format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S.ms</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">feedback_content_section</span></code>: content section of the application for which
+the feedback was recorded</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">feedback_score</span></code>: score given by the user in range [0, 1]; can be NA
+when no score was given or giving scores was disabled</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">feedback_text</span></code>: comment given by the user; can be NA when giving
+comments was disabled</p></li>
+</ul>
+</section>
 <section id="file-tracking-events-csv">
 <h2>File <code class="docutils literal notranslate"><span class="pre">tracking_events.csv</span></code><a class="headerlink" href="#file-tracking-events-csv" title="Permalink to this heading">¶</a></h2>
 <p>Contains data on events produced by users within a tracking session.</p>
 <ul class="simple">
-<li><p><strong>``track_sess_id``: tracking session ID (ID indicating for a
+<li><p><strong>``track_sess_id``: tracking session ID (ID indicating a
 continuous interaction of a user with the application session on a
 single device) – integer</strong></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">event_time</span></code>: time when the event took place – UTC date and time in
-format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S</span></code></p></li>
+format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span> <span class="pre">H:M:S.ms</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">event_type</span></code>: type of the event – categorical;
 <code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;input_change&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code>
 (see below for possible <em>learnr</em> events in <code class="docutils literal notranslate"><span class="pre">*</span></code> placeholder) or
@@ -184,6 +211,7 @@ multiple-choice question.</p></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Codebook for MultiLA web API data export</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#file-app-sessions-csv">File <code class="docutils literal notranslate"><span class="pre">app_sessions.csv</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#file-tracking-sessions-csv">File <code class="docutils literal notranslate"><span class="pre">tracking_sessions.csv</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#file-user-feedback-csv">File <code class="docutils literal notranslate"><span class="pre">user_feedback.csv</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#file-tracking-events-csv">File <code class="docutils literal notranslate"><span class="pre">tracking_events.csv</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#learnr-events">Learnr events</a></li>
 </ul>

@@ -7,19 +7,20 @@ Automated tests.
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from django.core.exceptions import PermissionDenied
 from django.conf import settings
-from django.forms.models import ModelFormMetaclass
+from django.forms.models import ModelFormMetaclass, ModelForm
 from django.template.response import TemplateResponse
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
+from django.db.utils import IntegrityError
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
-    UserApplicationSession, User, TrackingSession, TrackingEvent
+    UserApplicationSession, User, TrackingSession, TrackingEvent, UserFeedback
+from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 from .admin import admin_site, ApplicationAdmin, ApplicationConfigAdmin, ApplicationSessionAdmin, \
-    TrackingSessionAdmin, TrackingEventAdmin
+    TrackingSessionAdmin, TrackingEventAdmin, UserFeedbackAdmin
 
 
 # ----- helper functions -----
@@ -29,45 +30,7 @@ def tznow():
     return datetime.now(ZoneInfo(settings.TIME_ZONE))
 
 
-# ----- views -----
-
-
-class CustomAPIClient(APIClient):
-    """
-    Extended test client based on APIClient.
-    """
-    def post_json(self, path, data=None, follow=False, **extra):
-        """
-        POST request in JSON format.
-        """
-        return self.post(path, data=data, format='json', follow=follow, **extra)
-
-    def post(self, path, data=None, format=None, content_type=None, follow=False, **extra):
-        """POST request with optional "extras", i.e. CSRF token / auth token."""
-        self._handle_extra(extra)
-        return super().post(path, data=data, format=format, content_type=content_type, follow=follow, **extra)
-
-    def get(self, path, data=None, follow=False, **extra):
-        """GET request with optional "extras", i.e. CSRF token / auth token."""
-        self._handle_extra(extra)
-        return super().get(path, data=data, follow=follow, **extra)
-
-    def _handle_extra(self, extra):
-        """Handle extras, i.e. CSRF token / auth token."""
-        omit_csrftoken = extra.pop('omit_csrftoken', False)
-        if 'csrftoken' in self.cookies and not omit_csrftoken:
-            extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
-
-        auth_token = extra.pop('auth_token', None)
-        if auth_token:
-            extra['HTTP_AUTHORIZATION'] = f'Token {auth_token}'
-
-
-class CustomAPITestCase(APITestCase):
-    """
-    Extended test case using CustomAPIClient.
-    """
-    client_class = CustomAPIClient
+# ----- models -----
 
 
 class ModelsCommonTests(TestCase):
@@ -176,6 +139,243 @@ class UserApplicationSessionModelTests(TestCase):
         self.assertTrue(len(code) == 64)
 
 
+class UserFeedbackModelTests(TestCase):
+    """
+    Test case for UserFeedback model.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        self.user_app_sess = UserApplicationSession(application_session=app_sess)
+        self.user_app_sess.generate_code()
+        self.user_app_sess.save()
+        # create a tracking session
+        self.tracking_sess = TrackingSession.objects.create(user_app_session=self.user_app_sess,
+                                                            start_time=tznow())
+
+    def test_user_feedback_linked_to_user_app_sess(self):
+        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#foo', text='bar')
+        self.assertIs(feedback.user_app_session, self.user_app_sess)
+        self.assertIs(feedback.tracking_session, None)
+        self.assertEqual(feedback.content_section, '#foo')
+        self.assertIsNone(feedback.score)
+        self.assertEqual(feedback.text, 'bar')
+        self.assertIsInstance(feedback.created, datetime)
+
+    def test_user_feedback_linked_to_tracking_sess(self):
+        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess, tracking_session=self.tracking_sess,
+                                               content_section='#foo', score=1)
+        self.assertIs(feedback.user_app_session, self.user_app_sess)
+        self.assertIs(feedback.tracking_session, self.tracking_sess)
+        self.assertEqual(feedback.content_section, '#foo')
+        self.assertEqual(feedback.score, 1)
+        self.assertIsNone(feedback.text)
+        self.assertIsInstance(feedback.created, datetime)
+
+    def test_user_feedback_all_fields_set(self):
+        feedback = UserFeedback.objects.create(user_app_session=self.user_app_sess,
+                                               tracking_session=self.tracking_sess,
+                                               content_section='#foo',
+                                               score=2,
+                                               text='bar')
+        self.assertIs(feedback.user_app_session, self.user_app_sess)
+        self.assertIs(feedback.tracking_session, self.tracking_sess)
+        self.assertEqual(feedback.content_section, '#foo')
+        self.assertEqual(feedback.score, 2)
+        self.assertEqual(feedback.text, 'bar')
+        self.assertIsInstance(feedback.created, datetime)
+
+    def test_user_feedback_unique_constraint(self):
+        args = dict(user_app_session=self.user_app_sess, content_section='#uniquetest1', score=2)
+        UserFeedback.objects.create(**args)
+        UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#uniquetest2', score=3)
+
+        with self.assertRaisesRegex(IntegrityError, r'unique_userappsess_content_section'):
+            UserFeedback.objects.create(**args)
+
+    def test_user_feedback_either_score_or_text_must_be_given_constraint(self):
+        args = dict(user_app_session=self.user_app_sess, content_section='#uniquetest1')
+        with self.assertRaisesRegex(IntegrityError, r'either_score_or_text_must_be_given'):
+            UserFeedback.objects.create(**args)
+
+    def test_user_feedback_score_validators(self):
+        class UserFeedbackForm(ModelForm):
+            class Meta:
+                model = UserFeedback
+                fields = ['user_app_session', 'content_section', 'score']
+
+        data = dict(user_app_session=self.user_app_sess.pk,
+                    content_section='#foo',
+                    score=-1)
+        form = UserFeedbackForm(data)
+        self.assertFalse(form.is_valid())
+
+        data['score'] = 6
+        form = UserFeedbackForm(data)
+        self.assertFalse(form.is_valid())
+
+
+# ----- serializers -----
+
+
+class TrackingSessionSerializerTests(TestCase):
+    """
+    Test case for tracking session serializer.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        self.user_app_sess = UserApplicationSession(application_session=app_sess)
+        self.user_app_sess.generate_code()
+        self.user_app_sess.save()
+
+    def test_serializer(self):
+        for whichtime in ('start_time', 'end_time'):
+            for tdelta, expect_valid in ((dict(minutes=-6), False),
+                                         (dict(minutes=-3), True),
+                                         (dict(minutes=0), True),
+                                         (dict(seconds=1), True),
+                                         (dict(seconds=10), False)):
+                data = dict(user_app_session=self.user_app_sess.pk, device_info='foo')
+                data['start_time'] = tznow()
+                data[whichtime] = tznow() + timedelta(**tdelta)
+                ser = TrackingSessionSerializer(data=data)
+                valid = ser.is_valid()
+                self.assertEqual(valid, expect_valid)
+
+
+class TrackingEventSerializerTests(TestCase):
+    """
+    Test case for tracking event serializer.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        user_app_sess = UserApplicationSession(application_session=app_sess)
+        user_app_sess.generate_code()
+        user_app_sess.save()
+        # create a tracking session
+        self.tracking_sess = TrackingSession.objects.create(user_app_session=user_app_sess,
+                                                            start_time=tznow())
+
+    def test_serializer(self):
+        for tdelta, expect_valid in ((dict(minutes=-6), False),
+                                     (dict(minutes=-3), True),
+                                     (dict(minutes=0), True),
+                                     (dict(seconds=1), True),
+                                     (dict(seconds=10), False)):
+            data = dict(tracking_session=self.tracking_sess.pk,
+                        time=tznow() + timedelta(**tdelta),
+                        type='foo',
+                        value='bar')
+            ser = TrackingEventSerializer(data=data)
+            valid = ser.is_valid()
+            self.assertEqual(valid, expect_valid)
+
+
+class UserFeedbackSerializerTests(TestCase):
+    """
+    Test case for user feedback serializer.
+    """
+
+    def setUp(self):
+        # create an app for an app config
+        app = Application.objects.create(name='test app', url='https://test.app')
+        # create an app config for an app session
+        app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        # create an app session
+        app_sess = ApplicationSession(config=app_config, auth_mode='none')
+        app_sess.generate_code()
+        app_sess.save()
+        # create an user app session
+        self.user_app_sess = UserApplicationSession(application_session=app_sess)
+        self.user_app_sess.generate_code()
+        self.user_app_sess.save()
+        # create a tracking session
+        self.tracking_sess = TrackingSession.objects.create(user_app_session=self.user_app_sess,
+                                                            start_time=tznow())
+
+    def test_serializer(self):
+        for tracking_sess in (None, self.tracking_sess):
+            for score in range(-1, 6):
+                data = dict(user_app_session=self.user_app_sess.pk,
+                            tracking_session=tracking_sess.pk if tracking_sess else None,
+                            content_section='#foo',
+                            score=score,
+                            text='bar')
+                ser = UserFeedbackSerializer(data=data)
+                valid = ser.is_valid()
+                if 1 <= score <= 5:
+                    self.assertTrue(valid)
+                else:
+                    self.assertFalse(valid)
+
+
+# ----- views -----
+
+
+class CustomAPIClient(APIClient):
+    """
+    Extended test client based on APIClient.
+    """
+    def post_json(self, path, data=None, follow=False, **extra):
+        """
+        POST request in JSON format.
+        """
+        return self.post(path, data=data, format='json', follow=follow, **extra)
+
+    def post(self, path, data=None, format=None, content_type=None, follow=False, **extra):
+        """POST request with optional "extras", i.e. CSRF token / auth token."""
+        self._handle_extra(extra)
+        return super().post(path, data=data, format=format, content_type=content_type, follow=follow, **extra)
+
+    def get(self, path, data=None, follow=False, **extra):
+        """GET request with optional "extras", i.e. CSRF token / auth token."""
+        self._handle_extra(extra)
+        return super().get(path, data=data, follow=follow, **extra)
+
+    def _handle_extra(self, extra):
+        """Handle extras, i.e. CSRF token / auth token."""
+        omit_csrftoken = extra.pop('omit_csrftoken', False)
+        if 'csrftoken' in self.cookies and not omit_csrftoken:
+            extra['HTTP_X_CSRFTOKEN'] = self.cookies['csrftoken'].value
+
+        auth_token = extra.pop('auth_token', None)
+        if auth_token:
+            extra['HTTP_AUTHORIZATION'] = f'Token {auth_token}'
+
+
+class CustomAPITestCase(APITestCase):
+    """
+    Extended test case using CustomAPIClient.
+    """
+    client_class = CustomAPIClient
+
+
 class ViewTests(CustomAPITestCase):
     """
     Test case for views.
@@ -190,6 +390,9 @@ class ViewTests(CustomAPITestCase):
 
         # create a config for this app
         app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
+        app_config_no_qual_feedback = ApplicationConfig.objects.create(application=app,
+                                                                       label='config. w/ no qualitative feedback',
+                                                                       config={'feedback': {'qualitative': False}})
 
         # create an app session w/o authentication
         self.app_sess_no_auth = ApplicationSession(config=app_config, auth_mode='none')
@@ -200,6 +403,12 @@ class ViewTests(CustomAPITestCase):
         self.app_sess_login = ApplicationSession(config=app_config, auth_mode='login')
         self.app_sess_login.generate_code()
         self.app_sess_login.save()
+
+        # create an app session using the "no qual. feedback" config
+        self.app_sess_no_auth_no_qual_feedback = ApplicationSession(config=app_config_no_qual_feedback,
+                                                                    auth_mode='none')
+        self.app_sess_no_auth_no_qual_feedback.generate_code()
+        self.app_sess_no_auth_no_qual_feedback.save()
 
         # create a second test app
         self.app_with_default_sess = Application.objects.create(name='test app 2', url='https://test2.app')
@@ -675,18 +884,189 @@ class ViewTests(CustomAPITestCase):
             'tracking_session_id': tracking_sess_id
         }, auth_token=auth_token).status_code, status.HTTP_200_OK)
 
+    def test_user_feedback(self):
+        # request application session – also sets CSRF token in cookie
+        response = self.client.get(reverse('session'), {'sess': self.app_sess_no_auth.code})
+        auth_token = response.json()['user_code']
+
+        # start tracking
+        response = self.client.post_json(reverse('start_tracking'),
+                                         data={'sess': self.app_sess_no_auth.code,
+                                               'start_time': tznow().isoformat()},
+                                         auth_token=auth_token)
+
+        tracking_sess_id = response.json()['tracking_session_id']
+
+        # --- test user feedback POST method ---
+        url = reverse('user_feedback')
+        base_data = {'sess': self.app_sess_no_auth.code, 'content_section': '#foo'}
+        base_data_other_section = {'sess': self.app_sess_no_auth.code, 'content_section': '#foo2'}
+        base_data_other_section2 = {'sess': self.app_sess_no_auth.code, 'content_section': '#foo999'}
+        valid_data_no_track = dict(**base_data, score=3, text="bar")
+        valid_data_no_track_upd = dict(**base_data, score=2, text="")
+        valid_data_no_track2 = dict(**base_data_other_section2, tracking_session=None, score=1, text="foobar")
+        valid_data_with_track = dict(**base_data_other_section, tracking_session=tracking_sess_id, score=3, text="bar")
+
+        # failures
+        self.assertEqual(self.client.post_json(url, data={}, auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # no data
+        self.assertEqual(self.client.post_json(url, data={'sess': 'foo'}, auth_token=auth_token).status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong application session
+        self.assertEqual(self.client.post_json(url, data=base_data,
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing score or text
+        self.assertEqual(self.client.post_json(url, data={'sess': self.app_sess_no_auth.code, 'score': 3},
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # missing content_section
+        self.assertEqual(self.client.post_json(url, data=dict(**valid_data_no_track, tracking_session=0),
+                                               auth_token=auth_token).status_code,
+                         status.HTTP_400_BAD_REQUEST)  # wrong tracking_session
+        self.assertEqual(self.client.post_json(url, data=valid_data_no_track, auth_token='foo').status_code,
+                         status.HTTP_401_UNAUTHORIZED)  # wrong auth token
+        # invalid scores
+        for score in {-1, 0, 6, 1000, "x"}:
+            response = self.client.post_json(url, data=dict(**base_data, score=score), auth_token=auth_token)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertTrue('validation_errors' in response.json())
+
+        # check that the app config is obeyed
+        # request application session – also sets CSRF token in cookie
+        auth_token_no_qual_feedback = self.client.get(
+            reverse('session'), {'sess': self.app_sess_no_auth_no_qual_feedback.code}
+        ).json()['user_code']
+        base_data_no_qual_feedback = {'sess': self.app_sess_no_auth_no_qual_feedback.code, 'content_section': '#foo'}
+        valid_data_no_qual_feedback = dict(**base_data_no_qual_feedback, score=3, text="bar")
+        response = self.client.post_json(url, data=valid_data_no_qual_feedback, auth_token=auth_token_no_qual_feedback)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user_feedback_obj = UserFeedback.objects.latest('created')
+        self.assertEqual(user_feedback_obj.user_app_session.code, auth_token_no_qual_feedback)
+        self.assertIsNone(user_feedback_obj.tracking_session)
+        self.assertEqual(user_feedback_obj.content_section, valid_data_no_track['content_section'])
+        self.assertEqual(user_feedback_obj.score, valid_data_no_track['score'])
+        self.assertIsNone(user_feedback_obj.text)
+
+        # reset
+        UserFeedback.objects.all().delete()
+
+        # OK without tracking session
+        response = self.client.post_json(url, data=valid_data_no_track, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.content), 0)
+        self.assertEqual(UserFeedback.objects.count(), 1)
+        user_feedback_obj = UserFeedback.objects.latest('created')
+        self.assertEqual(user_feedback_obj.user_app_session.code, auth_token)
+        self.assertIsNone(user_feedback_obj.tracking_session)
+        self.assertEqual(user_feedback_obj.content_section, valid_data_no_track['content_section'])
+        self.assertEqual(user_feedback_obj.score, valid_data_no_track['score'])
+        self.assertEqual(user_feedback_obj.text, valid_data_no_track['text'])
+
+        # update existing user feedback
+        response = self.client.post_json(url, data=valid_data_no_track_upd, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.content), 0)
+        self.assertEqual(UserFeedback.objects.count(), 1)
+        user_feedback_obj_updated = UserFeedback.objects.get(user_app_session__code=auth_token,
+                                                             content_section=valid_data_no_track_upd['content_section'])
+        self.assertEqual(user_feedback_obj_updated.pk, user_feedback_obj.pk)
+        self.assertIsNone(user_feedback_obj_updated.tracking_session)
+        self.assertEqual(user_feedback_obj_updated.score, valid_data_no_track_upd['score'])
+        self.assertEqual(user_feedback_obj_updated.text, valid_data_no_track_upd['text'])
+
+
+        # OK without tracking session
+        response = self.client.post_json(url, data=valid_data_no_track2, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.content), 0)
+        self.assertEqual(UserFeedback.objects.count(), 2)
+        user_feedback_obj = UserFeedback.objects.latest('created')
+        self.assertEqual(user_feedback_obj.user_app_session.code, auth_token)
+        self.assertIsNone(user_feedback_obj.tracking_session)
+        self.assertEqual(user_feedback_obj.content_section, valid_data_no_track2['content_section'])
+        self.assertEqual(user_feedback_obj.score, valid_data_no_track2['score'])
+        self.assertEqual(user_feedback_obj.text, valid_data_no_track2['text'])
+
+        # OK with tracking session
+        response = self.client.post_json(url, data=valid_data_with_track, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.content), 0)
+        self.assertEqual(UserFeedback.objects.count(), 3)
+        user_feedback_obj = UserFeedback.objects.latest('created')
+        self.assertEqual(user_feedback_obj.user_app_session.code, auth_token)
+        self.assertEqual(user_feedback_obj.tracking_session.pk, valid_data_with_track['tracking_session'])
+        self.assertEqual(user_feedback_obj.content_section, valid_data_with_track['content_section'])
+        self.assertEqual(user_feedback_obj.score, valid_data_with_track['score'])
+        self.assertEqual(user_feedback_obj.text, valid_data_with_track['text'])
+
+        # OK without tracking session and only score but no text
+        valid_data_no_track_no_text = dict(sess=self.app_sess_no_auth.code, content_section='#foo3', score=5)
+        response = self.client.post_json(url, data=valid_data_no_track_no_text, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.content), 0)
+        self.assertEqual(UserFeedback.objects.count(), 4)
+        user_feedback_obj = UserFeedback.objects.latest('created')
+        self.assertEqual(user_feedback_obj.user_app_session.code, auth_token)
+        self.assertIsNone(user_feedback_obj.tracking_session)
+        self.assertEqual(user_feedback_obj.content_section, valid_data_no_track_no_text['content_section'])
+        self.assertEqual(user_feedback_obj.score, valid_data_no_track_no_text['score'])
+        self.assertIsNone(user_feedback_obj.text)
+
+        # OK without tracking session and only score but no text
+        valid_data_no_track_no_score = dict(sess=self.app_sess_no_auth.code, content_section='#foo4', text="some text")
+        response = self.client.post_json(url, data=valid_data_no_track_no_score, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.content), 0)
+        self.assertEqual(UserFeedback.objects.count(), 5)
+        user_feedback_obj = UserFeedback.objects.latest('created')
+        self.assertEqual(user_feedback_obj.user_app_session.code, auth_token)
+        self.assertIsNone(user_feedback_obj.tracking_session)
+        self.assertEqual(user_feedback_obj.content_section, valid_data_no_track_no_score['content_section'])
+        self.assertIsNone(user_feedback_obj.score)
+        self.assertEqual(user_feedback_obj.text, valid_data_no_track_no_score['text'])
+
+        # --- test user feedback GET method ---
+        valid_data = {'sess': self.app_sess_no_auth.code}
+
+        # missing auth token
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_401_UNAUTHORIZED)
+        # wrong auth token
+        self.assertEqual(self.client.get(url, valid_data, auth_token='foo').status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+        # missing data
+        self.assertEqual(self.client.get(url, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST)
+        # wrong sess ID
+        self.assertEqual(self.client.get(url, {'sess': 'foo'}, auth_token=auth_token).status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+        # OK
+        response = self.client.get(url, valid_data, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        respdata = response.json()
+        self.assertEqual(set(respdata.keys()), {'user_feedback'})
+        self.assertIsInstance(respdata['user_feedback'], list)
+        self.assertEqual(len(respdata['user_feedback']), 5)
+
+        for fbdata in respdata['user_feedback']:
+            self.assertEqual(set(fbdata.keys()), {'content_section', 'score', 'text'})
+            self.assertIsInstance(fbdata['content_section'], str)
+            self.assertTrue(len(fbdata['content_section']) > 0)
+            if fbdata['score'] is not None:
+                self.assertIsInstance(fbdata['score'], int)
+                self.assertTrue(1 <= fbdata['score'] <= 5)
+            if fbdata['text'] is not None:
+                self.assertIsInstance(fbdata['text'], str)
+
 
 # ----- admin -----
 
 
 class ModelAdminTests(TestCase):
-    def _check_modeladmin_default_views(self, modeladm, view_args=None, check_views=None):
+    def _check_modeladmin_default_views(self, modeladm, view_args=None, check_views=None, custom_request=None):
         view_args = view_args or {}
         check_views = check_views or ('add_view', 'change_view', 'changelist_view', 'delete_view', 'history_view')
         for viewfn_name in check_views:
             viewfn = getattr(modeladm, viewfn_name)
             args = view_args.get(viewfn_name, {})
-            response = viewfn(self.request, **args)
+            response = viewfn(custom_request or self.request, **args)
             self.assertIsInstance(response, TemplateResponse)
             self.assertEqual(response.status_code, 200)
 
@@ -792,6 +1172,32 @@ class ModelAdminTests(TestCase):
         obj_views_args = dict(object_id=str(appsess.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
         self._check_modeladmin_default_views(modeladm, views_args)
+
+    def test_userfeedback_admin(self):
+        modeladm = UserFeedbackAdmin(UserFeedback, admin_site)
+
+        app = Application(name="testapp", url="http://testapp.com", updated_by=self.request.user)
+        app.save()
+        appconfig = ApplicationConfig(application=app,
+                                      label="testconfig",
+                                      config={"key": "value"},
+                                      updated_by=self.request.user)
+        appconfig.save()
+        appsess = ApplicationSession(config=appconfig, auth_mode='none')
+        appsess.generate_code()
+        appsess.save()
+
+        for filter_by, filter_obj in (
+                ('application', app),
+                ('applicationconfig', appconfig),
+                ('applicationsession', appsess),
+        ):
+            custom_request = RequestFactory().get('/admin', data={filter_by + '_id': filter_obj.pk})
+            custom_request.user = self.request.user
+
+            self._check_modeladmin_default_views(modeladm,
+                                                 check_views=['changelist_view'],
+                                                 custom_request=custom_request)
 
     def test_trackingsession_admin(self):
         modeladm = TrackingSessionAdmin(TrackingSession, admin_site)

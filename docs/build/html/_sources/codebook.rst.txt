@@ -42,15 +42,15 @@ browser window.
 -  ``user_app_sess_user_id``: user ID for registered users; no further
    data on individual users is provided in this dataset – integer for
    registered users or NA for anonymous users
--  **``track_sess_id``: tracking session ID (ID indicating for a
+-  **``track_sess_id``: tracking session ID (ID indicating a
    continuous interaction of a user with the application session on a
    single device) – integer**
 -  ``track_sess_start``: start of the tracking session (first visit of a
    user on this device for this application session) – UTC date and time
-   in format ``Y-M-D H:M:S``
+   in format ``Y-M-D H:M:S.ms``
 -  ``track_sess_end``: end of the tracking session (user closes the
    browser window of logs out) – UTC date and time in format
-   ``Y-M-D H:M:S``
+   ``Y-M-D H:M:S.ms``
 -  ``track_sess_device_info``: information on the device used by the
    user in this tracking session – JSON with the following information:
 
@@ -61,16 +61,43 @@ browser window.
    -  ``window_size``: array with two elements as integers:
       ``[window width, window height]``
 
+File ``user_feedback.csv``
+----------------------------
+
+Contains data on user feedback provided by users during a user application
+session.
+
+-  **``app_sess_code``: session code of the application session (session
+   code for a configured application that was shared to the users) –
+   character string**
+-  **``user_app_sess_code``: user application session code (session code
+   for an individual anonymous or registered user interacting with a
+   specific application session) – character string**
+-  ``user_app_sess_user_id``: user ID for registered users; no further
+   data on individual users is provided in this dataset – integer for
+   registered users or NA for anonymous users
+-  **``track_sess_id``: optional tracking session ID (ID indicating a
+   continuous interaction of a user with the application session on a
+   single device) – integer**
+-  ``feedback_created``: time when the event took place – UTC date and time in
+   format ``Y-M-D H:M:S.ms``
+-  ``feedback_content_section``: content section of the application for which
+   the feedback was recorded
+- ``feedback_score``: score given by the user in range [0, 1]; can be NA
+  when no score was given or giving scores was disabled
+- ``feedback_text``: comment given by the user; can be NA when giving
+  comments was disabled
+
 File ``tracking_events.csv``
 ----------------------------
 
 Contains data on events produced by users within a tracking session.
 
--  **``track_sess_id``: tracking session ID (ID indicating for a
+-  **``track_sess_id``: tracking session ID (ID indicating a
    continuous interaction of a user with the application session on a
    single device) – integer**
 -  ``event_time``: time when the event took place – UTC date and time in
-   format ``Y-M-D H:M:S``
+   format ``Y-M-D H:M:S.ms``
 -  ``event_type``: type of the event – categorical;
    ``"device_info_update"``, ``"input_change"``, ``"learnr_event_*"``
    (see below for possible *learnr* events in ``*`` placeholder) or

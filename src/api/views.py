@@ -9,6 +9,7 @@ be formatted in ISO 8601 format.
 
 from functools import wraps
 
+from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -20,9 +21,9 @@ from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view
 
-from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application
-from .serializers import TrackingSessionSerializer, TrackingEventSerializer
-
+from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application, \
+    UserFeedback, APPLICATION_CONFIG_DEFAULT_JSON
+from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 
 # --- constants ---
 
@@ -58,7 +59,7 @@ def require_user_session_token(view_fn):
             token = auth_data[1]
 
             # get the application session code
-            sess = request.data.get('sess', None)
+            sess = request.data.get('sess', None) or request.query_params.get('sess', None)
 
             if token and sess:
                 try:
@@ -133,7 +134,7 @@ def app_session(request):
     is listed in the URLs of the applications and if such an application has a default application session, its code is
     returned as `sess_code` in a JSON object.
 
-    Checking this view locally with `curl`:
+    Checking this view locally with `curl`::
 
         curl -c /tmp/cookies.txt -b /tmp/cookies.txt \
              -i http://127.0.0.1:8000/session/?sess=<SESS_CODE>
@@ -197,8 +198,7 @@ def app_session_login(request):
 
     1. Make a GET request to the /session/ endpoint as shown in the `app_session` view documentation. Note the CSRF
        token.
-
-    2. Then run the following:
+    2. Then run the following::
 
         curl -d '{"sess": "<SESS_CODE>", "username": "<USER>", "password": "<PASSWORD>"}' \
             -c /tmp/cookies.txt -b /tmp/cookies.txt \
@@ -256,7 +256,7 @@ def register_user(request):
     - `email` (optional if username is given)
     - `password`
 
-    Checking this view locally with `curl`:
+    Checking this view locally with `curl`::
 
         curl -d '{"username": "<USER>", "email": "<EMAIL>", "password": "<PASSWORD>"}' \
             -H "Content-Type: application/json" \
@@ -308,6 +308,117 @@ def register_user(request):
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['POST', 'GET'])
+@require_user_session_token
+def user_feedback(request, user_app_sess_obj, parsed_data):
+    """
+    Either POST new user feedback data or GET existing user feedback data within a user application session and
+    optionally within a tracking session.
+
+    Checking this view locally with `curl`:
+
+    1. See how to obtain a user application session token `<AUTH_TOKEN>` and all other required codes/tokens in the
+       docs for `app_session_login` (when login is required) or `app_session` (when no login is required).
+    2. Optional: See how to obtain a tracking session ID `<TRACKING_SESSION_ID>` and all other required codes/tokens in
+       the docs for `start_tracking`.
+    3. Run the following (the "tracking_session" part is optional; one of "score" and "text" is optional) to post new
+       user feedback data::
+
+        curl -d '{"sess": "<SESS_CODE>", "tracking_session": "<TRACKING_SESSION_ID>",
+                  "content_section": "<CONTENT_SECTION>", "score": <SCORE>, "text": "<COMMENT>"}' \
+             -c /tmp/cookies.txt -b /tmp/cookies.txt \
+             -H "X-CSRFToken: <CSRFTOKEN>" \
+             -H "Authorization: Token <AUTH_TOKEN>" \
+             -H "Content-Type: application/json" \
+             -i http://127.0.0.1:8000/user_feedback/
+
+    4. Run the following to fetch existing user feedback data for the current user application session::
+
+        curl -c /tmp/cookies.txt -b /tmp/cookies.txt \
+             -H "X-CSRFToken: <CSRFTOKEN>" \
+             -H "Authorization: Token <AUTH_TOKEN>" \
+             -H "Content-Type: application/json" \
+             -i http://127.0.0.1:8000/user_feedback/?sess=<SESS_CODE>
+
+    For POSTing new user feedback, this view returns an HTTP 201 response on success.
+
+    For GETting existing user feedback, this view returns an HTTP 200 response on success with the following data as
+    JSON::
+
+        {
+            "user_feedback": [
+                {
+                    "content_section": "<CONTENT_SECTION>",
+                    "score": <SCORE>,
+                    "text": "<COMMENT>"
+                },
+                ...  // more user feedback for each content section
+            ]
+        }
+    """
+
+    if request.method == 'POST':
+        # post new user feedback
+        parsed_data['user_app_session'] = user_app_sess_obj.pk
+
+        # get the app. config. for this app. session
+        app_config = user_app_sess_obj.application_session.config.config
+        feedback_defaults = APPLICATION_CONFIG_DEFAULT_JSON['feedback']
+        config_feedback = app_config.get('feedback', {})
+        config_fb_quant = config_feedback.get('quantitative', feedback_defaults['quantitative'])
+        config_fb_quali = config_feedback.get('qualitative', feedback_defaults['qualitative'])
+
+        # remove data that should not be there according to the configuration
+        if not config_fb_quant and 'score' in parsed_data:
+            del parsed_data['score']
+        if not config_fb_quali and 'text' in parsed_data:
+            del parsed_data['text']
+
+        # if we have a tracking session, make sure it belongs to the user app. session
+        if tracking_session := parsed_data.get('tracking_session', None):
+            try:
+                tracking_sess = TrackingSession.objects.get(id=tracking_session)
+                if tracking_sess.user_app_session_id != user_app_sess_obj.pk:
+                    return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+            except TrackingSession.DoesNotExist:
+                return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+        # serialize and validate passed data
+        user_feedback_serializer = UserFeedbackSerializer(data=parsed_data)
+
+        if user_feedback_serializer.is_valid():
+            # see if we already have an existing user feedback instance to perform an update
+            try:
+                user_feedback_obj = UserFeedback.objects.get(user_app_session=parsed_data['user_app_session'],
+                                                             content_section=parsed_data['content_section'])
+
+                # perform an update
+                user_feedback_serializer.instance = user_feedback_obj
+                response_status = status.HTTP_200_OK
+            except UserFeedback.DoesNotExist:
+                # create a new user feedback instance
+                response_status = status.HTTP_201_CREATED
+
+            try:
+                # store to DB
+                with transaction.atomic():
+                    user_feedback_serializer.save()
+            except IntegrityError:   # DB constrain failed
+                return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+            # all OK
+            return HttpResponse(status=response_status)
+        else:
+            return JsonResponse({'validation_errors': user_feedback_serializer.errors},
+                                status=status.HTTP_400_BAD_REQUEST)
+    elif request.method == 'GET':
+        # get existing user feedback
+        user_feedback = UserFeedback.objects.filter(user_app_session=user_app_sess_obj)\
+            .values('content_section', 'score', 'text')
+
+        return JsonResponse({'user_feedback': list(user_feedback)}, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @require_user_session_token
 def start_tracking(request, user_app_sess_obj, parsed_data):
@@ -318,8 +429,7 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
 
     1. See how to obtain a user application session token `<AUTH_TOKEN>` and all other required codes/tokens in the
        docs for `app_session_login` (when login is required) or `app_session` (when no login is required).
-
-    2. Then run the following (note that you can additionally pass "device_info" JSON data):
+    2. Then run the following (note that you can additionally pass "device_info" JSON data)::
 
         curl -d '{"sess": "<SESS_CODE>", "start_time": "<START_TIME>"}' \
              -c /tmp/cookies.txt -b /tmp/cookies.txt \
@@ -364,8 +474,7 @@ def stop_tracking(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 
     1. See how to obtain a tracking session ID `<TRACKING_SESSION_ID>` and all other required codes/tokens in the
        docs for `start_tracking`.
-
-    2. Then run the following:
+    2. Then run the following::
 
         curl -d '{"sess": "<SESS_CODE>", "tracking_session_id": "<TRACKING_SESSION_ID>", "end_time": "<END_TIME>"}' \
              -c /tmp/cookies.txt -b /tmp/cookies.txt \
@@ -405,8 +514,7 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 
     1. See how to obtain a tracking session ID `<TRACKING_SESSION_ID>` and all other required codes/tokens in the
        docs for `start_tracking`.
-
-    2. Then run the following:
+    2. Then run the following::
 
         curl -d '{"sess": "<SESS_CODE>", "tracking_session_id": "<TRACKING_SESSION_ID>", \
                   "event": {"time": "<EVENT_TIME>", "type": "<EVENT_TYPE>"}}' \

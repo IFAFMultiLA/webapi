@@ -30,9 +30,9 @@ from django.urls import path, reverse, re_path
 from django.utils.safestring import mark_safe
 from django.shortcuts import get_object_or_404
 from django.conf import settings
+from django.utils.text import Truncator
 
-from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession, TrackingEvent
-
+from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession, TrackingEvent, UserFeedback
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 
@@ -191,6 +191,153 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
                 .order_by('application__name', 'label')
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+class UserFeedbackAdmin(admin.ModelAdmin):
+    """
+    Model admin for UserFeedback model.
+
+    This model admin is used as "read-only" admin for displaying a list of user feedback items for an application,
+    an application config. or application session.
+    """
+    list_display = ['tracking_session_short', 'created', 'content_section', 'score', 'text_truncated']
+    list_display_links = ['created', 'content_section', 'score', 'text_truncated']
+    list_filter = ['created', 'content_section', 'score']
+    fields = ['tracking_session', 'created', 'content_section', 'score', 'text']
+    readonly_fields = ['tracking_session', 'created', 'content_section', 'score', 'text']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_list_display(self, request):
+        prepend = []
+
+        if hasattr(request, 'session'):
+            # prepend additional column(s) depending on filter
+            filter_by = request.session['filter_by']
+            if filter_by == 'application':
+                prepend = ['app_config_short', 'app_session_short']
+            elif filter_by == 'applicationconfig':
+                prepend = ['app_session_short']
+            else:
+                prepend = []
+
+        return prepend + super().get_list_display(request)
+
+    def get_queryset(self, request):
+        """
+        Custom queryset for filtering data for a specific application, application configuration or application session.
+        """
+
+        qs = super().get_queryset(request)
+
+        if hasattr(request, 'session'):
+            filter_id = request.session['filter_id']
+            filter_by = request.session['filter_by']
+            if filter_by == 'application':
+                filterkwargs = dict(user_app_session__application_session__config__application=filter_id)
+            elif filter_by == 'applicationconfig':
+                filterkwargs = dict(user_app_session__application_session__config=filter_id)
+            elif filter_by == 'applicationsession':
+                filterkwargs = dict(user_app_session__application_session=filter_id)
+            else:
+                raise ValueError(f'unexpected value for `filter_by`: {filter_by}')
+
+            return qs.select_related().filter(**filterkwargs)
+        else:
+            return qs
+
+    @admin.display(description='Application configuration')
+    def app_config_short(self, obj):
+        pk = obj.user_app_session.application_session.config.pk
+        app_config_url = reverse('multila_admin:api_applicationconfig_change', args=[pk])
+        return mark_safe(f'<a href="{app_config_url}">#{pk}')
+
+    @admin.display(description='Application session')
+    def app_session_short(self, obj):
+        pk = obj.user_app_session.application_session.pk
+        app_sess_url = reverse('multila_admin:api_applicationsession_change', args=[pk])
+        return mark_safe(f'<a href="{app_sess_url}">{pk}')
+
+    @admin.display(description='Tracking session')
+    def tracking_session_short(self, obj):
+        if obj.tracking_session:
+            tracking_sess_url = reverse('multila_admin:api_trackingsession_change', args=[obj.tracking_session.pk])
+            return mark_safe(f'<a href="{tracking_sess_url}">#{obj.tracking_session.pk}')
+        else:
+            return '-'
+
+    @admin.display(description='Text')
+    def text_truncated(self, obj):
+        return Truncator(obj.text).words(5)
+
+    @admin.display(description='Application configuration')
+    def applicationconfig(self, obj):
+        return obj.user_app_session.application_session.config
+
+    @admin.display(description='Application session')
+    def applicationsession(self, obj):
+        return obj.user_app_session.application_session
+
+    def changelist_view(self, request, extra_context=None):
+        """
+        Custom change list view that handles the filter parameter and fetches additional data.
+        """
+
+        # determine the passed GET parameter used for filtering the user feedback items
+        # will also need to remove these parameters from the GET request, otherwise the super() call will produce an
+        # error
+        request.GET._mutable = True
+        filter_id = None
+        filter_by = None
+        required_get_params = ('application', 'applicationconfig', 'applicationsession')
+        for param in required_get_params:
+            try:
+                val = request.GET.pop(param + '_id')
+                if isinstance(val, list) and len(val) == 1:
+                    try:
+                        filter_id = int(val[0])
+                    except ValueError:
+                        filter_id = val[0]
+                    filter_by = param
+            except KeyError:
+                pass
+
+        if not filter_id and hasattr(request, 'session') and 'filter_id' in request.session:
+            filter_id = request.session['filter_id']
+        if not filter_by and hasattr(request, 'session') and 'filter_by' in request.session:
+            filter_by = request.session['filter_by']
+
+        if not filter_id or not filter_by:
+            required_get_params_text = ', '.join(p + '_id' for p in required_get_params)
+            raise ValueError(f'this view requires one of the followong GET parameters: {required_get_params_text}')
+
+        if hasattr(request, 'session'):
+            request.session['filter_id'] = filter_id
+            request.session['filter_by'] = filter_by
+
+        if filter_by == 'application':
+            filter_class = Application
+        elif filter_by == 'applicationconfig':
+            filter_class = ApplicationConfig
+        else:  # filter_by == 'applicationsession':
+            filter_class = ApplicationSession
+
+        filter_obj = get_object_or_404(filter_class, pk=filter_id)
+        extra_context = extra_context or {}
+        extra_context.update({
+            "title": "Data manager",
+            "subtitle": f"User feedback items for {filter_obj}",
+            "app_label": "datamanager"
+        })
+
+        return super().changelist_view(request, extra_context=extra_context)
 
 
 class TrackingSessionAdmin(admin.ModelAdmin):
@@ -408,7 +555,7 @@ class MultiLAAdminSite(admin.AdminSite):
         for app in app_list:
             if app['app_label'] == 'api':
                 app['models'] = [m for m in app['models']
-                                 if m['object_name'] not in {'TrackingSession', 'TrackingEvent'}]
+                                 if m['object_name'] not in {'UserFeedback', 'TrackingSession', 'TrackingEvent'}]
 
         # add a custom data manager app
         datamanager_app = {
@@ -454,32 +601,56 @@ class MultiLAAdminSite(admin.AdminSite):
         """
 
         # data formatting functions for the table; see COLUMN_FORMATING below
-        def default_format(v, _=None):
+        def default_format(v, _=None, __=None):
             return '-' if v is None else v
 
-        def format_timedelta(t, _):
+        def format_rounded(v, _, __):
+            if v is None:
+                return default_format(v)
+            else:
+                return str(round(v, 2))
+
+        def format_timedelta(t, _, __):
             if t is None:
                 return default_format(t)
             return f'{int(t.total_seconds() // 60)}min ' \
                    f'{round((t.total_seconds() / 60 - t.total_seconds() // 60) * 60)}s'
 
-        def format_datetime(t, _):
+        def format_datetime(t, _, __):
             if t is None:
                 return default_format(t)
             return utc_to_default_tz(t).strftime('%Y-%m-%d %H:%M:%S')
 
-        def format_app_config(v, row):
+        def format_app_config(v, row, __):
             if v is None:
                 return default_format(v)
             app_config_url = reverse("multila_admin:api_applicationconfig_change", args=[row["applicationconfig"]])
             return mark_safe(f'<a href={app_config_url}>{v}</a>')
 
-        def format_app_session(v, row):
+        def format_app_session(v, row, __):
             if v is None:
                 return default_format(v)
             app_config_url = reverse("multila_admin:api_applicationsession_change",
                                      args=[row["applicationconfig__applicationsession"]])
             return mark_safe(f'<a href={app_config_url}>{v}</a>')
+
+        def format_userfeedback_link(v, row, groupby):
+            if v == 0:
+                return default_format(v)
+
+            userfeedback_url = reverse("multila_admin:api_userfeedback_changelist") + "?"
+
+            if groupby == "app":
+                userfeedback_url += f"application_id={row['id']}"
+            elif groupby == "app_config":
+                userfeedback_url += f"applicationconfig_id={row['applicationconfig']}"
+            elif groupby == "app_session":
+                userfeedback_url += f"applicationsession_id={row['applicationconfig__applicationsession']}"
+            else:
+                raise ValueError(f"unexpected `groupby` value: {groupby}")
+
+            return mark_safe(f'<a href={userfeedback_url}>&#8505; {v}</a>')
+
 
         # aggregation level choices for form
         CONFIGFORM_GROUPBY_CHOICES = [
@@ -496,6 +667,8 @@ class MultiLAAdminSite(admin.AdminSite):
             'n_users': 'Total num. users',
             'n_nonanon_users': 'Registered users',
             'n_nonanon_logins': 'Logins of registered users',
+            'n_feedback': 'Num. of feedback items',
+            'avg_feedback_score': 'Avg. feedback score',
             'n_trackingsess': 'Num. tracking sessions',
             'most_recent_trackingsess': 'Most recently started tracking session',
             'avg_trackingsess_duration': 'Avg. tracking session duration',
@@ -505,6 +678,8 @@ class MultiLAAdminSite(admin.AdminSite):
 
         # map field names to custom formating functions
         COLUMN_FORMATING = {
+            'n_feedback': format_userfeedback_link,
+            'avg_feedback_score': format_rounded,
             'avg_trackingsess_duration': format_timedelta,
             'most_recent_trackingsess': format_datetime,
             'most_recent_event': format_datetime,
@@ -533,11 +708,13 @@ class MultiLAAdminSite(admin.AdminSite):
         usersess_expr = 'applicationconfig__applicationsession__userapplicationsession'
         trackingsess_expr = usersess_expr + '__trackingsession'
         trackingevent_expr = trackingsess_expr + '__trackingevent'
+        userfeedback_expr = usersess_expr + '__userfeedback'
 
         # fields that are always fetched
-        toplevel_fields = ['name', 'url']
-        stats_fields = ['n_users', 'n_nonanon_users', 'n_nonanon_logins', 'n_trackingsess',
-                        'most_recent_trackingsess', 'avg_trackingsess_duration', 'n_events', 'most_recent_event']
+        toplevel_fields = ['id', 'name', 'url']
+        stats_fields = ['n_users', 'n_nonanon_users', 'n_nonanon_logins', 'n_feedback', 'avg_feedback_score',
+                        'n_trackingsess', 'most_recent_trackingsess', 'avg_trackingsess_duration', 'n_events',
+                        'most_recent_event']
 
         # fields specific for aggregation level
         if groupby == 'app':
@@ -564,6 +741,8 @@ class MultiLAAdminSite(admin.AdminSite):
             .annotate(n_users=Count(usersess_expr, distinct=True),
                       n_nonanon_users=Count(usersess_expr + '__user', distinct=True),
                       n_nonanon_logins=Count(usersess_expr + '__user', distinct=False),
+                      n_feedback=Count(userfeedback_expr, distinct=True),
+                      avg_feedback_score=Avg(userfeedback_expr + '__score'),
                       n_trackingsess=Count(trackingsess_expr, distinct=True),
                       most_recent_trackingsess=Max(trackingsess_expr + '__start_time'),
                       avg_trackingsess_duration=Avg(F(trackingsess_expr + '__end_time')
@@ -576,7 +755,7 @@ class MultiLAAdminSite(admin.AdminSite):
         # `table_data` is a dict for grouped table data per app; maps tuple (app name, app url) to formatted data rows
         table_data = defaultdict(list)
         for row in data_rows:
-            formatted_row = [COLUMN_FORMATING.get(k, default_format)(row[k], row)
+            formatted_row = [COLUMN_FORMATING.get(k, default_format)(row[k], row, groupby)
                              for k in data_fields if k not in hidden_fields]
             table_data[(row['name'], row['url'])].append(formatted_row)
 
@@ -660,8 +839,8 @@ class MultiLAAdminSite(admin.AdminSite):
             QUERIES_AND_FIELDS = {
                 "app_sessions": (
                     "SELECT {fields} FROM api_application a "
-                        "LEFT JOIN api_applicationconfig ac on a.id = ac.application_id "
-                        "LEFT JOIN api_applicationsession asess on ac.id = asess.config_id",
+                        "LEFT JOIN api_applicationconfig ac ON a.id = ac.application_id "
+                        "LEFT JOIN api_applicationsession asess ON ac.id = asess.config_id",
                     "WHERE asess.code = %s",
                     (
                         ("a.id", "app_id"),
@@ -675,7 +854,7 @@ class MultiLAAdminSite(admin.AdminSite):
                 ),
                 "tracking_sessions": (
                     "SELECT {fields} FROM api_userapplicationsession ua "
-                        "LEFT JOIN api_trackingsession t on ua.id = t.user_app_session_id",
+                        "LEFT JOIN api_trackingsession t ON ua.id = t.user_app_session_id",
                     "WHERE ua.application_session_id = %s",
                     (
                         ("ua.application_session_id", "app_sess_code"),
@@ -687,10 +866,25 @@ class MultiLAAdminSite(admin.AdminSite):
                         ("t.device_info", "track_sess_device_info"),
                     )
                 ),
+                "user_feedback": (
+                    "SELECT {fields} FROM api_userfeedback fb "
+                        "LEFT JOIN api_userapplicationsession ua ON fb.user_app_session_id = ua.id",
+                    "WHERE ua.application_session_id = %s",
+                    (
+                        ("ua.application_session_id", "app_sess_code"),
+                        ("ua.code", "user_app_sess_code"),
+                        ("ua.user_id", "user_app_sess_user_id"),
+                        ("fb.tracking_session_id", "track_sess_id"),
+                        ("fb.created", "feedback_created"),
+                        ("fb.content_section", "feedback_content_section"),
+                        ("fb.score", "feedback_score"),
+                        ("fb.text", "feedback_text"),
+                    )
+                ),
                 "tracking_events": (
                     "SELECT {fields} FROM api_trackingevent e "
-                        "LEFT JOIN api_trackingsession t on e.tracking_session_id = t.id "
-                        "LEFT JOIN api_userapplicationsession ua on t.user_app_session_id = ua.id",
+                        "LEFT JOIN api_trackingsession t ON e.tracking_session_id = t.id "
+                        "LEFT JOIN api_userapplicationsession ua ON t.user_app_session_id = ua.id",
                     "WHERE ua.application_session_id = %s",
                     (
                         ("t.id", "track_sess_id"),
@@ -859,6 +1053,7 @@ admin_site = MultiLAAdminSite(name='multila_admin')
 admin_site.register(Application, ApplicationAdmin)
 admin_site.register(ApplicationConfig, ApplicationConfigAdmin)
 admin_site.register(ApplicationSession, ApplicationSessionAdmin)
+admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(TrackingSession, TrackingSessionAdmin)
 admin_site.register(TrackingEvent, TrackingEventAdmin)
 admin_site.register(User, UserAdmin)
