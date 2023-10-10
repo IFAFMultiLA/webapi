@@ -26,6 +26,7 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
     "tracking": {
         "mouse": True,
         "inputs": True,
+        "attribute_changes": False,
         "chapters": True
     }
 }
