@@ -157,6 +157,7 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
     fields = ['code', 'session_url', 'description', 'config', 'auth_mode', 'updated', 'updated_by']
     readonly_fields = ['code', 'session_url', 'updated', 'updated_by']
     list_display = ['code', 'config_label', 'description', 'session_url', 'auth_mode', 'updated', 'updated_by']
+    ordering = ['config__application__name']
     list_select_related = True  # for config and config.application
 
     @admin.display(ordering='config__application__name', description='Application configuration')
