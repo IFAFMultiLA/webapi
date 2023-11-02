@@ -96,6 +96,7 @@ class ApplicationSession(models.Model):
     config = models.ForeignKey(ApplicationConfig, on_delete=models.CASCADE)
     auth_mode = models.CharField(choices=AUTH_MODE_OPTIONS, max_length=max_options_length(AUTH_MODE_OPTIONS),
                                  blank=False)
+    description = models.CharField('Description', max_length=256, blank=True, default='')
     updated = models.DateTimeField('Last update', auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 

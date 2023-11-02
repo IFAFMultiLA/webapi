@@ -154,9 +154,9 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
     """
     Admin for ApplicationSession model.
     """
-    fields = ['code', 'session_url', 'config', 'auth_mode', 'updated', 'updated_by']
+    fields = ['code', 'session_url', 'description', 'config', 'auth_mode', 'updated', 'updated_by']
     readonly_fields = ['code', 'session_url', 'updated', 'updated_by']
-    list_display = ['code', 'config_label', 'session_url', 'auth_mode', 'updated', 'updated_by']
+    list_display = ['code', 'config_label', 'description', 'session_url', 'auth_mode', 'updated', 'updated_by']
     list_select_related = True  # for config and config.application
 
     @admin.display(ordering='config__application__name', description='Application configuration')
