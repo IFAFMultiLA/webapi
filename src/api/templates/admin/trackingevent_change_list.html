@@ -36,6 +36,7 @@
         {% endif %}
     </li>
     <li>User agent: <code>{{ tracking_sess.device_info.user_agent|default:"<em>unknown</em>" }}</code></li>
+    <li>Client IP address: <code>{{ tracking_sess.device_info.client_ip|default:"<em>unknown</em>" }}</code></li>
     <li>
         Form factor: {{ tracking_sess.device_info.form_factor|default:"<em>unknown</em>" }}
         {% if tracking_sess.device_info.window_size %}

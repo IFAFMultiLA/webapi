@@ -704,7 +704,7 @@ class ViewTests(CustomAPITestCase):
         valid_data = {
             'sess': self.app_sess_no_auth.code,
             'start_time': now.isoformat(),
-            'device_info': {'test key': 'test value'}
+            'device_info': {'test key': 'test value', 'client_ip': None}
         }
 
         response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
