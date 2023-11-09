@@ -454,15 +454,10 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
         except TrackingSession.DoesNotExist:
             # create a new tracking session
             if 'end_time' not in parsed_data and 'id' not in parsed_data:
-                if settings.DEBUG:
-                    trusted_proxies = None
-                else:
-                    trusted_proxies = settings.ALLOWED_HOSTS[:1]
-
                 if 'device_info' not in parsed_data:
                     parsed_data['device_info'] = {}
                 # find out client IP and store it in "device info" JSON data
-                client_ip, _ = get_client_ip(request, proxy_trusted_ips=trusted_proxies)
+                client_ip, _ = get_client_ip(request)
                 parsed_data['device_info']['client_ip'] = client_ip
 
                 tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
