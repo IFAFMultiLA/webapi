@@ -56,6 +56,7 @@ browser window.
 
    -  ``user_agent``: “user agent” string from the browser – character
       string
+   -  ``client_ip``: client IP address (if it could be determined)
    -  ``form_factor``: categorical; ``"desktop"``, ``"tablet"`` or
       ``"phone"``
    -  ``window_size``: array with two elements as integers:

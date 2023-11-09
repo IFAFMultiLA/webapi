@@ -27,6 +27,7 @@ SECRET_KEY = os.environ['SECRET_KEY']
 DEBUG = False
 
 ALLOWED_HOSTS = [
+    '141.45.214.1',               # also proxy IP
     'rshiny.f4.htw-berlin.de',
     '.localhost',
     '127.0.0.1',

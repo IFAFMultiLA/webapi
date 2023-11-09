@@ -2,5 +2,6 @@ Django>=4.2.3,<4.3
 psycopg2-binary>=2.9,<3.0
 djangorestframework>=3.0,<4.0
 django-cors-headers>=3.0,<4.0
+django-ipware>=5.0,<6.0
 uvicorn>=0.21,<0.22
 unittest-parametrize>=1.0,<2.0

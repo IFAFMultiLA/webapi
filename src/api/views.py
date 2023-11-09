@@ -9,6 +9,7 @@ be formatted in ISO 8601 format.
 
 from functools import wraps
 
+from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -20,6 +21,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view
+from ipware import get_client_ip
 
 from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application, \
     UserFeedback, APPLICATION_CONFIG_DEFAULT_JSON
@@ -452,6 +454,12 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
         except TrackingSession.DoesNotExist:
             # create a new tracking session
             if 'end_time' not in parsed_data and 'id' not in parsed_data:
+                if 'device_info' not in parsed_data:
+                    parsed_data['device_info'] = {}
+                # find out client IP and store it in "device info" JSON data
+                client_ip, _ = get_client_ip(request)
+                parsed_data['device_info']['client_ip'] = client_ip
+
                 tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
                 if tracking_sess_serializer.is_valid():
                     tracking_sess_serializer.save()
