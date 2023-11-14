@@ -40,7 +40,13 @@
     <li>
         Form factor: {{ tracking_sess.device_info.form_factor|default:"<em>unknown</em>" }}
         {% if tracking_sess.device_info.window_size %}
-            (window size {{ tracking_sess.device_info.window_size.0 }}px ⨉ {{ tracking_sess.device_info.window_size.1 }}px)
+            with initial window size {{ tracking_sess.device_info.window_size.0 }}px ⨉ {{ tracking_sess.device_info.window_size.1 }}px
+            {% if tracking_sess.device_info.main_content_viewsize %}
+                , content view size {{ tracking_sess.device_info.main_content_viewsize.0 }}px ⨉ {{ tracking_sess.device_info.main_content_viewsize.1 }}px
+            {% endif %}
+            {% if tracking_sess.device_info.main_content_scrollsize %}
+                , content scroll size {{ tracking_sess.device_info.main_content_scrollsize.0 }}px ⨉ {{ tracking_sess.device_info.main_content_scrollsize.1 }}px
+            {% endif %}
         {% endif %}
     </li>
 </ul>
