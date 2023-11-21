@@ -1,4 +1,5 @@
 FROM python:3.11
+ENV TZ="Europe/Berlin"
 WORKDIR /code
 COPY ./requirements_prod.txt /code/
 RUN pip install -U pip

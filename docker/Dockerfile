@@ -1,6 +1,7 @@
 FROM python:3.11
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV TZ="Europe/Berlin"
 RUN mkdir /fixtures
 WORKDIR /code
 COPY ./requirements.txt /code/
