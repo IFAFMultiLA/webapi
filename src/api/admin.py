@@ -1042,8 +1042,9 @@ class MultiLAAdminSite(admin.AdminSite):
         #         break
         #
         # replaydata['frames'] = replaydata['frames'][startframe:]
-        filter_frametypes = {'m', 'c', 's', 'i', 'o'}
+        filter_frametypes = {'m', 'c', 's', 'S', 'i', 'o'}
         replaydata['frames'] = [f for f in replaydata['frames'] if f[0] in filter_frametypes]
+        replaydata['frames'] = sorted(replaydata['frames'], key=lambda f: f[-1])   # sort by last item in frame (time)
 
         return JsonResponse({"i": i, "replaydata": replaydata, "n_chunks": n_chunks})
 
