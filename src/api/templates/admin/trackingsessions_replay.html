@@ -12,6 +12,10 @@
     margin: 0 0 1em 0;
 }
 
+#replay_speed {
+    margin-right: 2em;
+}
+
 #replay_controls button {
     cursor: pointer;
     font-size: 1.5em;
@@ -73,6 +77,7 @@ $(document).ready(function () {
                     .then(response => response.json())
                     .then(function (data) {
                         messageToIFrame("replaydata", data);
+                        $('#replay_controls button').prop("disabled", false);
                     });
             } else if (event.data.msgtype === "replay_stopped") {
                 // playback reached the end
@@ -85,6 +90,11 @@ $(document).ready(function () {
                 console.error("event message type not understood:", event.data.msgtype);
             }
         }
+    });
+
+    // set up change event listener for playback speed options
+    $('#replay_speed').on('change', function () {
+        messageToIFrame("set_replay_speed", $('#replay_speed').val());
     });
 
     // set up click event listener for play/pause button
@@ -169,8 +179,15 @@ Data replay
 <p><a href="{% url 'multila_admin:api_trackingevent_changelist' %}?tracking_sess_id={{ tracking_sess.pk }}">&#8505; Show collected tracking events</a></p>
 
 <div id="replay_controls">
-    <button id="replay_ctrl_play_pause">Play</button>
-    <button id="replay_ctrl_stop">Stop</button>
+    <label for="replay_speed">Playback speed:</label>
+    <select id="replay_speed">
+        <option value="realtime">Realtime</option>
+        <option value="slow">Slow</option>
+        <option value="normal">Normal</option>
+        <option value="fast">Fast</option>
+    </select>
+    <button id="replay_ctrl_play_pause" disabled>Play</button>
+    <button id="replay_ctrl_stop" disabled>Stop</button>
 </div>
 
 <iframe id="tracking_sess_replay_window"
