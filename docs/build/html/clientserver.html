@@ -1,17 +1,16 @@
-
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Client-server communication &#8212; MultiLA Web API  documentation</title>
-    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/sphinx_highlight.js"></script>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b76e3c8a" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=039e1c02" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Local development setup" href="devsetup.html" />
@@ -33,14 +32,14 @@
           <div class="body" role="main">
             
   <section id="client-server-communication">
-<span id="clientserver"></span><h1>Client-server communication<a class="headerlink" href="#client-server-communication" title="Permalink to this heading">¶</a></h1>
+<span id="clientserver"></span><h1>Client-server communication<a class="headerlink" href="#client-server-communication" title="Link to this heading">¶</a></h1>
 <ul class="simple">
 <li><p>client-server communication happens on the basis of a RESTful web API implemented in this repository</p></li>
 <li><p>the implementation is done in <code class="docutils literal notranslate"><span class="pre">api/views.py</span></code></p></li>
 <li><p>the API exposes an OpenAPI schema under the URL <code class="docutils literal notranslate"><span class="pre">http[s]://&lt;HOST&gt;/openapi</span></code> when <code class="docutils literal notranslate"><span class="pre">settings.DEBUG</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
 </ul>
 <section id="client-server-communication-flowchart">
-<h2>Client-server communication flowchart<a class="headerlink" href="#client-server-communication-flowchart" title="Permalink to this heading">¶</a></h2>
+<h2>Client-server communication flowchart<a class="headerlink" href="#client-server-communication-flowchart" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>an application session may either require a login or not – this can be configured in the administration backend for
 each application session as “authentication mode”</p></li>
@@ -50,7 +49,7 @@ each application session as “authentication mode”</p></li>
 required) or to an anonymous user that is only identified with a unique code (when no login is required)</p></li>
 </ul>
 <section id="without-login-anonymous">
-<h3>Without login (“anonymous”)<a class="headerlink" href="#without-login-anonymous" title="Permalink to this heading">¶</a></h3>
+<h3>Without login (“anonymous”)<a class="headerlink" href="#without-login-anonymous" title="Link to this heading">¶</a></h3>
 <ul class="simple">
 <li><p>doesn’t require an account</p></li>
 <li><p>user authentication is based on a user token that is generated on first visit and then stored to cookies for re-use</p></li>
@@ -58,7 +57,7 @@ required) or to an anonymous user that is only identified with a unique code (wh
 <img alt="_images/client-server-noauth.png" src="_images/client-server-noauth.png" />
 </section>
 <section id="with-login">
-<h3>With login<a class="headerlink" href="#with-login" title="Permalink to this heading">¶</a></h3>
+<h3>With login<a class="headerlink" href="#with-login" title="Link to this heading">¶</a></h3>
 <ul class="simple">
 <li><p>requires that the user has registered an account with email and password</p></li>
 </ul>
@@ -66,7 +65,7 @@ required) or to an anonymous user that is only identified with a unique code (wh
 </section>
 </section>
 <section id="application-configuration">
-<h2>Application configuration<a class="headerlink" href="#application-configuration" title="Permalink to this heading">¶</a></h2>
+<h2>Application configuration<a class="headerlink" href="#application-configuration" title="Link to this heading">¶</a></h2>
 <ul>
 <li><p>to each application, a configuration can be passed when starting the application session</p></li>
 <li><p>the API sends the configuration as JSON object after the initial session request (anonymous session) or after log in
@@ -163,7 +162,7 @@ accordingly</p></li>
       &copy;2023, Markus Konrad.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.2.1</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
       
       |
