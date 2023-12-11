@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 
 from django.conf import settings
+from django.urls import reverse
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.contrib.auth.models import User
@@ -126,6 +127,46 @@ class ApplicationSession(models.Model):
     def __str__(self):
         return f'Application session "{self.code}" (auth. "{self.auth_mode}") ' \
                f'for configuration "{self.config.label}" (#{self.config_id})'
+
+
+class ApplicationSessionGate(models.Model):
+    """
+    A gate to bundle several application sessions especially for testing different variants of an app or different
+    apps.
+    """
+    code = models.CharField('Unique session code', max_length=10, primary_key=True)
+    label = models.CharField('Label', max_length=128, blank=False,
+                             help_text='A unique label to identify this application gate.')
+    description = models.TextField('Description', max_length=2048, blank=True, default='')
+    app_sessions = models.ManyToManyField(ApplicationSession)
+    updated = models.DateTimeField('Last update', auto_now=True)
+    updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+
+    def generate_code(self, force=False):
+        """
+        Generate a unique code for this application session. If `force` is True, overwrite an already given code.
+        """
+        if self.code and not force:
+            raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
+
+        # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
+        # from the current time
+        data = "appsessiongate".encode() + current_time_bytes()
+        self.code = hashlib.blake2s(data, digest_size=5, key=HASH_KEY).hexdigest()
+
+        return self.code
+
+    def session_url(self):
+        """
+        Return a URL pointing to an application with the session code attached.
+        """
+        if self.code:
+            return reverse('gate', args=(self.code,))
+        else:
+            return ''
+
+    def __str__(self):
+        return f'Application session gate "{self.code}"'
 
 
 class UserApplicationSession(models.Model):

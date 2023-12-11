@@ -576,6 +576,13 @@ def server_error_failure(request, template_name='500.html'):
     return _wrap_failure_request(request, status.HTTP_500_INTERNAL_SERVER_ERROR, template_name=template_name)
 
 
+# --- non-API views ---
+
+def app_session_gate(request, sessioncode):
+    # TODO: implement this
+    pass
+
+
 # --- helpers ---
 
 

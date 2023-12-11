@@ -32,7 +32,8 @@ from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.utils.text import Truncator
 
-from .models import Application, ApplicationConfig, ApplicationSession, TrackingSession, TrackingEvent, UserFeedback
+from .models import Application, ApplicationConfig, ApplicationSession, ApplicationSessionGate, \
+    TrackingSession, TrackingEvent, UserFeedback
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 
@@ -192,6 +193,32 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
                 .order_by('application__name', 'label')
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+
+class ApplicationSessionGateAppSessionsInlineModelChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, app_session):
+        return f"{app_session.config.application.name} / {app_session.config.label} / {app_session.code}"
+
+
+class ApplicationSessionGateAppSessionsInline(admin.TabularInline):
+    model = ApplicationSessionGate.app_sessions.through
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "applicationsession":
+            kwargs["queryset"] = ApplicationSession.objects.select_related("config__application").all()
+            kwargs["form_class"] = ApplicationSessionGateAppSessionsInlineModelChoiceField
+
+        print(db_field.name)
+        x = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        return x
+
+
+class ApplicationSessionGateAdmin(admin.ModelAdmin):
+    fields = ['code', 'session_url', 'label', 'description', 'updated', 'updated_by']
+    readonly_fields = ['code', 'session_url', 'updated', 'updated_by']
+    list_display = ['label', 'code', 'session_url', 'updated', 'updated_by']
+    ordering = ['label']
+    inlines = [ApplicationSessionGateAppSessionsInline]
 
 
 class UserFeedbackAdmin(admin.ModelAdmin):
@@ -1055,6 +1082,7 @@ admin_site = MultiLAAdminSite(name='multila_admin')
 admin_site.register(Application, ApplicationAdmin)
 admin_site.register(ApplicationConfig, ApplicationConfigAdmin)
 admin_site.register(ApplicationSession, ApplicationSessionAdmin)
+admin_site.register(ApplicationSessionGate, ApplicationSessionGateAdmin)
 admin_site.register(UserFeedback, UserFeedbackAdmin)
 admin_site.register(TrackingSession, TrackingSessionAdmin)
 admin_site.register(TrackingEvent, TrackingEventAdmin)
