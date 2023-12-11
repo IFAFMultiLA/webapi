@@ -390,9 +390,9 @@ class ViewTests(CustomAPITestCase):
 
         # create a config for this app
         app_config = ApplicationConfig.objects.create(application=app, label='test config', config={'test': True})
-        app_config_no_qual_feedback = ApplicationConfig.objects.create(application=app,
-                                                                       label='config. w/ no qualitative feedback',
-                                                                       config={'feedback': {'qualitative': False}})
+        app_config_no_feedback = ApplicationConfig.objects.create(application=app,
+                                                                  label='config. w/ no qualitative feedback',
+                                                                  config={'feedback': False})
 
         # create an app session w/o authentication
         self.app_sess_no_auth = ApplicationSession(config=app_config, auth_mode='none')
@@ -405,10 +405,10 @@ class ViewTests(CustomAPITestCase):
         self.app_sess_login.save()
 
         # create an app session using the "no qual. feedback" config
-        self.app_sess_no_auth_no_qual_feedback = ApplicationSession(config=app_config_no_qual_feedback,
-                                                                    auth_mode='none')
-        self.app_sess_no_auth_no_qual_feedback.generate_code()
-        self.app_sess_no_auth_no_qual_feedback.save()
+        self.app_sess_no_auth_no_feedback = ApplicationSession(config=app_config_no_feedback,
+                                                               auth_mode='none')
+        self.app_sess_no_auth_no_feedback.generate_code()
+        self.app_sess_no_auth_no_feedback.save()
 
         # create a second test app
         self.app_with_default_sess = Application.objects.create(name='test app 2', url='https://test2.app')
@@ -931,19 +931,13 @@ class ViewTests(CustomAPITestCase):
 
         # check that the app config is obeyed
         # request application session – also sets CSRF token in cookie
-        auth_token_no_qual_feedback = self.client.get(
-            reverse('session'), {'sess': self.app_sess_no_auth_no_qual_feedback.code}
+        auth_token_no_feedback = self.client.get(
+            reverse('session'), {'sess': self.app_sess_no_auth_no_feedback.code}
         ).json()['user_code']
-        base_data_no_qual_feedback = {'sess': self.app_sess_no_auth_no_qual_feedback.code, 'content_section': '#foo'}
-        valid_data_no_qual_feedback = dict(**base_data_no_qual_feedback, score=3, text="bar")
-        response = self.client.post_json(url, data=valid_data_no_qual_feedback, auth_token=auth_token_no_qual_feedback)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        user_feedback_obj = UserFeedback.objects.latest('created')
-        self.assertEqual(user_feedback_obj.user_app_session.code, auth_token_no_qual_feedback)
-        self.assertIsNone(user_feedback_obj.tracking_session)
-        self.assertEqual(user_feedback_obj.content_section, valid_data_no_track['content_section'])
-        self.assertEqual(user_feedback_obj.score, valid_data_no_track['score'])
-        self.assertIsNone(user_feedback_obj.text)
+        base_data_no_feedback = {'sess': self.app_sess_no_auth_no_feedback.code, 'content_section': '#foo'}
+        valid_data_no_feedback = dict(**base_data_no_feedback, score=3, text="bar")
+        response = self.client.post_json(url, data=valid_data_no_feedback, auth_token=auth_token_no_feedback)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)  # feedback not allowed
 
         # reset
         UserFeedback.objects.all().delete()
