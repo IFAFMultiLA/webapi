@@ -19,10 +19,8 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
     "exclude": [],
     "js": [],
     "css": [],
-    "feedback": {
-        "quantitative": True,
-        "qualitative": True
-    },
+    "feedback": True,
+    "summary": True,
     "tracking": {
         "mouse": True,
         "inputs": True,
