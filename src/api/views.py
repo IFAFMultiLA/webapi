@@ -365,16 +365,13 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
 
         # get the app. config. for this app. session
         app_config = user_app_sess_obj.application_session.config.config
-        feedback_defaults = APPLICATION_CONFIG_DEFAULT_JSON['feedback']
-        config_feedback = app_config.get('feedback', {})
-        config_fb_quant = config_feedback.get('quantitative', feedback_defaults['quantitative'])
-        config_fb_quali = config_feedback.get('qualitative', feedback_defaults['qualitative'])
 
         # remove data that should not be there according to the configuration
-        if not config_fb_quant and 'score' in parsed_data:
-            del parsed_data['score']
-        if not config_fb_quali and 'text' in parsed_data:
-            del parsed_data['text']
+        if not app_config.get('feedback', True):
+            if 'score' in parsed_data:
+                del parsed_data['score']
+            if 'text' in parsed_data:
+                del parsed_data['text']
 
         # if we have a tracking session, make sure it belongs to the user app. session
         if tracking_session := parsed_data.get('tracking_session', None):
