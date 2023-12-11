@@ -50,13 +50,12 @@ Application configuration
       "exclude": [<HTML element IDs to exclude>],
       "js": [<additional JavaScript files to load>],
       "css": [<additional CSS files to load>],
-      "feedback": {       # enable/disable specific user feedback features
-        "quantitative": <bool>,  # point based feedback (5-star assessment)
-        "qualitative": <bool>    # free form text based feedback
-      },
+      "feedback": <bool>, # enable/disable specific user feedback features
+      "summary": <bool>,  # enable/disable displaying summary
       "tracking": {       # enable/disable specific tracking features
         "mouse": <bool>,    # mouse tracking w/ mus.js
         "inputs": <bool>,   # tracking of input changes
+        "attribute_changes": <bool>,  # tracking of attribute changes
         "chapters": <bool>  # tracking of switching betw. chapters
       }
     }
