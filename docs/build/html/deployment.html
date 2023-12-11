@@ -1,17 +1,16 @@
-
 <!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" data-content_root="./">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
     <title>Server deployment &#8212; MultiLA Web API  documentation</title>
-    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
-    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/sphinx_highlight.js"></script>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b76e3c8a" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=039e1c02" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="prev" title="Codebook for MultiLA web API data export" href="codebook.html" />
@@ -32,9 +31,9 @@
           <div class="body" role="main">
             
   <section id="server-deployment">
-<span id="deployment"></span><h1>Server deployment<a class="headerlink" href="#server-deployment" title="Permalink to this heading">¶</a></h1>
+<span id="deployment"></span><h1>Server deployment<a class="headerlink" href="#server-deployment" title="Link to this heading">¶</a></h1>
 <section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading">¶</a></h2>
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Docker with Docker Compose v2 (recommended: run Docker in <em>rootless</em> mode)</p></li>
 <li><p>an HTTP server such as Apache or nginx used as proxy</p></li>
@@ -42,7 +41,7 @@
 </ul>
 </section>
 <section id="initial-deployment">
-<h2>Initial deployment<a class="headerlink" href="#initial-deployment" title="Permalink to this heading">¶</a></h2>
+<h2>Initial deployment<a class="headerlink" href="#initial-deployment" title="Link to this heading">¶</a></h2>
 <ol class="arabic simple">
 <li><p>Create a Docker Compose configuration like the following as <code class="docutils literal notranslate"><span class="pre">docker/compose_prod.yml</span></code>:</p></li>
 </ol>
@@ -130,7 +129,7 @@ ProxyPassReverse /api/ http://0.0.0.0:8000/
 <p>All requests to <code class="docutils literal notranslate"><span class="pre">https://&lt;SERVER&gt;/api/</span></code> should then be forwarded to the web application.</p>
 </section>
 <section id="publishing-updates">
-<h2>Publishing updates<a class="headerlink" href="#publishing-updates" title="Permalink to this heading">¶</a></h2>
+<h2>Publishing updates<a class="headerlink" href="#publishing-updates" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>locally, run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">testsync</span></code> and <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">sync</span></code> to publish updated files to the server</p></li>
 <li><p>on the server, optional run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">migrate</span></code> to update the database and run <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">restart_web</span></code> to restart the web
@@ -143,7 +142,7 @@ application on the server)</p></li>
 </ul>
 </section>
 <section id="optional-db-administration-interface">
-<h2>Optional DB administration interface<a class="headerlink" href="#optional-db-administration-interface" title="Permalink to this heading">¶</a></h2>
+<h2>Optional DB administration interface<a class="headerlink" href="#optional-db-administration-interface" title="Link to this heading">¶</a></h2>
 <p>If you have enabled the <code class="docutils literal notranslate"><span class="pre">adminer</span></code> service in the docker compose file above, a small DB administration web interface
 is running on port 8081 on the server. For security reasons, it is only accessible from localhost, i.e. you need to set
 up an SSH tunnel to make it available remotely from your machine. You can do so on your machine by running:</p>
@@ -156,7 +155,7 @@ browser and login to the Postgres server (not MySQL!) using the <code class="doc
 the environment variabless of the docker compose file.</p>
 </section>
 <section id="db-backups">
-<h2>DB backups<a class="headerlink" href="#db-backups" title="Permalink to this heading">¶</a></h2>
+<h2>DB backups<a class="headerlink" href="#db-backups" title="Link to this heading">¶</a></h2>
 <p>You can use <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">dbbackup</span></code> on the server to generate a PostgreSQL database dump with the current timestamp under
 <code class="docutils literal notranslate"><span class="pre">data/backups/</span></code>. It’s advisable to run this command regularly, e.g. via a cronjob, and then copy the database dumps
 to a backup destination e.g. via <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">download_dbbackup</span></code>.</p>
@@ -230,7 +229,7 @@ to a backup destination e.g. via <code class="docutils literal notranslate"><spa
       &copy;2023, Markus Konrad.
       
       |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 6.2.1</a>
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
       
       |
