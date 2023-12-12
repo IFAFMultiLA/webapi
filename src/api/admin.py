@@ -101,8 +101,8 @@ class ApplicationAdmin(admin.ModelAdmin):
             return [f for f in fields if f != 'default_application_session']
 
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.select_related('default_application_session__config')
+        """Custom queryset for more efficient queries."""
+        return super().get_queryset(request).select_related("updated_by", "default_application_session__config")
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
@@ -125,7 +125,10 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
     readonly_fields = ['updated', 'updated_by']
     list_display = ['label', 'application_name', 'updated', 'updated_by']
     list_display_links = ['label', 'application_name']
-    list_select_related = True   # for application.name
+
+    def get_queryset(self, request):
+        """Custom queryset for more efficient queries."""
+        return super().get_queryset(request).select_related("updated_by", "application")
 
     @admin.display(ordering='application__name', description='Application')
     def application_name(self, obj):
@@ -159,7 +162,10 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
     readonly_fields = ['code', 'session_url', 'updated', 'updated_by']
     list_display = ['code', 'config_label', 'description', 'session_url', 'auth_mode', 'updated', 'updated_by']
     ordering = ['config__application__name']
-    list_select_related = True  # for config and config.application
+
+    def get_queryset(self, request):
+        """Custom queryset for more efficient queries."""
+        return super().get_queryset(request).select_related("updated_by", "config", "config__application")
 
     @admin.display(ordering='config__application__name', description='Application configuration')
     def config_label(self, obj):
@@ -196,29 +202,72 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
 
 
 class ApplicationSessionGateAppSessionsInlineModelChoiceField(forms.ModelChoiceField):
+    """
+    Custom model choice field for application sessions used in inline admin `ApplicationSessionGateAppSessionsInline`.
+    """
     def label_from_instance(self, app_session):
         return f"{app_session.config.application.name} / {app_session.config.label} / {app_session.code}"
 
 
 class ApplicationSessionGateAppSessionsInline(admin.TabularInline):
+    """Inline admin for assigning application sessions to gates."""
     model = ApplicationSessionGate.app_sessions.through
+    min_num = 1
+    extra = 2
+    verbose_name = "application session"
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "applicationsession":
-            kwargs["queryset"] = ApplicationSession.objects.select_related("config__application").all()
+            kwargs["queryset"] = ApplicationSession.objects.\
+                select_related("config", "config__application").\
+                order_by('config__application__name', 'config__label', 'code')
             kwargs["form_class"] = ApplicationSessionGateAppSessionsInlineModelChoiceField
 
-        print(db_field.name)
-        x = super().formfield_for_foreignkey(db_field, request, **kwargs)
-        return x
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 class ApplicationSessionGateAdmin(admin.ModelAdmin):
+    """Model admin for application session gates."""
     fields = ['code', 'session_url', 'label', 'description', 'updated', 'updated_by']
     readonly_fields = ['code', 'session_url', 'updated', 'updated_by']
-    list_display = ['label', 'code', 'session_url', 'updated', 'updated_by']
+    list_display = ['label', 'code', 'session_url', 'sessions_in_gate', 'updated', 'updated_by']
     ordering = ['label']
     inlines = [ApplicationSessionGateAppSessionsInline]
+
+    def get_queryset(self, request):
+        """Custom queryset for more efficient queries."""
+        return super().get_queryset(request).select_related("updated_by")
+
+    @admin.display(ordering=None, description='URL')
+    def session_url(self, obj):
+        """Custom display field for URL pointing to application with session code attached."""
+        sess_url = obj.session_url()
+        return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
+
+    @admin.display(ordering=None, description='Sessions in gate')
+    def sessions_in_gate(self, obj):
+        """Custom field to show all assigned sessions in each gate. Highlight next session code with bold font."""
+        links = []
+        for i, app_sess_code in enumerate(obj.app_sessions.order_by("code").values("code")):
+            app_sess_code = app_sess_code['code']
+            link = f'<a href="{reverse("admin:api_applicationsession_change", args=[app_sess_code])}">' \
+                   f'{app_sess_code}</a>'
+            if i == obj.next_forward_index:   # highlight next session code with bold font
+                link = f'<strong>{link}</strong>'
+            links.append(link)
+
+        return mark_safe(", ".join(links))
+
+    def save_model(self, request, obj, form, change):
+        """
+        Custom model save method to add current user to the `updated_by` field and generate a gate session code for
+        newly created gates.
+        """
+        obj.updated_by = request.user
+
+        if not change:
+            obj.generate_code()
+        return super().save_model(request, obj, form, change)
 
 
 class UserFeedbackAdmin(admin.ModelAdmin):

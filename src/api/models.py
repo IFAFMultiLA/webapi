@@ -134,11 +134,14 @@ class ApplicationSessionGate(models.Model):
     A gate to bundle several application sessions especially for testing different variants of an app or different
     apps.
     """
-    code = models.CharField('Unique session code', max_length=10, primary_key=True)
+    code = models.CharField('Unique gate session code', max_length=10, primary_key=True)
     label = models.CharField('Label', max_length=128, blank=False,
                              help_text='A unique label to identify this application gate.')
     description = models.TextField('Description', max_length=2048, blank=True, default='')
-    app_sessions = models.ManyToManyField(ApplicationSession)
+    app_sessions = models.ManyToManyField(ApplicationSession,
+                                          verbose_name='Application sessions',
+                                          help_text='Application sessions to which this gate forwards')
+    next_forward_index = models.PositiveIntegerField(default=0)   # stores index to next target app session
     updated = models.DateTimeField('Last update', auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
@@ -167,6 +170,9 @@ class ApplicationSessionGate(models.Model):
 
     def __str__(self):
         return f'Application session gate "{self.code}"'
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['label'], name='unique_label')]
 
 
 class UserApplicationSession(models.Model):
