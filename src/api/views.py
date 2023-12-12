@@ -596,7 +596,8 @@ def app_session_gate(request, sessioncode):
         index = min(n_app_sess - 1, gate.next_forward_index)
         redirect_url = gate.app_sessions.order_by('code')[index].session_url()
 
-        # increase the next redirection index by 1 within bounds [0, <number of app. sessions>]
+        # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to visit one
+        # app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
         gate.next_forward_index = (index + 1) % n_app_sess
         gate.save()
 

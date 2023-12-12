@@ -1049,6 +1049,49 @@ class ViewTests(CustomAPITestCase):
             if fbdata['text'] is not None:
                 self.assertIsInstance(fbdata['text'], str)
 
+    def test_app_session_gate(self):
+        # fail: non existent gate session code
+        self.assertEqual(self.client.get(reverse('gate', args=['nonexistent'])).status_code, status.HTTP_404_NOT_FOUND)
+
+        # prepare data: generate app, app config and three app sessions
+        app = Application(name="testapp", url="http://testapp.com", updated_by=self.user)
+        app.save()
+        appconfig = ApplicationConfig(application=app,
+                                      label="testconfig",
+                                      config={"key": "value"},
+                                      updated_by=self.user)
+        appconfig.save()
+
+        app_sessions = []
+        for _ in range(3):
+            appsess = ApplicationSession(config=appconfig, auth_mode='none')
+            appsess.generate_code()
+            appsess.save()
+            app_sessions.append(appsess)
+        # it's important to sort them, as this determines the order in which the redirects happen
+        app_sessions = sorted(app_sessions, key=lambda x: x.code)
+
+        # iterate through the number of app sessions that we want to assign to a gate
+        for n_app_sessions in range(len(app_sessions)):
+            # create the gate with `n_app_sessions` app sessions
+            gate = ApplicationSessionGate(label=f"testgate {n_app_sessions}")
+            gate.generate_code()
+            gate.save()
+            gate.app_sessions.set(app_sessions[:n_app_sessions])
+
+            # visit the gate with that session multiple times
+            for i in range(n_app_sessions*2):
+                response = self.client.get(reverse('gate', args=[gate.code]))
+                if n_app_sessions == 0:
+                    # gate with no assigned app sessions always returns "204 no content"
+                    self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+                else:
+                    # gates with assigned app sessions should answer with a redirect to the respective app session
+                    self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+                    # visit one app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
+                    appsess = app_sessions[i % n_app_sessions]
+                    self.assertEqual(response.url, appsess.session_url())
+
 
 # ----- admin -----
 
