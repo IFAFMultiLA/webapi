@@ -9,10 +9,9 @@ be formatted in ISO 8601 format.
 
 from functools import wraps
 
-from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import defaults as default_views
 from django.views.csrf import csrf_failure as default_csrf_failure
@@ -23,8 +22,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from ipware import get_client_ip
 
-from .models import ApplicationSession, ApplicationConfig, UserApplicationSession, User, TrackingSession, Application, \
-    UserFeedback, APPLICATION_CONFIG_DEFAULT_JSON
+from .models import ApplicationSession, ApplicationSessionGate, ApplicationConfig, UserApplicationSession, User, \
+    TrackingSession, Application, UserFeedback
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 
 # --- constants ---
@@ -574,6 +573,35 @@ def not_found_failure(request, exception, template_name='404.html'):
 def server_error_failure(request, template_name='500.html'):
     """HTTP status 500 / server failure response view."""
     return _wrap_failure_request(request, status.HTTP_500_INTERNAL_SERVER_ERROR, template_name=template_name)
+
+
+# --- non-API views ---
+
+
+def app_session_gate(request, sessioncode):
+    """
+    Session gate redirect. Look up session gate with code `sessioncode`, select the next app session at the next
+    redirection index and redirect it to that URL. Increase the next redirection index by 1.
+    """
+    with transaction.atomic():
+        # get the app. session gate
+        gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
+
+        # make sure it has at least 1 app session assigned
+        n_app_sess = gate.app_sessions.count()
+        if n_app_sess <= 0:
+            return HttpResponse(status=status.HTTP_204_NO_CONTENT)
+
+        # get the redirect URL at the current index
+        index = min(n_app_sess - 1, gate.next_forward_index)
+        redirect_url = gate.app_sessions.order_by('code')[index].session_url()
+
+        # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to visit one
+        # app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
+        gate.next_forward_index = (index + 1) % n_app_sess
+        gate.save()
+
+    return redirect(redirect_url)
 
 
 # --- helpers ---

@@ -26,15 +26,25 @@ SECRET_KEY = os.environ['SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
+BASE_URL = 'https://rshiny.f4.htw-berlin.de'
+
 ALLOWED_HOSTS = [
     '141.45.214.1',               # also proxy IP
-    'rshiny.f4.htw-berlin.de',
+    BASE_URL.split('://')[1],
     '.localhost',
     '127.0.0.1',
     '[::1]'
 ]
 CORS_ALLOWED_ORIGINS = [
-    'https://rshiny.f4.htw-berlin.de'
+    BASE_URL
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost',
+    'http://localhost:8000',
+    'http://127.0.0.1',
+    'http://127.0.0.1:8000',
+    BASE_URL,
 ]
 
 # Application definition
@@ -144,11 +154,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
-
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost',
-    'http://localhost:8000',
-    'http://127.0.0.1',
-    'http://127.0.0.1:8000',
-    'https://rshiny.f4.htw-berlin.de',
-]

@@ -20,6 +20,7 @@ urlpatterns = [
     path('stop_tracking/', views.stop_tracking, name='stop_tracking'),
     path('track_event/', views.track_event, name='track_event'),
     path('user_feedback/', views.user_feedback, name='user_feedback'),
+    path('gate/<str:sessioncode>', views.app_session_gate, name='gate'),
 ]
 
 if settings.DEBUG:
