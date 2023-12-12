@@ -234,6 +234,10 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
     ordering = ['label']
     inlines = [ApplicationSessionGateAppSessionsInline]
 
+    def __init__(self, model, admin_site):
+        super().__init__(model=model, admin_site=admin_site)
+        self._cur_changelist_request = None
+
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
         return super().get_queryset(request).select_related("updated_by")
@@ -241,7 +245,7 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
     @admin.display(ordering=None, description='URL')
     def session_url(self, obj):
         """Custom display field for URL pointing to application with session code attached."""
-        sess_url = obj.session_url()
+        sess_url = self._cur_changelist_request.build_absolute_uri(obj.session_url())
         return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
 
     @admin.display(ordering=None, description='Sessions in gate')
@@ -257,6 +261,10 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
             links.append(link)
 
         return mark_safe(", ".join(links))
+
+    def changelist_view(self, request, extra_context=None):
+        self._cur_changelist_request = request
+        return super().changelist_view(request, extra_context=extra_context)
 
     def save_model(self, request, obj, form, change):
         """
