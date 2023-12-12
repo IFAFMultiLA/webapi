@@ -17,10 +17,10 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from .models import max_options_length, current_time_bytes, Application, ApplicationConfig, ApplicationSession, \
-    UserApplicationSession, User, TrackingSession, TrackingEvent, UserFeedback
+    UserApplicationSession, User, TrackingSession, TrackingEvent, UserFeedback, ApplicationSessionGate
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 from .admin import admin_site, ApplicationAdmin, ApplicationConfigAdmin, ApplicationSessionAdmin, \
-    TrackingSessionAdmin, TrackingEventAdmin, UserFeedbackAdmin
+    TrackingSessionAdmin, TrackingEventAdmin, UserFeedbackAdmin, ApplicationSessionGateAdmin
 
 
 # ----- helper functions -----
@@ -1164,6 +1164,48 @@ class ModelAdminTests(TestCase):
         self.assertEqual(appsess_from_db.pk, appsess.pk)
 
         obj_views_args = dict(object_id=str(appsess.pk))
+        views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
+        self._check_modeladmin_default_views(modeladm, views_args)
+
+    def test_applicationsessiongate_admin(self):
+        modeladm = ApplicationSessionGateAdmin(ApplicationSessionGate, admin_site)
+
+        app = Application(name="testapp", url="http://testapp.com", updated_by=self.request.user)
+        app.save()
+        appconfig = ApplicationConfig(application=app,
+                                      label="testconfig",
+                                      config={"key": "value"},
+                                      updated_by=self.request.user)
+        appconfig.save()
+        appsess1 = ApplicationSession(config=appconfig, auth_mode='none')
+        appsess1.generate_code()
+        appsess1.save()
+        appsess2 = ApplicationSession(config=appconfig, auth_mode='none')
+        appsess2.generate_code()
+        appsess2.save()
+
+        gate = ApplicationSessionGate(label="testgate")
+        del app
+
+        # check that a session code is generated
+        form = modeladm.get_form(self.request, change=False)
+        modeladm.save_model(self.request, gate, form, change=False)
+        gate.app_sessions.set([appsess1, appsess2])
+        self.assertIsInstance(gate.code, str)
+        self.assertEqual(len(gate.code), 10)
+        self.assertEqual(gate.updated_by, self.request.user)
+        self.assertIsNotNone(gate.updated)
+
+        # check that "updated" and "updated_by" are correctly set on update
+        form = modeladm.get_form(self.request, gate, change=True)
+        modeladm.save_model(self.request, gate, form, change=True)
+        self.assertEqual(gate.updated_by, self.request.user)
+        self.assertIsNotNone(gate.updated)
+
+        gate_from_db = ApplicationSessionGate.objects.latest('updated')
+        self.assertEqual(gate_from_db.pk, gate.pk)
+
+        obj_views_args = dict(object_id=str(gate.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
         self._check_modeladmin_default_views(modeladm, views_args)
 
