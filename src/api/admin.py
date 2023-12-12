@@ -245,7 +245,17 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
     @admin.display(ordering=None, description='URL')
     def session_url(self, obj):
         """Custom display field for URL pointing to application with session code attached."""
-        sess_url = self._cur_changelist_request.build_absolute_uri(obj.session_url())
+        if obj is None or not obj.session_url():
+            return ""
+
+        if hasattr(settings, "BASE_URL"):
+            base_url = settings.BASE_URL
+            if base_url.endswith("/"):
+                base_url = base_url[:-1]
+            sess_url = base_url + obj.session_url()
+        else:
+            sess_url = self._cur_changelist_request.build_absolute_uri(obj.session_url())
+
         return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
 
     @admin.display(ordering=None, description='Sessions in gate')
