@@ -59,7 +59,12 @@ browser window.
    -  ``client_ip``: client IP address (if it could be determined)
    -  ``form_factor``: categorical; ``"desktop"``, ``"tablet"`` or
       ``"phone"``
-   -  ``window_size``: array with two elements as integers:
+   -  ``window_size``: browser window size; array with two elements as
+      integers: ``[window width, window height]``
+   -  ``main_content_viewsize``: main content view size; array with
+      two elements as integers: ``[window width, window height]``
+   -  ``main_content_scrollsize``: main content scroll area size;
+      array with two elements as integers:
       ``[window width, window height]``
 
 File ``user_feedback.csv``
@@ -105,8 +110,9 @@ Contains data on events produced by users within a tracking session.
    ``"mouse"``
 -  ``event_value``: event data – JSON; depends on ``event_type``:
 
-   -  for ``"device_info_update"``: changed window size as
-      ``{"window_size": [width, height]}``
+   -  for ``"device_info_update"``: changed window and/or main content
+      sizes as as in ``track_sess_device_info`` column in
+      ``tracking_sessions.csv``
    -  for ``"learnr_event_*"``:
    -  for ``"input_change"``: an object with the following keys and
       values –
@@ -115,24 +121,34 @@ Contains data on events produced by users within a tracking session.
       - ``xpath``: XPath to the tracked input element
       - ``value``: new value of the input element
 
-   -  for ``"mouse"``: raw mouse tracking data as collected with
-      `mus.js <https://github.com/ineventapp/musjs>`_; data is
-      collected in chunks and must be concatenated to form the trace for
-      the whole tracking session
+   -  for ``"mouse"``: raw mouse tracking data as collected with an
+      adapted version of `mus.js <https://github.com/ineventapp/musjs>`_;
+      data is collected in chunks and must be concatenated to form the
+      trace for the whole tracking session
 
       -  ``frames``: array with mouse interactions; each item is an
-         array ``[type, x, y, xpath, timestamp]``
+         array ``[type, ..., timestamp]`` which indicates that the
+         item type always comes first and the timestamp always comes
+         last; a variable number of elements which depends on the item
+         type comes between the type and the timestamp
 
          -  ``type`` can be: ``"m"`` – move; ``"c"`` – click; ``"s"`` –
             scroll; ``"i"`` – key input; ``"o"`` – input value change
             (sliders, checkboxes, etc.)
-         -  ``x`` and ``y`` are cursor positions within the window
-         -  ``xpath`` is the XPath for the current element or ``null``
+         -  for types ``"m", "c", "s"`` follow two coordinates as
+            cursor x and y positions within the window
+         -  for types ``"m", "c", "i", "o"`` follow the XPath and the
+            CSS selector for the current element or ``null``
             if the element is the same as in the previous record
-         -  ``timestamp`` is the time in ms
+         -  for types ``"i", "o"`` follows the the entered/changed
+            element value
+         -  ``timestamp`` is the time passed since ``startedAtISODate``
+            (see below) in ms
 
       -  ``window``: window size
       -  ``timeElapsed``: time in ms since mouse tracking started
+      -  ``startedAtISODate``: ISO-8601 date string that indicates the
+         start of the mouse data recording
 
 Learnr events
 ~~~~~~~~~~~~~
