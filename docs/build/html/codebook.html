@@ -87,7 +87,12 @@ string</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">client_ip</span></code>: client IP address (if it could be determined)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">form_factor</span></code>: categorical; <code class="docutils literal notranslate"><span class="pre">&quot;desktop&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;tablet&quot;</span></code> or
 <code class="docutils literal notranslate"><span class="pre">&quot;phone&quot;</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">window_size</span></code>: array with two elements as integers:
+<li><p><code class="docutils literal notranslate"><span class="pre">window_size</span></code>: browser window size; array with two elements as
+integers: <code class="docutils literal notranslate"><span class="pre">[window</span> <span class="pre">width,</span> <span class="pre">window</span> <span class="pre">height]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">main_content_viewsize</span></code>: main content view size; array with
+two elements as integers: <code class="docutils literal notranslate"><span class="pre">[window</span> <span class="pre">width,</span> <span class="pre">window</span> <span class="pre">height]</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">main_content_scrollsize</span></code>: main content scroll area size;
+array with two elements as integers:
 <code class="docutils literal notranslate"><span class="pre">[window</span> <span class="pre">width,</span> <span class="pre">window</span> <span class="pre">height]</span></code></p></li>
 </ul>
 </li>
@@ -135,8 +140,9 @@ format <code class="docutils literal notranslate"><span class="pre">Y-M-D</span>
 <code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">event_value</span></code>: event data – JSON; depends on <code class="docutils literal notranslate"><span class="pre">event_type</span></code>:</p>
 <ul>
-<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>: changed window size as
-<code class="docutils literal notranslate"><span class="pre">{&quot;window_size&quot;:</span> <span class="pre">[width,</span> <span class="pre">height]}</span></code></p></li>
+<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;device_info_update&quot;</span></code>: changed window and/or main content
+sizes as as in <code class="docutils literal notranslate"><span class="pre">track_sess_device_info</span></code> column in
+<code class="docutils literal notranslate"><span class="pre">tracking_sessions.csv</span></code></p></li>
 <li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;learnr_event_*&quot;</span></code>:</p></li>
 <li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;input_change&quot;</span></code>: an object with the following keys and
 values –</p>
@@ -146,25 +152,35 @@ values –</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">value</span></code>: new value of the input element</p></li>
 </ul>
 </li>
-<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code>: raw mouse tracking data as collected with
-<a class="reference external" href="https://github.com/ineventapp/musjs">mus.js</a>; data is
-collected in chunks and must be concatenated to form the trace for
-the whole tracking session</p>
+<li><p>for <code class="docutils literal notranslate"><span class="pre">&quot;mouse&quot;</span></code>: raw mouse tracking data as collected with an
+adapted version of <a class="reference external" href="https://github.com/ineventapp/musjs">mus.js</a>;
+data is collected in chunks and must be concatenated to form the
+trace for the whole tracking session</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">frames</span></code>: array with mouse interactions; each item is an
-array <code class="docutils literal notranslate"><span class="pre">[type,</span> <span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">xpath,</span> <span class="pre">timestamp]</span></code></p>
+array <code class="docutils literal notranslate"><span class="pre">[type,</span> <span class="pre">...,</span> <span class="pre">timestamp]</span></code> which indicates that the
+item type always comes first and the timestamp always comes
+last; a variable number of elements which depends on the item
+type comes between the type and the timestamp</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">type</span></code> can be: <code class="docutils literal notranslate"><span class="pre">&quot;m&quot;</span></code> – move; <code class="docutils literal notranslate"><span class="pre">&quot;c&quot;</span></code> – click; <code class="docutils literal notranslate"><span class="pre">&quot;s&quot;</span></code> –
 scroll; <code class="docutils literal notranslate"><span class="pre">&quot;i&quot;</span></code> – key input; <code class="docutils literal notranslate"><span class="pre">&quot;o&quot;</span></code> – input value change
 (sliders, checkboxes, etc.)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span></code> are cursor positions within the window</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">xpath</span></code> is the XPath for the current element or <code class="docutils literal notranslate"><span class="pre">null</span></code>
+<li><p>for types <code class="docutils literal notranslate"><span class="pre">&quot;m&quot;,</span> <span class="pre">&quot;c&quot;,</span> <span class="pre">&quot;s&quot;</span></code> follow two coordinates as
+cursor x and y positions within the window</p></li>
+<li><p>for types <code class="docutils literal notranslate"><span class="pre">&quot;m&quot;,</span> <span class="pre">&quot;c&quot;,</span> <span class="pre">&quot;i&quot;,</span> <span class="pre">&quot;o&quot;</span></code> follow the XPath and the
+CSS selector for the current element or <code class="docutils literal notranslate"><span class="pre">null</span></code>
 if the element is the same as in the previous record</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">timestamp</span></code> is the time in ms</p></li>
+<li><p>for types <code class="docutils literal notranslate"><span class="pre">&quot;i&quot;,</span> <span class="pre">&quot;o&quot;</span></code> follows the the entered/changed
+element value</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">timestamp</span></code> is the time passed since <code class="docutils literal notranslate"><span class="pre">startedAtISODate</span></code>
+(see below) in ms</p></li>
 </ul>
 </li>
 <li><p><code class="docutils literal notranslate"><span class="pre">window</span></code>: window size</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">timeElapsed</span></code>: time in ms since mouse tracking started</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">startedAtISODate</span></code>: ISO-8601 date string that indicates the
+start of the mouse data recording</p></li>
 </ul>
 </li>
 </ul>
@@ -253,7 +269,7 @@ multiple-choice question.</p></li>
       <div class="clearer"></div>
     </div>
     <div class="footer">
-      &copy;2023, Markus Konrad.
+      &copy;2024, Markus Konrad.
       
       |
       Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
