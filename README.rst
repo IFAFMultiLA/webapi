@@ -9,7 +9,6 @@ Requirements
 - Docker with Docker Compose v2 (recommended: run Docker in *rootless* mode)
 - recommended: IDE with Docker Compose support (e.g. PyCharm Professional, VSCode)
 - Python 3.11 if not running the web application in a docker container
-  (see *Option 1: Using a venv on the local machine*)
 
 Software and frameworks used in this project
 --------------------------------------------
@@ -22,4 +21,4 @@ Software and frameworks used in this project
 Documentation
 -------------
 
-All documentation is available under at https://ifafmultila.github.io/.
+All documentation is available under https://ifafmultila.github.io/.
