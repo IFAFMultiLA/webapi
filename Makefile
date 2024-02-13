@@ -8,7 +8,6 @@ SERVER_APP := $(SERVER):$(APPDIR)
 RSYNC_COMMON := -rcv --exclude-from=.rsyncexclude
 NOW := date -Is | sed "s/://g" | cut -d+ -f 1
 
-.PHONY: docs
 
 up:
 	docker $(COMP) up
