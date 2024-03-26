@@ -94,11 +94,11 @@ CSRF_FAILURE_VIEW = 'api.views.csrf_failure'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'multila',
-        'USER': 'admin',
-        'PASSWORD': 'admin',
-        'HOST': 'localhost',
-        'PORT': 5432,
+        'NAME': os.environ.get('POSTGRES_DB') or 'multila',
+        'USER': os.environ.get('POSTGRES_USER') or 'admin',
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD') or 'admin',
+        'HOST': os.environ.get('POSTGRES_HOST') or 'localhost',
+        'PORT': int(os.environ.get('POSTGRES_PORT') or '5432'),
     }
 }
 
