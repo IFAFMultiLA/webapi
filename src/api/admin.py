@@ -292,8 +292,8 @@ class UserFeedbackAdmin(admin.ModelAdmin):
     """
     Model admin for UserFeedback model.
 
-    This model admin is used as "read-only" admin for displaying a list of user feedback items for an application,
-    an application config. or application session.
+    This model admin is used as "read-only" admin (apart from the possibility to delete objects) for displaying a list
+    of user feedback items for an application, an application config. or application session.
     """
     list_display = ['tracking_session_short', 'created', 'content_section', 'score', 'text_truncated']
     list_display_links = ['created', 'content_section', 'score', 'text_truncated']
@@ -305,9 +305,6 @@ class UserFeedbackAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
         return False
 
     def get_list_display(self, request):
@@ -439,8 +436,8 @@ class TrackingSessionAdmin(admin.ModelAdmin):
     """
     Model admin for TrackingSession model.
 
-    This model admin is used as "read-only" admin for displaying a list of tracking sessions via the "changelist"
-    action.
+    This model admin is used as "read-only" admin (apart from the possibility to delete objects) for displaying a list
+    of tracking sessions via the "changelist" action.
     """
     list_display = ['tracking_sess_id', 'app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events',
                     'options']
@@ -451,9 +448,6 @@ class TrackingSessionAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
         return False
 
     def get_queryset(self, request):
@@ -506,8 +500,8 @@ class TrackingEventAdmin(admin.ModelAdmin):
     """
     Model admin for TrackingEvent model.
 
-    This model admin is used as "read-only" admin for displaying a list of tracking events of a tracking session via the
-    "changelist" action.
+    This model admin is used as "read-only" admin (apart from the possibility to delete objects) for displaying a list
+    of tracking events of a tracking session via the "changelist" action.
     """
     list_display = ['time', 'type', 'value_formatted']
     list_filter = ['time', 'type']
@@ -519,9 +513,6 @@ class TrackingEventAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
         return False
 
     def get_queryset(self, request):
