@@ -8,7 +8,7 @@ data/fixtures
 Makefile
 requirements.txt
 docker/Dockerfile
-docker/compose.yml
+docker/compose_dev*
 src/multila/settings.py
 .gitignore
 venv/

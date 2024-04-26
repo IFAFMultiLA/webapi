@@ -381,22 +381,22 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
             except TrackingSession.DoesNotExist:
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
+        # see if we already have an existing user feedback instance to perform an update
+        try:
+            user_feedback_obj = UserFeedback.objects.get(user_app_session=parsed_data['user_app_session'],
+                                                         content_section=parsed_data.get('content_section', None))
+
+            # perform an update
+            response_status = status.HTTP_200_OK
+        except UserFeedback.DoesNotExist:
+            # create a new user feedback instance
+            user_feedback_obj = None
+            response_status = status.HTTP_201_CREATED
+
         # serialize and validate passed data
-        user_feedback_serializer = UserFeedbackSerializer(data=parsed_data)
+        user_feedback_serializer = UserFeedbackSerializer(user_feedback_obj, data=parsed_data)
 
         if user_feedback_serializer.is_valid():
-            # see if we already have an existing user feedback instance to perform an update
-            try:
-                user_feedback_obj = UserFeedback.objects.get(user_app_session=parsed_data['user_app_session'],
-                                                             content_section=parsed_data['content_section'])
-
-                # perform an update
-                user_feedback_serializer.instance = user_feedback_obj
-                response_status = status.HTTP_200_OK
-            except UserFeedback.DoesNotExist:
-                # create a new user feedback instance
-                response_status = status.HTTP_201_CREATED
-
             try:
                 # store to DB
                 with transaction.atomic():
