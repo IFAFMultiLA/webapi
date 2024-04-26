@@ -33,7 +33,7 @@ from django.conf import settings
 from django.utils.text import Truncator
 
 from .models import Application, ApplicationConfig, ApplicationSession, ApplicationSessionGate, \
-    TrackingSession, TrackingEvent, UserFeedback
+    TrackingSession, TrackingEvent, UserFeedback, APPLICATION_CONFIG_DEFAULT_JSON
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 
@@ -70,6 +70,109 @@ def format_value_as_json(value, maxlines=None):
 class JSONEncoderWithIdent(json.JSONEncoder):
     def __init__(self, *args, indent, **kwargs):
         super().__init__(*args, indent=2, **kwargs)
+
+
+class ApplicationConfigForm(forms.ModelForm):
+    """
+    Custom form for `ApplicationConfig` with additional form fields for options stored in the `config` JSON field.
+    """
+
+    feedback = forms.BooleanField(label="Enable user feedback",
+                                  help_text="Enables user feedback elements at the end of each chapter.",
+                                  initial=True, required=False)
+    summary = forms.BooleanField(label="Enable summary panel",
+                                 help_text="Enables dynamic summary panel displayed on the right side of the "
+                                           "application.",
+                                 initial=True, required=False)
+    track_mouse = forms.BooleanField(label="Enable mouse tracking",
+                                     help_text="Enable tracking mouse movements, scrolls and clicks or touches when "
+                                               "the user device has no mouse.",
+                                     initial=APPLICATION_CONFIG_DEFAULT_JSON['tracking']['mouse'],
+                                     required=False)
+    track_inputs = forms.BooleanField(label="Enable input tracking",
+                                      help_text="Enable tracking form inputs.",
+                                      initial=APPLICATION_CONFIG_DEFAULT_JSON['tracking']['inputs'],
+                                      required=False)
+    track_attribute_changes = forms.BooleanField(label="Enable HTML element attribute changes",
+                                                 help_text="Warning: When enabled, this generates a lot of usually "
+                                                           "unnecessary data.",
+                                                 initial=APPLICATION_CONFIG_DEFAULT_JSON['tracking'][
+                                                     'attribute_changes'],
+                                                 required=False)
+    track_chapters = forms.BooleanField(label="Enable chapter tracking",
+                                        help_text="Enable tracking of switching between chapters.",
+                                        initial=APPLICATION_CONFIG_DEFAULT_JSON['tracking']['chapters'],
+                                        required=False)
+    exclude = forms.CharField(label="CSS selectors for excluding content",
+                              help_text='Provide CSS selectors separated by comma, e.g. '
+                                        '"#additional_text, .code_instructions".',
+                              required=False,
+                              widget=forms.TextInput(attrs={'size': 100}))
+    js = forms.CharField(label="Additional JavaScript files to load",
+                         help_text='Provide paths/URLs to JavaScript files separated by comma, e.g. '
+                                   '"www/custom.js, https://example.com/myscripts.js".',
+                         required=False,
+                         widget=forms.TextInput(attrs={'size': 100}))
+    css = forms.CharField(label="Additional CSS files to load",
+                          help_text='Provide paths/URLs to CSS files separated by comma, e.g. '
+                                    '"www/custom.css, https://example.com/myscripts.css".',
+                          required=False,
+                          widget=forms.TextInput(attrs={'size': 100}))
+    additional_json = forms.JSONField(label="Additional configuration",
+                                      help_text="Provide additional configuration as JSON. This will be merged with "
+                                                "the above settings, but will override them if necessary.",
+                                      required=False,
+                                      widget=forms.Textarea(attrs={'cols': 103}),
+                                      encoder=JSONEncoderWithIdent,
+                                      initial=None)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # set initial values for config fields
+        additional_config = {}
+        for k, v in self.instance.config.items():
+            if k in APPLICATION_CONFIG_DEFAULT_JSON:   # standard option
+                if isinstance(v, list):
+                    v = ', '.join(v)
+
+                if k == 'tracking':
+                    for tracking_k, tracking_v in v.items():
+                        self.initial['track_' + tracking_k] = tracking_v
+                else:
+                    self.initial[k] = v
+            else:
+                # non-standard option
+                additional_config[k] = v
+
+        self.initial['additional_json'] = additional_config
+
+    def save(self, commit=True):
+        config = APPLICATION_CONFIG_DEFAULT_JSON.copy()
+        for f in ('exclude', 'js', 'css'):
+            config[f] = [v.strip() for v in self.cleaned_data.get(f, '').split(',') if v.strip()]
+        for f in ('feedback', 'summary'):
+            config[f] = self.cleaned_data.get(f, APPLICATION_CONFIG_DEFAULT_JSON[f])
+        for f, default_val in APPLICATION_CONFIG_DEFAULT_JSON['tracking'].items():
+            config['tracking'][f] = self.cleaned_data.get('track_' + f, default_val)
+
+        if additional_json := self.cleaned_data.get('additional_json', None):
+            config.update(additional_json)
+        
+        self.instance.config = config
+        return super().save(commit=commit)
+
+    class Meta:  # looks like it's not (easily) possible to define fieldsets and/or a custom template in a ModelForm
+        # template_name = 'admin/application_config_form.html'
+        model = ApplicationConfig
+        exclude = ['config']
+        # fieldsets = [
+        #     ('General', { 'fields': ['application', 'label'] }),
+        #     ('Features', { 'fields': ['feedback', 'summary'] }),
+        #     ('Tracking', { 'fields': ['track_mouse', 'track_inputs', 'track_attribute_changes', 'track_chapters'] }),
+        #     ('Further customization', { 'fields': ['exclude', 'js', 'css', 'additional_json'] }),
+        #     ('Information', {'fields': ['updated', 'updated_by']})
+        # ]
 
 
 # --- model admins ---
@@ -121,10 +224,10 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
     """
     Admin for ApplicationConfig model.
     """
-    fields = ['application', 'label', 'config', 'updated', 'updated_by']
     readonly_fields = ['updated', 'updated_by']
     list_display = ['label', 'application_name', 'updated', 'updated_by']
     list_display_links = ['label', 'application_name']
+    form = ApplicationConfigForm
 
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
@@ -143,15 +246,6 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
         """
         obj.updated_by = request.user
         return super().save_model(request, obj, form, change)
-
-    def formfield_for_dbfield(self, db_field, request, **kwargs):
-        """
-        Adjust form fields for specific model fields.
-        """
-        if db_field.name == 'config':
-            # pretty formatting for configuration JSON field
-            kwargs['encoder'] = JSONEncoderWithIdent
-        return super().formfield_for_dbfield(db_field, request, **kwargs)
 
 
 class ApplicationSessionAdmin(admin.ModelAdmin):
@@ -195,7 +289,7 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         """
         if db_field.name == "config":
             # queryset for application configuration choices
-            kwargs['queryset'] = ApplicationConfig.objects.select_related('application')\
+            kwargs['queryset'] = ApplicationConfig.objects.select_related('application') \
                 .order_by('application__name', 'label')
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
@@ -205,6 +299,7 @@ class ApplicationSessionGateAppSessionsInlineModelChoiceField(forms.ModelChoiceF
     """
     Custom model choice field for application sessions used in inline admin `ApplicationSessionGateAppSessionsInline`.
     """
+
     def label_from_instance(self, app_session):
         return f"{app_session.config.application.name} / {app_session.config.label} / {app_session.code}"
 
@@ -218,8 +313,8 @@ class ApplicationSessionGateAppSessionsInline(admin.TabularInline):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "applicationsession":
-            kwargs["queryset"] = ApplicationSession.objects.\
-                select_related("config", "config__application").\
+            kwargs["queryset"] = ApplicationSession.objects. \
+                select_related("config", "config__application"). \
                 order_by('config__application__name', 'config__label', 'code')
             kwargs["form_class"] = ApplicationSessionGateAppSessionsInlineModelChoiceField
 
@@ -266,7 +361,7 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
             app_sess_code = app_sess_code['code']
             link = f'<a href="{reverse("admin:api_applicationsession_change", args=[app_sess_code])}">' \
                    f'{app_sess_code}</a>'
-            if i == obj.next_forward_index:   # highlight next session code with bold font
+            if i == obj.next_forward_index:  # highlight next session code with bold font
                 link = f'<strong>{link}</strong>'
             links.append(link)
 
@@ -598,7 +693,7 @@ class MultiLAAdminSite(admin.AdminSite):
     Custom administration site.
     """
     site_header = 'MultiLA Administration Interface'
-    site_url = None   # disable "view on site" link since there is no real frontend
+    site_url = None  # disable "view on site" link since there is no real frontend
 
     def get_urls(self):
         """
@@ -649,7 +744,7 @@ class MultiLAAdminSite(admin.AdminSite):
             'app_label': 'datamanager',
             'app_url': reverse('multila_admin:dataview'),
             'has_module_perms': request.user.is_superuser,
-            'models': [   # "models" actually refer only to custom views – there are no specific datamanager models
+            'models': [  # "models" actually refer only to custom views – there are no specific datamanager models
                 {
                     'model': None,
                     'object_name': 'View',
@@ -737,7 +832,6 @@ class MultiLAAdminSite(admin.AdminSite):
 
             return mark_safe(f'<a href={userfeedback_url}>&#8505; {v}</a>')
 
-
         # aggregation level choices for form
         CONFIGFORM_GROUPBY_CHOICES = [
             ('app', 'Application'),
@@ -778,12 +872,12 @@ class MultiLAAdminSite(admin.AdminSite):
             groupby = forms.ChoiceField(label='Group by', choices=CONFIGFORM_GROUPBY_CHOICES, required=False)
 
         # handle request
-        if request.method == 'POST':   # form was submitted: populate with submitted data
+        if request.method == 'POST':  # form was submitted: populate with submitted data
             configform = ConfigForm(request.POST)
 
             if configform.is_valid():  # store submitted data in session
                 request.session['dataview_configform'] = configform.cleaned_data
-        else:   # form was not submitted: populate with default values stored in sesssion
+        else:  # form was not submitted: populate with default values stored in sesssion
             configform = ConfigForm(request.session.get('dataview_configform', {}))
 
         # get aggregation level "groupby" stored in session
@@ -823,7 +917,7 @@ class MultiLAAdminSite(admin.AdminSite):
         hidden_fields = set(toplevel_fields) | {'applicationconfig', 'applicationconfig__applicationsession'}
 
         # fetch the data from the DB
-        data_rows = Application.objects\
+        data_rows = Application.objects \
             .annotate(n_users=Count(usersess_expr, distinct=True),
                       n_nonanon_users=Count(usersess_expr + '__user', distinct=True),
                       n_nonanon_logins=Count(usersess_expr + '__user', distinct=False),
@@ -834,7 +928,7 @@ class MultiLAAdminSite(admin.AdminSite):
                       avg_trackingsess_duration=Avg(F(trackingsess_expr + '__end_time')
                                                     - F(trackingsess_expr + '__start_time')),
                       n_events=Count(trackingevent_expr, distinct=True),
-                      most_recent_event=Max(trackingevent_expr + '__time'))\
+                      most_recent_event=Max(trackingevent_expr + '__time')) \
             .order_by(*order_fields).values(*data_fields)
 
         # format the data for display
@@ -912,6 +1006,7 @@ class MultiLAAdminSite(admin.AdminSite):
         """
         Data export view. Allows to generate data exports that can be generated. Lists all generated data exports.
         """
+
         def create_export(fname, app_sess):
             """
             Internal function to generate a data export file named `fname` for an application session `app_sess`.
@@ -925,8 +1020,8 @@ class MultiLAAdminSite(admin.AdminSite):
             QUERIES_AND_FIELDS = {
                 "app_sessions": (
                     "SELECT {fields} FROM api_application a "
-                        "LEFT JOIN api_applicationconfig ac ON a.id = ac.application_id "
-                        "LEFT JOIN api_applicationsession asess ON ac.id = asess.config_id",
+                    "LEFT JOIN api_applicationconfig ac ON a.id = ac.application_id "
+                    "LEFT JOIN api_applicationsession asess ON ac.id = asess.config_id",
                     "WHERE asess.code = %s",
                     (
                         ("a.id", "app_id"),
@@ -940,7 +1035,7 @@ class MultiLAAdminSite(admin.AdminSite):
                 ),
                 "tracking_sessions": (
                     "SELECT {fields} FROM api_userapplicationsession ua "
-                        "LEFT JOIN api_trackingsession t ON ua.id = t.user_app_session_id",
+                    "LEFT JOIN api_trackingsession t ON ua.id = t.user_app_session_id",
                     "WHERE ua.application_session_id = %s",
                     (
                         ("ua.application_session_id", "app_sess_code"),
@@ -954,7 +1049,7 @@ class MultiLAAdminSite(admin.AdminSite):
                 ),
                 "user_feedback": (
                     "SELECT {fields} FROM api_userfeedback fb "
-                        "LEFT JOIN api_userapplicationsession ua ON fb.user_app_session_id = ua.id",
+                    "LEFT JOIN api_userapplicationsession ua ON fb.user_app_session_id = ua.id",
                     "WHERE ua.application_session_id = %s",
                     (
                         ("ua.application_session_id", "app_sess_code"),
@@ -969,8 +1064,8 @@ class MultiLAAdminSite(admin.AdminSite):
                 ),
                 "tracking_events": (
                     "SELECT {fields} FROM api_trackingevent e "
-                        "LEFT JOIN api_trackingsession t ON e.tracking_session_id = t.id "
-                        "LEFT JOIN api_userapplicationsession ua ON t.user_app_session_id = ua.id",
+                    "LEFT JOIN api_trackingsession t ON e.tracking_session_id = t.id "
+                    "LEFT JOIN api_userapplicationsession ua ON t.user_app_session_id = ua.id",
                     "WHERE ua.application_session_id = %s",
                     (
                         ("t.id", "track_sess_id"),
@@ -1040,7 +1135,7 @@ class MultiLAAdminSite(admin.AdminSite):
         if 'dataexport_awaiting_files' not in request.session:
             request.session['dataexport_awaiting_files'] = []
 
-        if request.method == 'POST':   # handle form submit; pass submitted data to form and generate data export
+        if request.method == 'POST':  # handle form submit; pass submitted data to form and generate data export
             configform = ConfigForm(request.POST)
 
             if configform.is_valid():
@@ -1057,9 +1152,9 @@ class MultiLAAdminSite(admin.AdminSite):
                 request.session['dataexport_awaiting_files'].append(fname)
 
                 # start a background thread that will generate the data export
-                threading.Thread(target=create_export, args=[fname, app_sess_select], daemon=True)\
+                threading.Thread(target=create_export, args=[fname, app_sess_select], daemon=True) \
                     .start()
-        else:   # no form submit; only display exported data
+        else:  # no form submit; only display exported data
             configform = ConfigForm(request.session.get('dataexport_configform', {}))
 
         # set template variables
@@ -1107,7 +1202,7 @@ class MultiLAAdminSite(admin.AdminSite):
         by `tracking_sess_id`. Returns a JSON response.
         """
 
-        if i == 0:   # for the first chunk, also add the information about how many chunks there are
+        if i == 0:  # for the first chunk, also add the information about how many chunks there are
             n_chunks = len(TrackingEvent.objects.filter(tracking_session=tracking_sess_id, type="mouse"))
         else:
             n_chunks = None
@@ -1117,7 +1212,7 @@ class MultiLAAdminSite(admin.AdminSite):
         except IndexError:
             return JsonResponse({})
 
-        #filter_frametypes = {'m', 'c', 's', 'i', 'o'}
+        # filter_frametypes = {'m', 'c', 's', 'i', 'o'}
         # filter_frametypes = {'m'}
         replaydata = event.value
         # startframe = 0
@@ -1129,7 +1224,7 @@ class MultiLAAdminSite(admin.AdminSite):
         # replaydata['frames'] = replaydata['frames'][startframe:]
         filter_frametypes = {'m', 'c', 's', 'S', 'i', 'o'}
         replaydata['frames'] = [f for f in replaydata['frames'] if f[0] in filter_frametypes]
-        replaydata['frames'] = sorted(replaydata['frames'], key=lambda f: f[-1])   # sort by last item in frame (time)
+        replaydata['frames'] = sorted(replaydata['frames'], key=lambda f: f[-1])  # sort by last item in frame (time)
 
         return JsonResponse({"i": i, "replaydata": replaydata, "n_chunks": n_chunks})
 
