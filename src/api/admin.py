@@ -93,7 +93,7 @@ class ApplicationConfigForm(forms.ModelForm):
                                       help_text="Enable tracking form inputs.",
                                       initial=APPLICATION_CONFIG_DEFAULT_JSON['tracking']['inputs'],
                                       required=False)
-    track_attribute_changes = forms.BooleanField(label="Enable HTML element attribute changes",
+    track_attribute_changes = forms.BooleanField(label="Enable tracking HTML element attribute changes",
                                                  help_text="Warning: When enabled, this generates a lot of usually "
                                                            "unnecessary data.",
                                                  initial=APPLICATION_CONFIG_DEFAULT_JSON['tracking'][
