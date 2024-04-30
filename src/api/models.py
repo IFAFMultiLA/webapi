@@ -125,8 +125,7 @@ class ApplicationSession(models.Model):
         return f'{baseurl}?sess={self.code}'
 
     def __str__(self):
-        return f'Application session "{self.code}" (auth. "{self.auth_mode}") ' \
-               f'for configuration "{self.config.label}" (#{self.config_id})'
+        return f'Application session "{self.code}" for configuration "{self.config.label}"'
 
 
 class ApplicationSessionGate(models.Model):

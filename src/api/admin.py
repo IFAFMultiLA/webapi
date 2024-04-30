@@ -184,8 +184,26 @@ class ApplicationAdmin(admin.ModelAdmin):
     """
     fields = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
     readonly_fields = ['updated', 'updated_by']
-    list_display = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
+    list_display = ['name', 'url', 'configurations', 'default_application_session_short', 'updated', 'updated_by']
     inlines = [ApplicationConfigInline]
+
+    @admin.display(ordering=None, description="Configurations")
+    def configurations(self, obj):
+        config_items = []
+        for config in sorted(obj.applicationconfig_set.all(), key=lambda c: c.label):
+            config_url = reverse('admin:api_applicationconfig_change', args=[config.id])
+            config_items.append(f'<li><a href="{config_url}">{config.label}</a></li>')
+
+        return mark_safe(f'<ul>{"".join(config_items)}</ul>')
+
+    @admin.display(ordering='default_application_session__code', description='Default application session')
+    def default_application_session_short(self, obj):
+        if obj.default_application_session:
+            app_sess_url = reverse('admin:api_applicationsession_change',
+                                   args=[obj.default_application_session.code])
+            return mark_safe(f'<a href="{app_sess_url}">{obj.default_application_session.code}</a> '
+                             f'(config. "{obj.default_application_session.config.label}")')
+        return '-'
 
     def save_model(self, request, obj, form, change):
         """
@@ -206,7 +224,8 @@ class ApplicationAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
-        return super().get_queryset(request).select_related("updated_by", "default_application_session__config")
+        return (super().get_queryset(request).prefetch_related('applicationconfig_set')
+                .select_related("updated_by", "default_application_session__config"))
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
@@ -225,7 +244,7 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
     """
     Admin for ApplicationConfig model.
     """
-    readonly_fields = ['updated', 'updated_by']
+    readonly_fields = ['updated', 'updated_by', 'application']
     list_display = ['label', 'application_name', 'updated', 'updated_by']
     list_display_links = ['label', 'application_name']
     form = ApplicationConfigForm
