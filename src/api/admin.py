@@ -24,7 +24,6 @@ from django.contrib.auth.admin import UserAdmin, GroupAdmin
 from django.contrib.auth.models import User, Group
 from django.db.models import Count, Max, Avg, F
 from django.db import connection as db_conn
-from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFound, FileResponse, HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import path, reverse, re_path
@@ -72,12 +71,6 @@ class JSONEncoderWithIdent(json.JSONEncoder):
     def __init__(self, *args, indent, **kwargs):
         super().__init__(*args, indent=2, **kwargs)
 
-
-class ApplicationSessionForm(forms.ModelForm):
-    class Meta:
-        model = ApplicationSession
-        #fields = '__all__'
-        exclude = ['code', 'updated', 'updated_by', 'created_by']
 
 class ApplicationConfigForm(forms.ModelForm):
     """
@@ -177,39 +170,12 @@ class ApplicationConfigForm(forms.ModelForm):
 # --- model admins ---
 
 
-# class ApplicationConfigInline(admin.StackedInline):
-#     model = ApplicationConfig
-#     form = ApplicationConfigForm
-#
-#     def get_extra(self, request, obj=None, **kwargs):
-#         return 0 if obj else 1
+class ApplicationConfigInline(admin.StackedInline):
+    model = ApplicationConfig
+    form = ApplicationConfigForm
 
-
-ApplicationSessionFormset = inlineformset_factory(ApplicationConfig,
-                                                  ApplicationSession,
-                                                  form=ApplicationSessionForm,
-                                                  extra=1)
-
-
-class BaseApplicationConfigFormset(BaseInlineFormSet):
-    def add_fields(self, form, index):
-        super().add_fields(form, index)
-
-        form.nested = ApplicationSessionFormset(
-            instance=form.instance,
-            data=form.data if form.is_bound else None,
-            files=form.files if form.is_bound else None,
-            prefix='applicationsession-%s-%s' % (
-                form.prefix,
-                ApplicationSessionFormset.get_default_prefix())
-        )
-
-
-ApplicationConfigFormset = inlineformset_factory(Application,
-                                                 ApplicationConfig,
-                                                 form=ApplicationConfigForm,
-                                                 formset=BaseApplicationConfigFormset,
-                                                 extra=1)
+    def get_extra(self, request, obj=None, **kwargs):
+        return 0 if obj else 1
 
 
 class ApplicationAdmin(admin.ModelAdmin):
@@ -219,8 +185,7 @@ class ApplicationAdmin(admin.ModelAdmin):
     fields = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
     readonly_fields = ['updated', 'updated_by']
     list_display = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
-    add_form_template = "admin/application_change_form.html"
-    change_form_template = "admin/application_change_form.html"
+    inlines = [ApplicationConfigInline]
 
     def save_model(self, request, obj, form, change):
         """
@@ -254,12 +219,6 @@ class ApplicationAdmin(admin.ModelAdmin):
                 ApplicationSession.objects.filter(config__application=obj)
 
         return form
-    
-    def add_view(self, request, form_url='', extra_context=None):
-        extra_context = extra_context or {}
-        extra_context['application_config_formset'] = ApplicationConfigFormset()
-        
-        return super().add_view(request, form_url=form_url, extra_context=extra_context)
 
 
 class ApplicationConfigAdmin(admin.ModelAdmin):
