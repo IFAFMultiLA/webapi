@@ -185,29 +185,60 @@ class ApplicationAdmin(admin.ModelAdmin):
     """
     fields = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
     readonly_fields = ['updated', 'updated_by']
-    list_display = ['name', 'url', 'configurations', 'default_application_session_short', 'updated', 'updated_by']
+    list_display = ['name', 'url', 'configurations_and_sessions', 'updated', 'updated_by']
     inlines = [ApplicationConfigInline]
 
-    @admin.display(ordering=None, description="Configurations")
-    def configurations(self, obj):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.apps_confs_sessions = defaultdict(dict)
+
+    @admin.display(ordering=None, description="Configurations and sessions")
+    def configurations_and_sessions(self, obj):
+        configs = self.apps_confs_sessions.get(obj.id, {})
         config_items = []
-        for config in sorted(obj.applicationconfig_set.all(), key=lambda c: c.label):
-            config_url = reverse('admin:api_applicationconfig_change', args=[config.id])
-            config_items.append(f'<li><a href="{config_url}?application={obj.id}">{config.label}</a></li>')
+        for config_id, config_data in configs.items():
+            config_url = reverse('admin:api_applicationconfig_change', args=[config_id])
+            config_label = config_data['config_label']
+            session_items = []
+            for sess_code, sess_descr in config_data['sessions'].items():
+                sess_url = reverse('admin:api_applicationsession_change', args=[sess_code])
+                if sess_descr:
+                    sess_descr = f' – {Truncator(sess_descr).words(5)}'
+                if obj.default_application_session and obj.default_application_session.code == sess_code:
+                    sess_item_style = ' style="font-weight: bold;"'
+                else:
+                    sess_item_style = ''
+                session_items.append(f'<li{sess_item_style}><a href="{sess_url}?config={config_id}">{sess_code}{sess_descr}</a></li>')
+
+            if session_items:
+                sessions_html = f'<ul>{"".join(session_items)}</ul>'
+            else:
+                sessions_html = ''
+
+            add_session_html = f'<p><a href="{reverse("admin:api_applicationsession_add")}?config={config_id}" ' \
+                               f'class="addlink">Add session</a></p>'
+
+            config_items.append(f'<li><a href="{config_url}?application={obj.id}">{config_label}</a>'
+                                f'{sessions_html}{add_session_html}</li>')
 
         add_config_html = f'<p><a href="{reverse("admin:api_applicationconfig_add")}?application={obj.id}" ' \
                           f'class="addlink">Add configuration</a></p>'
 
         return mark_safe(f'<ul>{"".join(config_items)}</ul> {add_config_html}')
 
-    @admin.display(ordering='default_application_session__code', description='Default application session')
-    def default_application_session_short(self, obj):
-        if obj.default_application_session:
-            app_sess_url = reverse('admin:api_applicationsession_change',
-                                   args=[obj.default_application_session.code])
-            return mark_safe(f'<a href="{app_sess_url}">{obj.default_application_session.code}</a> '
-                             f'(config. "{obj.default_application_session.config.label}")')
-        return '-'
+    def changelist_view(self, request, extra_context=None):
+        qs_app_sessions = (ApplicationSession.objects.select_related('config', 'config__application')
+                           .order_by('config__application_id', 'config__label')
+                           .values_list('config__application_id', 'config__id', 'config__label', 'code', 'description'))
+        for app_id, config_id, config_label, sess_code, sess_descr in qs_app_sessions:
+            if config_id in self.apps_confs_sessions[app_id]:
+                conf_dict = self.apps_confs_sessions[app_id][config_id]
+            else:
+                conf_dict = {'config_label': config_label, 'sessions': {}}
+            conf_dict['sessions'][sess_code] = sess_descr
+            self.apps_confs_sessions[app_id][config_id] = conf_dict
+
+        return super().changelist_view(request, extra_context=extra_context)
 
     def save_model(self, request, obj, form, change):
         """
@@ -228,8 +259,7 @@ class ApplicationAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
-        return (super().get_queryset(request).prefetch_related('applicationconfig_set')
-                .select_related("updated_by", "default_application_session__config"))
+        return super().get_queryset(request).select_related("updated_by", "default_application_session")
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
