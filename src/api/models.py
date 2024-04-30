@@ -48,6 +48,13 @@ def current_time_bytes():
     return datetime.now().timestamp().hex().encode()
 
 
+def application_session_url(application, sess_code):
+    baseurl = application.url
+    if not baseurl.endswith('/'):
+        baseurl += '/'
+    return f'{baseurl}?sess={sess_code}'
+
+
 class Application(models.Model):
     """A learning application located at a certain URL."""
     name = models.CharField('Name', max_length=64, unique=True, blank=False)
@@ -119,10 +126,7 @@ class ApplicationSession(models.Model):
         """
         Return a URL pointing to an application with the session code attached.
         """
-        baseurl = self.config.application.url
-        if not baseurl.endswith('/'):
-            baseurl += '/'
-        return f'{baseurl}?sess={self.code}'
+        return application_session_url(self.config.application, self.code)
 
     def __str__(self):
         return f'Application session "{self.code}" for configuration "{self.config.label}"'

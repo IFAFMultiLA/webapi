@@ -34,7 +34,7 @@ from django.conf import settings
 from django.utils.text import Truncator
 
 from .models import Application, ApplicationConfig, ApplicationSession, ApplicationSessionGate, \
-    TrackingSession, TrackingEvent, UserFeedback, APPLICATION_CONFIG_DEFAULT_JSON
+    TrackingSession, TrackingEvent, UserFeedback, APPLICATION_CONFIG_DEFAULT_JSON, application_session_url
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 
@@ -185,12 +185,18 @@ class ApplicationAdmin(admin.ModelAdmin):
     """
     fields = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
     readonly_fields = ['updated', 'updated_by']
-    list_display = ['name', 'url', 'configurations_and_sessions', 'updated', 'updated_by']
+    list_display = ['name_w_url', 'configurations_and_sessions', 'session_urls', 'updated', 'updated_by']
     inlines = [ApplicationConfigInline]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.apps_confs_sessions = defaultdict(dict)
+
+    @admin.display(ordering='name')
+    def name_w_url(self, obj):
+        change_url = reverse('admin:api_application_change', args=(obj.id,))
+        return mark_safe(f'<p><a href="{change_url}">{obj.name}</a></p>'
+                         f'<p><a href="{obj.url}" target="_blank">{obj.url}</a></p>')
 
     @admin.display(ordering=None, description="Configurations and sessions")
     def configurations_and_sessions(self, obj):
@@ -203,7 +209,7 @@ class ApplicationAdmin(admin.ModelAdmin):
             for sess_code, sess_descr in config_data['sessions'].items():
                 sess_url = reverse('admin:api_applicationsession_change', args=[sess_code])
                 if sess_descr:
-                    sess_descr = f' – {Truncator(sess_descr).words(5)}'
+                    sess_descr = f' – {Truncator(sess_descr).chars(25)}'
                 if obj.default_application_session and obj.default_application_session.code == sess_code:
                     sess_item_style = ' style="font-weight: bold;"'
                 else:
@@ -225,6 +231,18 @@ class ApplicationAdmin(admin.ModelAdmin):
                           f'class="addlink">Add configuration</a></p>'
 
         return mark_safe(f'<ul>{"".join(config_items)}</ul> {add_config_html}')
+
+    @admin.display(ordering=None, description="URLs")
+    def session_urls(self, obj):
+        configs = self.apps_confs_sessions.get(obj.id, {})
+        config_items = []
+        for config_id, config_data in configs.items():
+            session_items = []
+            for sess_code, sess_descr in config_data['sessions'].items():
+                app_sess_url = application_session_url(obj, sess_code)
+                session_items.append(f'<li><a href="{app_sess_url}" target="_blank">{app_sess_url}</a></li>')
+            config_items.append(f'<li style="list-style-type:none">&nbsp;</li><li style="list-style-type:none"><ul>{"".join(session_items)}</ul><p>&nbsp;</p></li>')
+        return mark_safe(f'<ul>{"".join(config_items)}</ul>')
 
     def changelist_view(self, request, extra_context=None):
         qs_app_sessions = (ApplicationSession.objects.select_related('config', 'config__application')
