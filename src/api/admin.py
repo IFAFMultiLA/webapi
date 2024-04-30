@@ -19,16 +19,17 @@ from urllib.parse import urlsplit, urlunsplit
 import json
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin, GroupAdmin
 from django.contrib.auth.models import User, Group
 from django.db.models import Count, Max, Avg, F
 from django.db import connection as db_conn
-from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFound, FileResponse, HttpResponse
+from django.http import JsonResponse, HttpResponseForbidden, HttpResponseNotFound, FileResponse, HttpResponse, \
+    HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse, re_path
 from django.utils.safestring import mark_safe
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.conf import settings
 from django.utils.text import Truncator
 
@@ -192,9 +193,12 @@ class ApplicationAdmin(admin.ModelAdmin):
         config_items = []
         for config in sorted(obj.applicationconfig_set.all(), key=lambda c: c.label):
             config_url = reverse('admin:api_applicationconfig_change', args=[config.id])
-            config_items.append(f'<li><a href="{config_url}">{config.label}</a></li>')
+            config_items.append(f'<li><a href="{config_url}?application={obj.id}">{config.label}</a></li>')
 
-        return mark_safe(f'<ul>{"".join(config_items)}</ul>')
+        add_config_html = f'<p><a href="{reverse("admin:api_applicationconfig_add")}?application={obj.id}" ' \
+                          f'class="addlink">Add configuration</a></p>'
+
+        return mark_safe(f'<ul>{"".join(config_items)}</ul> {add_config_html}')
 
     @admin.display(ordering='default_application_session__code', description='Default application session')
     def default_application_session_short(self, obj):
@@ -249,6 +253,16 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
     list_display_links = ['label', 'application_name']
     form = ApplicationConfigForm
 
+    @staticmethod
+    def _get_application_id(request):
+        application_id = request.GET.get('application', None)
+        if application_id:
+            request.session['application'] = application_id
+        else:
+            application_id = request.session.get('application', None)
+
+        return application_id
+
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
         return super().get_queryset(request).select_related("updated_by", "application")
@@ -260,11 +274,39 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
         """
         return obj.application.name
 
+    def add_view(self, request, form_url="", extra_context=None):
+        if not self._get_application_id(request):
+            messages.error(request, 'No application selected.')
+            return redirect(reverse('admin:api_application_changelist'))
+
+        return super().add_view(request, form_url=form_url, extra_context=extra_context)
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        if not self._get_application_id(request):
+            messages.error(request, 'No application selected.')
+            return redirect(reverse('admin:api_application_changelist'))
+
+        return super().change_view(request, object_id=object_id, form_url=form_url, extra_context=extra_context)
+
+    def response_post_save_add(self, request, obj):
+        return redirect(reverse('admin:api_application_changelist'))
+
+    def response_post_save_change(self, request, obj):
+        return redirect(reverse('admin:api_application_changelist'))
+
+    def response_delete(self, request, obj_display, obj_id):
+        response = super().response_delete(request, obj_display=obj_display, obj_id=obj_id)
+        if (isinstance(response, HttpResponseRedirect) and
+                response.url == reverse('admin:api_applicationconfig_changelist')):
+            response = redirect(reverse('admin:api_application_changelist'))
+        return response
+
     def save_model(self, request, obj, form, change):
         """
         Custom model save method to add current user to the `updated_by` field.
         """
         obj.updated_by = request.user
+        obj.application_id = self._get_application_id(request)
         return super().save_model(request, obj, form, change)
 
 
