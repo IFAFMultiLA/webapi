@@ -276,9 +276,12 @@ class ApplicationAdmin(admin.ModelAdmin):
         """
         self._apps_confs_sessions = defaultdict(dict)
         # load application sessions per application configurations per applications
-        qs_app_sessions = (ApplicationSession.objects.select_related('config', 'config__application')
-                           .order_by('config__application_id', 'config__label')
-                           .values_list('config__application_id', 'config__id', 'config__label', 'code', 'description'))
+        qs_app_sessions = (Application.objects.prefetch_related('applicationconfig', 'applicationsession')
+                           .order_by('id', 'applicationconfig__label')
+                           .values_list('id',
+                                        'applicationconfig__id', 'applicationconfig__label',
+                                        'applicationconfig__applicationsession__code',
+                                        'applicationconfig__applicationsession__description'))
         # iterate through application sessions and build hierarchical dict:
         # {
         #   <app_id>: {
@@ -293,11 +296,17 @@ class ApplicationAdmin(admin.ModelAdmin):
         #     ...
         # }
         for app_id, config_id, config_label, sess_code, sess_descr in qs_app_sessions:
+            if config_id is None:
+                continue
+
             if config_id in self._apps_confs_sessions[app_id]:
                 conf_dict = self._apps_confs_sessions[app_id][config_id]
             else:
                 conf_dict = {'config_label': config_label, 'sessions': {}}
-            conf_dict['sessions'][sess_code] = sess_descr
+
+            if sess_code:
+                conf_dict['sessions'][sess_code] = sess_descr
+
             self._apps_confs_sessions[app_id][config_id] = conf_dict
 
         return super().changelist_view(request, extra_context=extra_context)
@@ -320,7 +329,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         else:
             # on create, don't show "default application session" field, as we can't possibly have created any
             # application session for this application, yet
-            return [f for f in fields if f != 'default_application_session']
+            return [f for f in fields if f not in {'default_application_session', 'updated_by', 'updated'}]
 
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
@@ -538,6 +547,13 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
         return super().get_queryset(request).select_related("updated_by")
+
+    def get_fields(self, request, obj=None):
+        """Customize fields: Remove some fields when creating a new gate."""
+        fields = super().get_fields(request, obj=obj)
+        if obj is None:
+            return [f for f in fields if f not in {'code', 'session_url', 'updated', 'updated_by'}]
+        return fields
 
     @admin.display(ordering=None, description='URL')
     def session_url(self, obj):
