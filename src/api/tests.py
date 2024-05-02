@@ -1109,9 +1109,9 @@ class ModelAdminTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        user = User.objects.create_superuser(username="admin", email="admin@example.com", password="test")
+        cls.user = User.objects.create_superuser(username="admin", email="admin@example.com", password="test")
         cls.request = RequestFactory().get('/admin')
-        cls.request.user = user
+        cls.request.user = cls.user
 
     def test_application_admin(self):
         modeladm = ApplicationAdmin(Application, admin_site)
@@ -1155,17 +1155,20 @@ class ModelAdminTests(TestCase):
         appconfig = ApplicationConfig(application=app,
                                       label="testconfig",
                                       config={"key": "value"})
+        request = RequestFactory().get('/admin', {'application': app.pk})
+        request.session = {}
+        request.user = self.user
         del app
 
         # check that "updated" and "updated_by" are correctly set
-        form = modeladm.get_form(self.request, change=False)
-        modeladm.save_model(self.request, appconfig, form, change=False)
-        self.assertEqual(appconfig.updated_by, self.request.user)
+        form = modeladm.get_form(request, change=False)
+        modeladm.save_model(request, appconfig, form, change=False)
+        self.assertEqual(appconfig.updated_by, request.user)
         self.assertIsNotNone(appconfig.updated)
 
-        form = modeladm.get_form(self.request, appconfig, change=True)
-        modeladm.save_model(self.request, appconfig, form, change=True)
-        self.assertEqual(appconfig.updated_by, self.request.user)
+        form = modeladm.get_form(request, appconfig, change=True)
+        modeladm.save_model(request, appconfig, form, change=True)
+        self.assertEqual(appconfig.updated_by, request.user)
         self.assertIsNotNone(appconfig.updated)
 
         # the instance in the DB is the same
@@ -1174,7 +1177,7 @@ class ModelAdminTests(TestCase):
 
         obj_views_args = dict(object_id=str(appconfig.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
-        self._check_modeladmin_default_views(modeladm, views_args)
+        self._check_modeladmin_default_views(modeladm, views_args, custom_request=request)
 
     def test_applicationsession_admin(self):
         modeladm = ApplicationSessionAdmin(ApplicationSession, admin_site)
@@ -1187,20 +1190,23 @@ class ModelAdminTests(TestCase):
                                       updated_by=self.request.user)
         appconfig.save()
         appsess = ApplicationSession(config=appconfig, auth_mode='none')
+        request = RequestFactory().get('/admin', {'config': appconfig.pk})
+        request.session = {}
+        request.user = self.user
         del app
 
         # check that a session code is generated
-        form = modeladm.get_form(self.request, change=False)
-        modeladm.save_model(self.request, appsess, form, change=False)
+        form = modeladm.get_form(request, change=False)
+        modeladm.save_model(request, appsess, form, change=False)
         self.assertIsInstance(appsess.code, str)
         self.assertEqual(len(appsess.code), 10)
-        self.assertEqual(appsess.updated_by, self.request.user)
+        self.assertEqual(appsess.updated_by, request.user)
         self.assertIsNotNone(appsess.updated)
 
         # check that "updated" and "updated_by" are correctly set on update
-        form = modeladm.get_form(self.request, appsess, change=True)
-        modeladm.save_model(self.request, appsess, form, change=True)
-        self.assertEqual(appsess.updated_by, self.request.user)
+        form = modeladm.get_form(request, appsess, change=True)
+        modeladm.save_model(request, appsess, form, change=True)
+        self.assertEqual(appsess.updated_by, request.user)
         self.assertIsNotNone(appsess.updated)
 
         appsess_from_db = ApplicationSession.objects.get(config=appconfig)
@@ -1208,7 +1214,7 @@ class ModelAdminTests(TestCase):
 
         obj_views_args = dict(object_id=str(appsess.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
-        self._check_modeladmin_default_views(modeladm, views_args)
+        self._check_modeladmin_default_views(modeladm, views_args, custom_request=request)
 
     def test_applicationsessiongate_admin(self):
         modeladm = ApplicationSessionGateAdmin(ApplicationSessionGate, admin_site)
