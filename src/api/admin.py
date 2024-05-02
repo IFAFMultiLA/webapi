@@ -190,9 +190,9 @@ class ApplicationAdmin(admin.ModelAdmin):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.apps_confs_sessions = defaultdict(dict)
+        self.apps_confs_sessions = None
 
-    @admin.display(ordering='name')
+    @admin.display(ordering='name', description='Name')
     def name_w_url(self, obj):
         change_url = reverse('admin:api_application_change', args=(obj.id,))
         return mark_safe(f'<p><a href="{change_url}">{obj.name}</a></p>'
@@ -245,6 +245,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         return mark_safe(f'<ul>{"".join(config_items)}</ul>')
 
     def changelist_view(self, request, extra_context=None):
+        self.apps_confs_sessions = defaultdict(dict)
         qs_app_sessions = (ApplicationSession.objects.select_related('config', 'config__application')
                            .order_by('config__application_id', 'config__label')
                            .values_list('config__application_id', 'config__id', 'config__label', 'code', 'description'))
@@ -297,8 +298,7 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
     Admin for ApplicationConfig model.
     """
     readonly_fields = ['updated', 'updated_by', 'application']
-    list_display = ['label', 'application_name', 'updated', 'updated_by']
-    list_display_links = ['label', 'application_name']
+    list_display = []
     form = ApplicationConfigForm
 
     @staticmethod
@@ -311,16 +311,11 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
 
         return application_id
 
-    def get_queryset(self, request):
-        """Custom queryset for more efficient queries."""
-        return super().get_queryset(request).select_related("updated_by", "application")
-
-    @admin.display(ordering='application__name', description='Application')
-    def application_name(self, obj):
-        """
-        Custom display field for name of the application for this configuration.
-        """
-        return obj.application.name
+    def get_fields(self, request, obj=None):
+        fields = super().get_fields(request, obj=obj)
+        if obj is None:
+            return [f for f in fields if f not in {'application', 'updated', 'updated_by'}]
+        return fields
 
     def add_view(self, request, form_url="", extra_context=None):
         if not self._get_application_id(request):
@@ -362,47 +357,64 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
     """
     Admin for ApplicationSession model.
     """
-    fields = ['code', 'session_url', 'description', 'config', 'auth_mode', 'updated', 'updated_by']
-    readonly_fields = ['code', 'session_url', 'updated', 'updated_by']
-    list_display = ['code', 'config_label', 'description', 'session_url', 'auth_mode', 'updated', 'updated_by']
-    ordering = ['config__application__name']
+    fields = ['code', 'session_url', 'description', 'auth_mode', 'updated', 'updated_by']
+    readonly_fields = ['config', 'code', 'session_url', 'updated', 'updated_by']
+    list_display = []
 
-    def get_queryset(self, request):
-        """Custom queryset for more efficient queries."""
-        return super().get_queryset(request).select_related("updated_by", "config", "config__application")
+    @staticmethod
+    def _get_config_id(request):
+        config_id = request.GET.get('config', None)
+        if config_id:
+            request.session['config'] = config_id
+        else:
+            config_id = request.session.get('config', None)
 
-    @admin.display(ordering='config__application__name', description='Application configuration')
-    def config_label(self, obj):
-        """Custom display field combining the application name and the configuration label."""
-        return f'{obj.config.application.name} / {obj.config.label}'
+        return config_id
 
-    @admin.display(ordering=None, description='URL')
-    def session_url(self, obj):
-        """Custom display field for URL pointing to application with session code attached."""
-        sess_url = obj.session_url()
-        return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
+    def get_fields(self, request, obj=None):
+        fields = super().get_fields(request, obj=obj)
+        if obj is None:
+            return [f for f in fields if f not in {'code', 'session_url', 'updated', 'updated_by'}]
+        return fields
 
     def save_model(self, request, obj, form, change):
         """
         Custom model save method to add current user to the `updated_by` field and generate a session code for newly
         created sessions.
         """
+        obj.config_id = self._get_config_id(request)
         obj.updated_by = request.user
 
         if not change:
             obj.generate_code()
         return super().save_model(request, obj, form, change)
 
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        """
-        Adjust form field for specific foreign key model fields.
-        """
-        if db_field.name == "config":
-            # queryset for application configuration choices
-            kwargs['queryset'] = ApplicationConfig.objects.select_related('application') \
-                .order_by('application__name', 'label')
+    def add_view(self, request, form_url="", extra_context=None):
+        if not self._get_config_id(request):
+            messages.error(request, 'No application configuration selected.')
+            return redirect(reverse('admin:api_application_changelist'))
 
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+        return super().add_view(request, form_url=form_url, extra_context=extra_context)
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        if not self._get_config_id(request):
+            messages.error(request, 'No application configuration selected.')
+            return redirect(reverse('admin:api_application_changelist'))
+
+        return super().change_view(request, object_id=object_id, form_url=form_url, extra_context=extra_context)
+
+    def response_post_save_add(self, request, obj):
+        return redirect(reverse('admin:api_application_changelist'))
+
+    def response_post_save_change(self, request, obj):
+        return redirect(reverse('admin:api_application_changelist'))
+
+    def response_delete(self, request, obj_display, obj_id):
+        response = super().response_delete(request, obj_display=obj_display, obj_id=obj_id)
+        if (isinstance(response, HttpResponseRedirect) and
+                response.url == reverse('admin:api_applicationsession_changelist')):
+            response = redirect(reverse('admin:api_application_changelist'))
+        return response
 
 
 class ApplicationSessionGateAppSessionsInlineModelChoiceField(forms.ModelChoiceField):
@@ -843,10 +855,11 @@ class MultiLAAdminSite(admin.AdminSite):
         # first, remove the TrackingSession admin from the default admin menu, because we will list it under the
         # custom "datamanager" app
         app_list = super().get_app_list(request)
+        remove_apps = {'ApplicationConfig', 'ApplicationSession', 'UserFeedback', 'TrackingSession', 'TrackingEvent'}
         for app in app_list:
             if app['app_label'] == 'api':
                 app['models'] = [m for m in app['models']
-                                 if m['object_name'] not in {'UserFeedback', 'TrackingSession', 'TrackingEvent'}]
+                                 if m['object_name'] not in remove_apps]
 
         # add a custom data manager app
         datamanager_app = {
