@@ -10,7 +10,7 @@ be formatted in ISO 8601 format.
 from functools import wraps
 
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import defaults as default_views
@@ -583,6 +583,10 @@ def app_session_gate(request, sessioncode):
     Session gate redirect. Look up session gate with code `sessioncode`, select the next app session at the next
     redirection index and redirect it to that URL. Increase the next redirection index by 1.
     """
+
+    cookie_key = 'gate_app_sess_' + sessioncode
+    app_sess = None
+
     with transaction.atomic():
         # get the app. session gate
         gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
@@ -592,16 +596,30 @@ def app_session_gate(request, sessioncode):
         if n_app_sess <= 0:
             return HttpResponse(status=status.HTTP_204_NO_CONTENT)
 
-        # get the redirect URL at the current index
-        index = min(n_app_sess - 1, gate.next_forward_index)
-        redirect_url = gate.app_sessions.order_by('code')[index].session_url()
+        # try to get the app. session from the cookie
+        if app_sess_from_cookie := request.COOKIES.get(cookie_key, None):
+            try:
+                app_sess = gate.app_sessions.get(code=app_sess_from_cookie)
+            except ApplicationSession.DoesNotExist:
+                pass
 
-        # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to visit one
-        # app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
-        gate.next_forward_index = (index + 1) % n_app_sess
-        gate.save()
+        if app_sess is None:   # first visit – app. session not already stored in a cookie
+            # get the redirect URL at the current index
+            index = min(n_app_sess - 1, gate.next_forward_index)
+            app_sess = gate.app_sessions.order_by('code')[index]
 
-    return redirect(redirect_url)
+            # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to visit one
+            # app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
+            gate.next_forward_index = (index + 1) % n_app_sess
+            gate.save()
+
+    if app_sess:
+        # set cookie and redirect to app. session
+        response = HttpResponseRedirect(app_sess.session_url())
+        response.set_cookie(cookie_key, app_sess.code, max_age=60*60*12, secure=True)
+        return response
+    # something went wrong
+    return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 
 
 # --- helpers ---

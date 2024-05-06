@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.forms.models import ModelFormMetaclass, ModelForm
+from django.http import SimpleCookie
 from django.template.response import TemplateResponse
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
@@ -1070,6 +1071,7 @@ class ViewTests(CustomAPITestCase):
             app_sessions.append(appsess)
         # it's important to sort them, as this determines the order in which the redirects happen
         app_sessions = sorted(app_sessions, key=lambda x: x.code)
+        app_session_codes = {sess.code for sess in app_sessions}
 
         # iterate through the number of app sessions that we want to assign to a gate
         for n_app_sessions in range(len(app_sessions)):
@@ -1080,17 +1082,29 @@ class ViewTests(CustomAPITestCase):
             gate.app_sessions.set(app_sessions[:n_app_sessions])
 
             # visit the gate with that session multiple times
-            for i in range(n_app_sessions*2):
-                response = self.client.get(reverse('gate', args=[gate.code]))
-                if n_app_sessions == 0:
-                    # gate with no assigned app sessions always returns "204 no content"
-                    self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-                else:
-                    # gates with assigned app sessions should answer with a redirect to the respective app session
-                    self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-                    # visit one app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
-                    appsess = app_sessions[i % n_app_sessions]
-                    self.assertEqual(response.url, appsess.session_url())
+            for reset_cookies in (False, True):
+                for i in range(n_app_sessions*2):
+                    response = self.client.get(reverse('gate', args=[gate.code]))
+                    if n_app_sessions == 0:
+                        # gate with no assigned app sessions always returns "204 no content"
+                        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+                    else:
+                        # gates with assigned app sessions should answer with a redirect to the respective app session
+                        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+                        self.assertIn('gate_app_sess_' + gate.code, response.cookies)
+                        self.assertIn(response.cookies['gate_app_sess_' + gate.code].value, app_session_codes)
+                        if reset_cookies:
+                            # cookies were reset – simulates a new client -> visit one app session after another,
+                            # e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
+                            appsess = app_sessions[i % n_app_sessions]
+                            self.assertEqual(response.url, appsess.session_url())
+                        else:
+                            # cookies remain – simulates same client -> visit same app session as before (here, always
+                            # the first of the gate)
+                            self.assertEqual(response.url, app_sessions[0].session_url())
+
+                    if reset_cookies:
+                        self.client.cookies = SimpleCookie()
 
 
 # ----- admin -----
