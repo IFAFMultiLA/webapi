@@ -745,6 +745,25 @@ class UserFeedbackAdmin(admin.ModelAdmin):
         return super().changelist_view(request, extra_context=extra_context)
 
 
+class TrackingSessionAppSessionsFilter(admin.SimpleListFilter):
+    """Custom filter used in `TrackingSessionAdmin` for filtering application sessions."""
+    title = 'Application session'
+    parameter_name = 'appsession'
+
+    def lookups(self, request, model_admin):
+        """Yield tuples of (app. session code, app. session description)."""
+        qs = model_admin.get_queryset(request)
+        relfield = 'user_app_session__application_session'
+        for code, descr in qs.values_list(relfield + '__code', relfield + '__description').distinct():
+            yield code, f'{code} – {descr}' if descr else code
+
+    def queryset(self, request, queryset):
+        """Filter queryset by application session."""
+        if self.value():
+            return queryset.filter(user_app_session__application_session=self.value())
+        return queryset
+
+
 class TrackingSessionAdmin(admin.ModelAdmin):
     """
     Model admin for TrackingSession model.
@@ -755,7 +774,8 @@ class TrackingSessionAdmin(admin.ModelAdmin):
     list_display = ['tracking_sess_id', 'app_config_sess', 'session_url', 'start_time', 'end_time', 'n_events',
                     'options']
     list_select_related = True
-    list_filter = ['user_app_session__application_session__config__application__name', 'start_time', 'end_time']
+    list_filter = ['user_app_session__application_session__config__application__name',
+                   TrackingSessionAppSessionsFilter, 'start_time', 'end_time']
 
     def has_add_permission(self, request):
         return False
