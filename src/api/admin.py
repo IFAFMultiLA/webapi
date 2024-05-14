@@ -85,6 +85,9 @@ class ApplicationConfigForm(forms.ModelForm):
                                  help_text="Enables dynamic summary panel displayed on the right side of the "
                                            "application.",
                                  initial=True, required=False)
+    reset_button = forms.BooleanField(label="Enable reset button",
+                                      help_text="Show a reset button to clear all inputs and restart the tutorial.",
+                                      initial=True, required=False)
     track_mouse = forms.BooleanField(label="Enable mouse tracking",
                                      help_text="Enable tracking mouse movements, scrolls and clicks or touches when "
                                                "the user device has no mouse.",
@@ -157,7 +160,7 @@ class ApplicationConfigForm(forms.ModelForm):
         for f in ('exclude', 'js', 'css'):
             config[f] = [v.strip() for v in self.cleaned_data.get(f, '').split(',') if v.strip()]
         # apply fields with on/off options
-        for f in ('feedback', 'summary'):
+        for f in ('feedback', 'summary', 'reset_button'):
             config[f] = self.cleaned_data.get(f, APPLICATION_CONFIG_DEFAULT_JSON[f])
         for f, default_val in APPLICATION_CONFIG_DEFAULT_JSON['tracking'].items():
             config['tracking'][f] = self.cleaned_data.get('track_' + f, default_val)
