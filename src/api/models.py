@@ -22,6 +22,7 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
     "css": [],
     "feedback": True,
     "summary": True,
+    "reset_button": True,
     "tracking": {
         "mouse": True,
         "inputs": True,
