@@ -1320,7 +1320,7 @@ class MultiLAAdminSite(admin.AdminSite):
 
             def format_if_datetime(x):
                 if isinstance(x, datetime):
-                    return utc_to_default_tz(x).strftime('%Y-%m-%dT%H:%M:%S.%f')
+                    return utc_to_default_tz(x).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
                 else:
                     return x
 
