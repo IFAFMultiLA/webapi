@@ -191,6 +191,18 @@ class ApplicationConfigInline(admin.StackedInline):
         return 0 if obj else 1
 
 
+def add_default_session_to_app_config(app_config):
+    """Add a default application session for a given application configuration `app_config`."""
+    default_app_sess = ApplicationSession(config=app_config,
+                                          auth_mode=ApplicationSession.AUTH_MODE_OPTIONS[0][0],
+                                          description=app_config.label,
+                                          updated_by=app_config.updated_by)
+    default_app_sess.generate_code()
+    default_app_sess.save()
+
+    return default_app_sess
+
+
 class ApplicationAdmin(admin.ModelAdmin):
     """
     Admin for Application model.
@@ -353,6 +365,16 @@ class ApplicationAdmin(admin.ModelAdmin):
 
         return form
 
+    def response_post_save_add(self, request, obj):
+        """
+        Custom response function to additionally add a default application session for each application configuration
+        that was added.
+        """
+        for app_config in ApplicationConfig.objects.filter(application=obj):
+            add_default_session_to_app_config(app_config)
+
+        return super().response_post_save_add(request, obj)
+
 
 class ApplicationConfigAdmin(admin.ModelAdmin):
     """
@@ -424,12 +446,15 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """
-        Custom model save method to add current user to the `updated_by` field and assigne the selected
+        Custom model save method to add current user to the `updated_by` field and assign the selected
         application's ID.
         """
         obj.updated_by = request.user
         obj.application_id = self._get_application_id(request)
-        return super().save_model(request, obj, form, change)
+        super().save_model(request, obj, form, change)
+
+        if not change:
+            add_default_session_to_app_config(obj)
 
 
 class ApplicationSessionAdmin(admin.ModelAdmin):
