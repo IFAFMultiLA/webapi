@@ -402,6 +402,10 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
 
         return super().change_view(request, object_id=object_id, form_url=form_url, extra_context=extra_context)
 
+    def changelist_view(self, request, extra_context=None):
+        """Redirect to application changelist, where configurations are also shown."""
+        return redirect(reverse('admin:api_application_changelist'))
+
     def response_post_save_add(self, request, obj):
         """After saving a new application configuration, forward to the application changelist."""
         return redirect(reverse('admin:api_application_changelist'))
@@ -491,6 +495,10 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
             return redirect(reverse('admin:api_application_changelist'))
 
         return super().change_view(request, object_id=object_id, form_url=form_url, extra_context=extra_context)
+
+    def changelist_view(self, request, extra_context=None):
+        """Redirect to application changelist, where configurations are also shown."""
+        return redirect(reverse('admin:api_application_changelist'))
 
     def response_post_save_add(self, request, obj):
         """After saving a new application session, forward to the application changelist."""
