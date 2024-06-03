@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.forms.models import ModelFormMetaclass, ModelForm
-from django.http import SimpleCookie
+from django.http import SimpleCookie, HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
@@ -1111,15 +1111,21 @@ class ViewTests(CustomAPITestCase):
 
 
 class ModelAdminTests(TestCase):
-    def _check_modeladmin_default_views(self, modeladm, view_args=None, check_views=None, custom_request=None):
+    def _check_modeladmin_default_views(self, modeladm, view_args=None, check_views=None, custom_request=None,
+                                        changelist_redirect=None):
         view_args = view_args or {}
         check_views = check_views or ('add_view', 'change_view', 'changelist_view', 'delete_view', 'history_view')
         for viewfn_name in check_views:
             viewfn = getattr(modeladm, viewfn_name)
             args = view_args.get(viewfn_name, {})
             response = viewfn(custom_request or self.request, **args)
-            self.assertIsInstance(response, TemplateResponse)
-            self.assertEqual(response.status_code, 200)
+            if viewfn_name == 'changelist_view' and changelist_redirect:
+                self.assertIsInstance(response, HttpResponseRedirect)
+                self.assertEqual(response.url, changelist_redirect)
+                self.assertEqual(response.status_code, 302)
+            else:
+                self.assertIsInstance(response, TemplateResponse)
+                self.assertEqual(response.status_code, 200)
 
     @classmethod
     def setUpTestData(cls):
@@ -1191,7 +1197,8 @@ class ModelAdminTests(TestCase):
 
         obj_views_args = dict(object_id=str(appconfig.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
-        self._check_modeladmin_default_views(modeladm, views_args, custom_request=request)
+        self._check_modeladmin_default_views(modeladm, views_args, custom_request=request,
+                                             changelist_redirect=reverse('admin:api_application_changelist'))
 
     def test_applicationsession_admin(self):
         modeladm = ApplicationSessionAdmin(ApplicationSession, admin_site)
@@ -1228,7 +1235,8 @@ class ModelAdminTests(TestCase):
 
         obj_views_args = dict(object_id=str(appsess.pk))
         views_args = {'change_view': obj_views_args, 'delete_view': obj_views_args, 'history_view': obj_views_args}
-        self._check_modeladmin_default_views(modeladm, views_args, custom_request=request)
+        self._check_modeladmin_default_views(modeladm, views_args, custom_request=request,
+                                             changelist_redirect=reverse('admin:api_application_changelist'))
 
     def test_applicationsessiongate_admin(self):
         modeladm = ApplicationSessionGateAdmin(ApplicationSessionGate, admin_site)
