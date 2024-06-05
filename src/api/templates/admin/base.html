@@ -1,0 +1,17 @@
+{% extends 'admin/base.html' %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+#changelist table.configs_and_sessions tr {
+    background: transparent;
+}
+
+#changelist table.configs_and_sessions td:nth-of-type(1) {
+    padding-left: 3em;
+}
+
+#changelist table.configs_and_sessions td.add_config {
+    padding-left: 0;
+}
+</style>
+{% endblock %}
