@@ -209,7 +209,7 @@ class ApplicationAdmin(admin.ModelAdmin):
     """
     fields = ['name', 'url', 'default_application_session', 'updated', 'updated_by']
     readonly_fields = ['updated', 'updated_by']
-    list_display = ['name_w_url', 'configurations_and_sessions', 'session_urls', 'updated', 'updated_by']
+    list_display = ['name_w_url', 'configurations_and_sessions', 'updated', 'updated_by']
     inlines = [ApplicationConfigInline]
 
     def __init__(self, *args, **kwargs):
@@ -232,12 +232,15 @@ class ApplicationAdmin(admin.ModelAdmin):
         Display all configurations and sessions per application in a hierarchical way (nested lists).
         """
         configs = self._apps_confs_sessions.get(obj.id, {})
-        config_items = []
+
+        rows = []
         # iterate through configurations of this application
         for config_id, config_data in configs.items():
             config_url = reverse('admin:api_applicationconfig_change', args=[config_id])
             config_label = config_data['config_label']
-            session_items = []
+
+            rows.append(f'<tr><th colspan="2"><a href="{config_url}?application={obj.id}">{config_label}</a></th></tr>')
+
             # iterate through sessions of this application configuration
             for sess_code, sess_descr in config_data['sessions'].items():
                 sess_url = reverse('admin:api_applicationsession_change', args=[sess_code])
@@ -247,42 +250,21 @@ class ApplicationAdmin(admin.ModelAdmin):
                     sess_item_style = ' style="font-weight: bold;"'
                 else:
                     sess_item_style = ''
-                session_items.append(f'<li{sess_item_style}><a href="{sess_url}?config={config_id}">'
-                                     f'{sess_code}{sess_descr}</a></li>')
-
-            if session_items:
-                sessions_html = f'<ul>{"".join(session_items)}</ul>'
-            else:
-                sessions_html = ''
-
-            add_session_html = f'<p><a href="{reverse("admin:api_applicationsession_add")}?config={config_id}" ' \
-                               f'class="addlink">Add session</a></p>'
-
-            config_items.append(f'<li><a href="{config_url}?application={obj.id}">{config_label}</a>'
-                                f'{sessions_html}{add_session_html}</li>')
-
-        add_config_html = f'<p><a href="{reverse("admin:api_applicationconfig_add")}?application={obj.id}" ' \
-                          f'class="addlink">Add configuration</a></p>'
-
-        return mark_safe(f'<ul>{"".join(config_items)}</ul> {add_config_html}')
-
-    @admin.display(ordering=None, description="URLs")
-    def session_urls(self, obj):
-        """
-        Display session URLs per application.
-        """
-        configs = self._apps_confs_sessions.get(obj.id, {})
-        config_items = []
-        # iterate through configurations of this application
-        for config_id, config_data in configs.items():
-            session_items = []
-            # iterate through sessions of this application configuration
-            for sess_code, sess_descr in config_data['sessions'].items():
                 app_sess_url = application_session_url(obj, sess_code)
-                session_items.append(f'<li><a href="{app_sess_url}" target="_blank">{app_sess_url}</a></li>')
-            config_items.append(f'<li style="list-style-type:none">&nbsp;</li><li style="list-style-type:none">'
-                                f'<ul>{"".join(session_items)}</ul><p>&nbsp;</p></li>')
-        return mark_safe(f'<ul>{"".join(config_items)}</ul>')
+                rows.append(f'<tr><td{sess_item_style}>'
+                            f'<a href="{sess_url}?config={config_id}">{sess_code}{sess_descr}</a></td>'
+                            f'<td><a href="{app_sess_url}" target="_blank">{app_sess_url}</a></td></tr>')
+
+            rows.append(f'<tr><td colspan="2">'
+                        f'<a href="{reverse("admin:api_applicationsession_add")}?config={config_id}" class="addlink">'
+                        f'Add session</a></td></tr>')
+        rows.append(f'<tr><td colspan="2" class="add_config">'
+                    f'<a href="{reverse("admin:api_applicationconfig_add")}?application={obj.id}" class="addlink">'
+                    f'Add configuration</a></td></tr>')
+
+        return mark_safe(f'<table width="100%" class="configs_and_sessions">'
+                         f'<colgroup><col width="33%" /></col width="67%" /></colgroup>'
+                         f'{"".join(rows)}</table>')
 
     def changelist_view(self, request, extra_context=None):
         """
