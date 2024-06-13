@@ -13,6 +13,7 @@ from . import views
 
 # map URL patterns to views
 urlpatterns = [
+    path('', views.index, name='index'),
     path('session/', views.app_session, name='session'),
     path('session_login/', views.app_session_login, name='session_login'),
     path('register_user/', views.register_user, name='register_user'),

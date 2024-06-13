@@ -11,7 +11,7 @@ from functools import wraps
 
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import defaults as default_views
 from django.views.csrf import csrf_failure as default_csrf_failure
@@ -119,6 +119,9 @@ def require_tracking_session(view_fn):
 
 # --- views ---
 
+
+def index(request):
+    return render(request, "index.html")
 
 @ensure_csrf_cookie
 @api_view(['GET'])
