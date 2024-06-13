@@ -427,6 +427,11 @@ class ViewTests(CustomAPITestCase):
         self.app_with_default_sess.default_application_session = self.app_sess_no_auth2
         self.app_with_default_sess.save()
 
+    def test_index(self):
+        response = self.client.get('')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.headers['Content-Type'].startswith('text/html'))
+
     def test_404(self):
         response = self.client.get('foo', content_type='application/json')
         self.assertEqual(response.headers['Content-Type'], 'application/json')
