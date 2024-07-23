@@ -4,15 +4,16 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0021_rename_last_forward_index_applicationsessiongate_next_forward_index'),
+        ("api", "0021_rename_last_forward_index_applicationsessiongate_next_forward_index"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='applicationsessiongate',
-            name='code',
-            field=models.CharField(max_length=10, primary_key=True, serialize=False, verbose_name='Unique gate session code'),
+            model_name="applicationsessiongate",
+            name="code",
+            field=models.CharField(
+                max_length=10, primary_key=True, serialize=False, verbose_name="Unique gate session code"
+            ),
         ),
     ]

@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0006_alter_trackingsession_start_time'),
+        ("api", "0006_alter_trackingsession_start_time"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='trackingsession',
-            name='device_info',
-            field=models.JSONField(blank=True, null=True, verbose_name='User device information'),
+            model_name="trackingsession",
+            name="device_info",
+            field=models.JSONField(blank=True, null=True, verbose_name="User device information"),
         ),
     ]

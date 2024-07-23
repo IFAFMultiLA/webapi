@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0014_alter_userfeedback_score'),
+        ("api", "0014_alter_userfeedback_score"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='userfeedback',
-            name='text',
-            field=models.TextField(blank=True, default=None, null=True, verbose_name='Feedback text'),
+            model_name="userfeedback",
+            name="text",
+            field=models.TextField(blank=True, default=None, null=True, verbose_name="Feedback text"),
         ),
     ]

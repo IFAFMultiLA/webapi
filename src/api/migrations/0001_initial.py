@@ -6,7 +6,6 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -15,69 +14,106 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Application',
+            name="Application",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=64, unique=True, verbose_name='Name')),
-                ('url', models.URLField(max_length=512, unique=True, verbose_name='URL')),
-                ('updated', models.DateTimeField(auto_now=True, verbose_name='Last update')),
-                ('updated_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("name", models.CharField(max_length=64, unique=True, verbose_name="Name")),
+                ("url", models.URLField(max_length=512, unique=True, verbose_name="URL")),
+                ("updated", models.DateTimeField(auto_now=True, verbose_name="Last update")),
+                (
+                    "updated_by",
+                    models.ForeignKey(
+                        null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='ApplicationConfig',
+            name="ApplicationConfig",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('label', models.CharField(help_text='A unique label to identify this configuration.', max_length=128, verbose_name='Configuration label')),
-                ('config', models.JSONField(blank=True, verbose_name='Configuration')),
-                ('updated', models.DateTimeField(auto_now=True, verbose_name='Last update')),
-                ('application', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.application')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "label",
+                    models.CharField(
+                        help_text="A unique label to identify this configuration.",
+                        max_length=128,
+                        verbose_name="Configuration label",
+                    ),
+                ),
+                ("config", models.JSONField(blank=True, verbose_name="Configuration")),
+                ("updated", models.DateTimeField(auto_now=True, verbose_name="Last update")),
+                ("application", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="api.application")),
             ],
         ),
         migrations.CreateModel(
-            name='ApplicationSession',
+            name="ApplicationSession",
             fields=[
-                ('code', models.CharField(max_length=10, primary_key=True, serialize=False, verbose_name='Unique session code')),
-                ('auth_mode', models.CharField(choices=[('none', 'No authentication'), ('login', 'Login')], max_length=5)),
-                ('config', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.applicationconfig')),
+                (
+                    "code",
+                    models.CharField(
+                        max_length=10, primary_key=True, serialize=False, verbose_name="Unique session code"
+                    ),
+                ),
+                (
+                    "auth_mode",
+                    models.CharField(choices=[("none", "No authentication"), ("login", "Login")], max_length=5),
+                ),
+                ("config", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="api.applicationconfig")),
             ],
         ),
         migrations.CreateModel(
-            name='UserApplicationSession',
+            name="UserApplicationSession",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('code', models.CharField(max_length=10, verbose_name='Unique user session code')),
-                ('created', models.DateTimeField(auto_now_add=True, verbose_name='Creation time')),
-                ('application_session', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.applicationsession')),
-                ('user', models.ForeignKey(default=None, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("code", models.CharField(max_length=10, verbose_name="Unique user session code")),
+                ("created", models.DateTimeField(auto_now_add=True, verbose_name="Creation time")),
+                (
+                    "application_session",
+                    models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="api.applicationsession"),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        default=None,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='TrackingSession',
+            name="TrackingSession",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('start_time', models.DateTimeField(auto_now_add=True, verbose_name='Session start')),
-                ('end_time', models.DateTimeField(default=None, null=True, verbose_name='Session end')),
-                ('device_info', models.TextField(blank=True, verbose_name='User device information')),
-                ('user_app_session', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.userapplicationsession')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("start_time", models.DateTimeField(auto_now_add=True, verbose_name="Session start")),
+                ("end_time", models.DateTimeField(default=None, null=True, verbose_name="Session end")),
+                ("device_info", models.TextField(blank=True, verbose_name="User device information")),
+                (
+                    "user_app_session",
+                    models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="api.userapplicationsession"),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='TrackingEvent',
+            name="TrackingEvent",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('time', models.DateTimeField()),
-                ('type', models.CharField(max_length=128, verbose_name='Event type')),
-                ('value', models.JSONField(blank=True, verbose_name='Event value')),
-                ('tracking_session', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.trackingsession')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("time", models.DateTimeField()),
+                ("type", models.CharField(max_length=128, verbose_name="Event type")),
+                ("value", models.JSONField(blank=True, verbose_name="Event value")),
+                (
+                    "tracking_session",
+                    models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to="api.trackingsession"),
+                ),
             ],
         ),
         migrations.AddConstraint(
-            model_name='userapplicationsession',
-            constraint=models.UniqueConstraint(fields=('application_session', 'code'), name='unique_appsess_code'),
+            model_name="userapplicationsession",
+            constraint=models.UniqueConstraint(fields=("application_session", "code"), name="unique_appsess_code"),
         ),
         migrations.AddConstraint(
-            model_name='applicationconfig',
-            constraint=models.UniqueConstraint(fields=('application', 'label'), name='unique_app_label'),
+            model_name="applicationconfig",
+            constraint=models.UniqueConstraint(fields=("application", "label"), name="unique_app_label"),
         ),
     ]

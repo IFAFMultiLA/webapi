@@ -5,16 +5,17 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0011_remove_userfeedback_application_session_and_more'),
+        ("api", "0011_remove_userfeedback_application_session_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='userfeedback',
-            name='created',
-            field=models.DateTimeField(auto_now_add=True, default=django.utils.timezone.now, verbose_name='Creation time'),
+            model_name="userfeedback",
+            name="created",
+            field=models.DateTimeField(
+                auto_now_add=True, default=django.utils.timezone.now, verbose_name="Creation time"
+            ),
             preserve_default=False,
         ),
     ]

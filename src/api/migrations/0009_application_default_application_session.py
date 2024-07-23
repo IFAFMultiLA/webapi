@@ -5,15 +5,16 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0008_alter_trackingevent_value'),
+        ("api", "0008_alter_trackingevent_value"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='application',
-            name='default_application_session',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='api.applicationsession'),
+            model_name="application",
+            name="default_application_session",
+            field=models.ForeignKey(
+                null=True, on_delete=django.db.models.deletion.SET_NULL, to="api.applicationsession"
+            ),
         ),
     ]

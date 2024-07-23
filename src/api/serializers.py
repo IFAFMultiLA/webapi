@@ -28,7 +28,7 @@ def _validate_timestamp(t):
     if now - TIMESTAMP_VALIDATION_MAX_AGE <= t <= now + TIMESTAMP_VALIDATION_MAX_FUTURE:
         return t
     else:
-        raise serializers.ValidationError('invalid timestamp')
+        raise serializers.ValidationError("invalid timestamp")
 
 
 class TrackingSessionSerializer(serializers.ModelSerializer):
@@ -42,7 +42,7 @@ class TrackingSessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TrackingSession
-        fields = ['user_app_session', 'start_time', 'end_time', 'device_info']
+        fields = ["user_app_session", "start_time", "end_time", "device_info"]
 
 
 class TrackingEventSerializer(serializers.ModelSerializer):
@@ -53,11 +53,12 @@ class TrackingEventSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TrackingEvent
-        fields = ['tracking_session', 'time', 'type', 'value']
+        fields = ["tracking_session", "time", "type", "value"]
 
 
 class UserFeedbackSerializer(serializers.ModelSerializer):
     """Model serializer for UserFeedback"""
+
     class Meta:
         model = UserFeedback
-        fields = ['user_app_session', 'tracking_session', 'content_section', 'score', 'text']
+        fields = ["user_app_session", "tracking_session", "content_section", "score", "text"]

@@ -4,20 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0018_applicationsessiongate_label_and_more'),
+        ("api", "0018_applicationsessiongate_label_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='applicationsessiongate',
-            name='last_forward_index',
+            model_name="applicationsessiongate",
+            name="last_forward_index",
             field=models.PositiveIntegerField(default=0),
         ),
         migrations.AlterField(
-            model_name='applicationsessiongate',
-            name='app_sessions',
-            field=models.ManyToManyField(help_text='Application sessions to which this gate forwards', to='api.applicationsession', verbose_name='Application sessions'),
+            model_name="applicationsessiongate",
+            name="app_sessions",
+            field=models.ManyToManyField(
+                help_text="Application sessions to which this gate forwards",
+                to="api.applicationsession",
+                verbose_name="Application sessions",
+            ),
         ),
     ]

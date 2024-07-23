@@ -4,21 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0017_applicationsessiongate'),
+        ("api", "0017_applicationsessiongate"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='applicationsessiongate',
-            name='label',
-            field=models.CharField(default='', help_text='A unique label to identify this application gate.', max_length=128, verbose_name='Label'),
+            model_name="applicationsessiongate",
+            name="label",
+            field=models.CharField(
+                default="",
+                help_text="A unique label to identify this application gate.",
+                max_length=128,
+                verbose_name="Label",
+            ),
             preserve_default=False,
         ),
         migrations.AlterField(
-            model_name='applicationsessiongate',
-            name='description',
-            field=models.TextField(blank=True, default='', max_length=2048, verbose_name='Description'),
+            model_name="applicationsessiongate",
+            name="description",
+            field=models.TextField(blank=True, default="", max_length=2048, verbose_name="Description"),
         ),
     ]

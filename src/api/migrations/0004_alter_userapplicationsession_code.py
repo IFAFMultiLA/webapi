@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0003_applicationsession_updated'),
+        ("api", "0003_applicationsession_updated"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='userapplicationsession',
-            name='code',
-            field=models.CharField(max_length=64, verbose_name='Unique user session code'),
+            model_name="userapplicationsession",
+            name="code",
+            field=models.CharField(max_length=64, verbose_name="Unique user session code"),
         ),
     ]

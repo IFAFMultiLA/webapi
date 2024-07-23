@@ -4,14 +4,13 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0019_applicationsessiongate_last_forward_index_and_more'),
+        ("api", "0019_applicationsessiongate_last_forward_index_and_more"),
     ]
 
     operations = [
         migrations.AddConstraint(
-            model_name='applicationsessiongate',
-            constraint=models.UniqueConstraint(fields=('label',), name='unique_label'),
+            model_name="applicationsessiongate",
+            constraint=models.UniqueConstraint(fields=("label",), name="unique_label"),
         ),
     ]

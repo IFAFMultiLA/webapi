@@ -15,7 +15,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Q
 
-HASH_KEY = settings.SECRET_KEY.encode()[:32]   # hash salt
+HASH_KEY = settings.SECRET_KEY.encode()[:32]  # hash salt
 APPLICATION_CONFIG_DEFAULT_JSON = {
     "exclude": [],
     "js": [],
@@ -23,12 +23,7 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
     "feedback": True,
     "summary": True,
     "reset_button": True,
-    "tracking": {
-        "mouse": True,
-        "inputs": True,
-        "attribute_changes": False,
-        "chapters": True
-    }
+    "tracking": {"mouse": True, "inputs": True, "attribute_changes": False, "chapters": True},
 }
 
 
@@ -51,21 +46,22 @@ def current_time_bytes():
 
 def application_session_url(application, sess_code):
     baseurl = application.url
-    if not baseurl.endswith('/'):
-        baseurl += '/'
-    return f'{baseurl}?sess={sess_code}'
+    if not baseurl.endswith("/"):
+        baseurl += "/"
+    return f"{baseurl}?sess={sess_code}"
 
 
 class Application(models.Model):
     """A learning application located at a certain URL."""
-    name = models.CharField('Name', max_length=64, unique=True, blank=False)
-    url = models.URLField('URL', max_length=512, unique=True, blank=False)
-    updated = models.DateTimeField('Last update', auto_now=True)
+
+    name = models.CharField("Name", max_length=64, unique=True, blank=False)
+    url = models.URLField("URL", max_length=512, unique=True, blank=False)
+    updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
-    default_application_session = models.ForeignKey('ApplicationSession', null=True, on_delete=models.SET_NULL)
+    default_application_session = models.ForeignKey("ApplicationSession", null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
-        return f'{self.name} at {self.url} (#{self.pk})'
+        return f"{self.name} at {self.url} (#{self.pk})"
 
     class Meta:
         ordering = ["name"]
@@ -77,34 +73,38 @@ def application_config_default_json_instance():
 
 class ApplicationConfig(models.Model):
     """A configuration for an application."""
+
     application = models.ForeignKey(Application, on_delete=models.CASCADE)
-    label = models.CharField('Configuration label', max_length=128, blank=False,
-                             help_text='A unique label to identify this configuration.')
-    config = models.JSONField('Configuration', blank=True, default=application_config_default_json_instance)
-    updated = models.DateTimeField('Last update', auto_now=True)
+    label = models.CharField(
+        "Configuration label", max_length=128, blank=False, help_text="A unique label to identify this configuration."
+    )
+    config = models.JSONField("Configuration", blank=True, default=application_config_default_json_instance)
+    updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
     def __str__(self):
         return f'{self.application.name} (#{self.application_id}) / configuration "{self.label}" (#{self.id})'
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['application', 'label'], name='unique_app_label')]
-        verbose_name = 'Application configuration'
+        constraints = [models.UniqueConstraint(fields=["application", "label"], name="unique_app_label")]
+        verbose_name = "Application configuration"
 
 
 class ApplicationSession(models.Model):
     """A session for a configured application that can be shared among participants using a unique session code."""
+
     AUTH_MODE_OPTIONS = (
-        ('none', 'No authentication'),
-        ('login', 'Login'),
+        ("none", "No authentication"),
+        ("login", "Login"),
     )
 
-    code = models.CharField('Unique session code', max_length=10, primary_key=True)
+    code = models.CharField("Unique session code", max_length=10, primary_key=True)
     config = models.ForeignKey(ApplicationConfig, on_delete=models.CASCADE)
-    auth_mode = models.CharField(choices=AUTH_MODE_OPTIONS, max_length=max_options_length(AUTH_MODE_OPTIONS),
-                                 blank=False)
-    description = models.CharField('Description', max_length=256, blank=True, default='')
-    updated = models.DateTimeField('Last update', auto_now=True)
+    auth_mode = models.CharField(
+        choices=AUTH_MODE_OPTIONS, max_length=max_options_length(AUTH_MODE_OPTIONS), blank=False
+    )
+    description = models.CharField("Description", max_length=256, blank=True, default="")
+    updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
     def generate_code(self, force=False):
@@ -112,9 +112,9 @@ class ApplicationSession(models.Model):
         Generate a unique code for this application session. If `force` is True, overwrite an already given code.
         """
         if self.code and not force:
-            raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
-        if not hasattr(self, 'config'):
-            raise ValueError('`self.config` must be set to generate a code')
+            raise ValueError("`self.code` is already given and overwriting is disabled (`force` is False)")
+        if not hasattr(self, "config"):
+            raise ValueError("`self.config` must be set to generate a code")
 
         # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
         # from the configuration and the current time
@@ -138,15 +138,19 @@ class ApplicationSessionGate(models.Model):
     A gate to bundle several application sessions especially for testing different variants of an app or different
     apps.
     """
-    code = models.CharField('Unique gate session code', max_length=10, primary_key=True)
-    label = models.CharField('Label', max_length=128, blank=False,
-                             help_text='A unique label to identify this application gate.')
-    description = models.TextField('Description', max_length=2048, blank=True, default='')
-    app_sessions = models.ManyToManyField(ApplicationSession,
-                                          verbose_name='Application sessions',
-                                          help_text='Application sessions to which this gate forwards')
-    next_forward_index = models.PositiveIntegerField(default=0)   # stores index to next target app session
-    updated = models.DateTimeField('Last update', auto_now=True)
+
+    code = models.CharField("Unique gate session code", max_length=10, primary_key=True)
+    label = models.CharField(
+        "Label", max_length=128, blank=False, help_text="A unique label to identify this application gate."
+    )
+    description = models.TextField("Description", max_length=2048, blank=True, default="")
+    app_sessions = models.ManyToManyField(
+        ApplicationSession,
+        verbose_name="Application sessions",
+        help_text="Application sessions to which this gate forwards",
+    )
+    next_forward_index = models.PositiveIntegerField(default=0)  # stores index to next target app session
+    updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
     def generate_code(self, force=False):
@@ -154,7 +158,7 @@ class ApplicationSessionGate(models.Model):
         Generate a unique code for this application session. If `force` is True, overwrite an already given code.
         """
         if self.code and not force:
-            raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
+            raise ValueError("`self.code` is already given and overwriting is disabled (`force` is False)")
 
         # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
         # from the current time
@@ -168,19 +172,20 @@ class ApplicationSessionGate(models.Model):
         Return a URL pointing to an application with the session code attached.
         """
         if self.code:
-            return reverse('gate', args=(self.code,))
+            return reverse("gate", args=(self.code,))
         else:
-            return ''
+            return ""
 
     def __str__(self):
         return f'Application session gate "{self.code}"'
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['label'], name='unique_label')]
+        constraints = [models.UniqueConstraint(fields=["label"], name="unique_label")]
 
 
 class UserApplicationSession(models.Model):
     """A session tied to a user for a specific application session."""
+
     application_session = models.ForeignKey(ApplicationSession, on_delete=models.CASCADE)
 
     # the following depends on the auth_mode of the application_session:
@@ -189,9 +194,9 @@ class UserApplicationSession(models.Model):
     # - in both cases, a unique code must be generated for the first login or visit (this code can then be
     #   stored via cookies)
     user = models.ForeignKey(User, null=True, default=None, on_delete=models.SET_NULL)
-    code = models.CharField('Unique user session code', max_length=64, blank=False)
+    code = models.CharField("Unique user session code", max_length=64, blank=False)
 
-    created = models.DateTimeField('Creation time', auto_now_add=True)
+    created = models.DateTimeField("Creation time", auto_now_add=True)
 
     def generate_code(self, force=False):
         """
@@ -199,7 +204,7 @@ class UserApplicationSession(models.Model):
         If `force` is True, overwrite an already given code.
         """
         if self.code and not force:
-            raise ValueError('`self.code` is already given and overwriting is disabled (`force` is False)')
+            raise ValueError("`self.code` is already given and overwriting is disabled (`force` is False)")
 
         # generate a code of length 64 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
         # from the application session code and the current time
@@ -209,11 +214,13 @@ class UserApplicationSession(models.Model):
         return self.code
 
     def __str__(self):
-        return f'User session #{self.pk} "{self.code}" for user #{self.user_id} and application session ' \
-               f'"{self.application_session_id}"'
+        return (
+            f'User session #{self.pk} "{self.code}" for user #{self.user_id} and application session '
+            f'"{self.application_session_id}"'
+        )
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['application_session', 'code'], name='unique_appsess_code')]
+        constraints = [models.UniqueConstraint(fields=["application_session", "code"], name="unique_appsess_code")]
 
 
 class TrackingSession(models.Model):
@@ -221,15 +228,18 @@ class TrackingSession(models.Model):
     A tracking session is a session that allows to collect data for a specific user session after login / first visit
     and until the tracking session is explicitly closed or timed out.
     """
+
     user_app_session = models.ForeignKey(UserApplicationSession, on_delete=models.CASCADE)
     # this information must be submitted and is not set via auto_now_add
-    start_time = models.DateTimeField('Session start', blank=False)
-    end_time = models.DateTimeField('Session end', null=True, default=None)
-    device_info = models.JSONField('User device information', blank=True, null=True)
+    start_time = models.DateTimeField("Session start", blank=False)
+    end_time = models.DateTimeField("Session end", null=True, default=None)
+    device_info = models.JSONField("User device information", blank=True, null=True)
 
     def __str__(self):
-        return f'Tracking session #{self.pk} for user application session #{self.user_app_session_id} in time range ' \
-               f'{self.start_time} to {self.end_time if self.end_time else "(ongoing)"}'
+        return (
+            f'Tracking session #{self.pk} for user application session #{self.user_app_session_id} in time range '
+            f'{self.start_time} to {self.end_time if self.end_time else "(ongoing)"}'
+        )
 
 
 class UserFeedback(models.Model):
@@ -241,6 +251,7 @@ class UserFeedback(models.Model):
     Only one user feedback is allowed by user application session and content section (see "unique constraint" in
     `Meta` class).
     """
+
     # the user application session for which the feedback was given;
     # this is set even when tracking was disabled or declined
     user_app_session = models.ForeignKey(UserApplicationSession, on_delete=models.CASCADE)
@@ -250,41 +261,49 @@ class UserFeedback(models.Model):
     tracking_session = models.ForeignKey(TrackingSession, null=True, default=None, on_delete=models.CASCADE)
 
     # an HTML XPath string referring to the content section for which the feedback was given
-    content_section = models.CharField('Content section identifier', max_length=1024, blank=False)
+    content_section = models.CharField("Content section identifier", max_length=1024, blank=False)
 
     # quantitative feedback given as integer score in range [1, 5];
     # NULL means no score given by user (either because quant. feedback was disabled or because user didn't provide
     # such feedback)
-    score = models.SmallIntegerField('Feedback score', null=True, default=None,
-                                     validators=[MinValueValidator(1), MaxValueValidator(5)])
+    score = models.SmallIntegerField(
+        "Feedback score", null=True, default=None, validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
 
     # qualitative feedback given as free form text;
     # NULL means no feedback given by user because qual. feedback was disabled; if qual. feedback was enabled but
     # no such feedback was given by the user, the field contains an empty string
-    text = models.TextField('Feedback text', null=True, default=None, blank=True)
+    text = models.TextField("Feedback text", null=True, default=None, blank=True)
 
-    created = models.DateTimeField('Creation time', auto_now_add=True)
+    created = models.DateTimeField("Creation time", auto_now_add=True)
 
     def __str__(self):
-        return f'User feedback #{self.pk} for user application session #{self.user_app_session_id} on content ' \
-               f'section {self.content_section}, created on {self.created}'
+        return (
+            f"User feedback #{self.pk} for user application session #{self.user_app_session_id} on content "
+            f"section {self.content_section}, created on {self.created}"
+        )
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['user_app_session', 'content_section'],
-                                    name='unique_userappsess_content_section'),
-            models.CheckConstraint(check=Q(score__isnull=False) | Q(text__isnull=False),
-                                   name="either_score_or_text_must_be_given")
+            models.UniqueConstraint(
+                fields=["user_app_session", "content_section"], name="unique_userappsess_content_section"
+            ),
+            models.CheckConstraint(
+                check=Q(score__isnull=False) | Q(text__isnull=False), name="either_score_or_text_must_be_given"
+            ),
         ]
 
 
 class TrackingEvent(models.Model):
     """An event tracked during interaction of a user within a tracking session of an application."""
+
     tracking_session = models.ForeignKey(TrackingSession, on_delete=models.CASCADE)
-    time = models.DateTimeField(blank=False)   # this information must be submitted and is not set via auto_now_add
-    type = models.CharField('Event type', max_length=128, blank=False)    # TODO: use discrete set of choices?
-    value = models.JSONField('Event value', blank=True, null=True)
+    time = models.DateTimeField(blank=False)  # this information must be submitted and is not set via auto_now_add
+    type = models.CharField("Event type", max_length=128, blank=False)  # TODO: use discrete set of choices?
+    value = models.JSONField("Event value", blank=True, null=True)
 
     def __str__(self):
-        return f'Tracking event #{self.pk} for tracking session #{self.tracking_session_id} at {self.time} of type ' \
-               f'"{self.type}"'
+        return (
+            f"Tracking event #{self.pk} for tracking session #{self.tracking_session_id} at {self.time} of type "
+            f'"{self.type}"'
+        )
