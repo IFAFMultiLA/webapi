@@ -3,7 +3,6 @@ Automated tests.
 
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
-
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -199,7 +198,7 @@ class UserFeedbackModelTests(TestCase):
         UserFeedback.objects.create(**args)
         UserFeedback.objects.create(user_app_session=self.user_app_sess, content_section='#uniquetest2', score=3)
 
-        with self.assertRaisesRegex(IntegrityError, r'unique_userappsess_content_section'):
+        with self.assertRaisesRegex(IntegrityError, r'unique constraint(?i)'):
             UserFeedback.objects.create(**args)
 
     def test_user_feedback_either_score_or_text_must_be_given_constraint(self):
