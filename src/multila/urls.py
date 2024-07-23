@@ -33,4 +33,5 @@ handler500 = 'api.views.server_error_failure'
 try:
     import debug_toolbar
     urlpatterns.append(path('__debug__/', include(debug_toolbar.urls)))
-except ModuleNotFoundError: pass
+except ModuleNotFoundError:
+    pass

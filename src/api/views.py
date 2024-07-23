@@ -297,9 +297,9 @@ def register_user(request):
                 return _validation_error('pw_too_short',
                                          f'Password must be at least {MIN_PASSWORD_LENGTH} characters long.')
             if password == username:
-                return _validation_error('pw_same_as_user', f'Password must be different from provided username.')
+                return _validation_error('pw_same_as_user', 'Password must be different from provided username.')
             if password == email:
-                return _validation_error('pw_same_as_email', f'Password must be different from provided email.')
+                return _validation_error('pw_same_as_email', 'Password must be different from provided email.')
 
             # try to create the account
             try:
