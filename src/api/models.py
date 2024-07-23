@@ -98,6 +98,8 @@ class ApplicationSession(models.Model):
         ("login", "Login"),
     )
 
+    code_gen_counter = 0
+
     code = models.CharField("Unique session code", max_length=10, primary_key=True)
     config = models.ForeignKey(ApplicationConfig, on_delete=models.CASCADE)
     auth_mode = models.CharField(
@@ -117,8 +119,9 @@ class ApplicationSession(models.Model):
             raise ValueError("`self.config` must be set to generate a code")
 
         # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
-        # from the configuration and the current time
-        data = json.dumps(self.config.config).encode() + current_time_bytes()
+        # from the configuration, the current time and a counter
+        data = json.dumps(self.config.config).encode() + current_time_bytes() + str(self.code_gen_counter).encode()
+        self.code_gen_counter += 1
         self.code = hashlib.blake2s(data, digest_size=5, key=HASH_KEY).hexdigest()
 
         return self.code
