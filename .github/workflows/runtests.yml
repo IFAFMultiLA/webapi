@@ -32,7 +32,7 @@ jobs:
       - name: run django setup
         run: |
           python src/manage.py migrate
-          python src/manage.py createsuperuser --username admin --noinput
+          python src/manage.py createsuperuser --username ci --email ci@localhost --noinput
       - name: run django check
         run: python src/manage.py check
       - name: run tests
