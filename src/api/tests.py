@@ -433,11 +433,13 @@ class ViewTests(CustomAPITestCase):
         # create an app session that requires login
         self.app_sess_login = ApplicationSession(config=app_config, auth_mode="login")
         self.app_sess_login.generate_code()
+        assert self.app_sess_no_auth.code != self.app_sess_login.code
         self.app_sess_login.save()
 
         # create an app session using the "no qual. feedback" config
         self.app_sess_no_auth_no_feedback = ApplicationSession(config=app_config_no_feedback, auth_mode="none")
         self.app_sess_no_auth_no_feedback.generate_code()
+        assert len({self.app_sess_no_auth.code, self.app_sess_login.code, self.app_sess_no_auth_no_feedback.code}) == 3
         self.app_sess_no_auth_no_feedback.save()
 
         # create a second test app
@@ -451,6 +453,17 @@ class ViewTests(CustomAPITestCase):
         # create an app session w/o authentication
         self.app_sess_no_auth2 = ApplicationSession(config=app_config, auth_mode="none")
         self.app_sess_no_auth2.generate_code()
+        assert (
+            len(
+                {
+                    self.app_sess_no_auth.code,
+                    self.app_sess_login.code,
+                    self.app_sess_no_auth_no_feedback.code,
+                    self.app_sess_no_auth2.code,
+                }
+            )
+            == 4
+        )
         self.app_sess_no_auth2.save()
 
         # set this app session as default for this app

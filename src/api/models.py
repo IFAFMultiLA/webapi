@@ -142,6 +142,8 @@ class ApplicationSessionGate(models.Model):
     apps.
     """
 
+    code_gen_counter = 0
+
     code = models.CharField("Unique gate session code", max_length=10, primary_key=True)
     label = models.CharField(
         "Label", max_length=128, blank=False, help_text="A unique label to identify this application gate."
@@ -164,8 +166,9 @@ class ApplicationSessionGate(models.Model):
             raise ValueError("`self.code` is already given and overwriting is disabled (`force` is False)")
 
         # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
-        # from the current time
-        data = "appsessiongate".encode() + current_time_bytes()
+        # from the current time and a counter
+        data = "appsessiongate".encode() + current_time_bytes() + str(self.code_gen_counter).encode()
+        self.code_gen_counter += 1
         self.code = hashlib.blake2s(data, digest_size=5, key=HASH_KEY).hexdigest()
 
         return self.code
