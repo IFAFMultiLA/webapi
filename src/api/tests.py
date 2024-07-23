@@ -20,6 +20,7 @@ from rest_framework.test import APITestCase, APIClient
 from .models import (
     max_options_length,
     current_time_bytes,
+    generate_hash_code,
     Application,
     ApplicationConfig,
     ApplicationSession,
@@ -77,6 +78,16 @@ class ModelsCommonTests(TestCase):
             - datetime.fromtimestamp(float.fromhex(current_time_bytes().decode("utf-8")), ZoneInfo(settings.TIME_ZONE))
             < timedelta(seconds=1)
         )
+
+    def test_generate_hash_code(self):
+        generated_codes = []
+        for s in range(2, 64):
+            for r in range(10):
+                code = generate_hash_code(b"foo", s)
+                self.assertIsInstance(code, str)
+                self.assertEqual(len(code), 2 * s)
+                generated_codes.append(code)
+        self.assertEqual(len(generated_codes), len(set(generated_codes)))
 
 
 class ApplicationSessionModelTests(TestCase):
@@ -738,7 +749,6 @@ class ViewTests(CustomAPITestCase):
     def test_start_tracking(self):
         # request application session – also sets CSRF token in cookie
         response = self.client.get(reverse("session"), {"sess": self.app_sess_no_auth.code})
-        print(response.json())
         auth_token = response.json()["user_code"]
 
         # test start tracking

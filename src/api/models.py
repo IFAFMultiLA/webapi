@@ -44,6 +44,19 @@ def current_time_bytes():
     return datetime.now().timestamp().hex().encode()
 
 
+code_gen_counter = 0
+
+
+def generate_hash_code(data, size):
+    """Generate a hash code of size `size` derived from given data `data`."""
+    global code_gen_counter
+    code = hashlib.blake2b(
+        data + current_time_bytes(), digest_size=size, key=HASH_KEY, salt=code_gen_counter.to_bytes(16, "big")
+    ).hexdigest()
+    code_gen_counter += 1
+    return code
+
+
 def application_session_url(application, sess_code):
     baseurl = application.url
     if not baseurl.endswith("/"):
@@ -98,8 +111,6 @@ class ApplicationSession(models.Model):
         ("login", "Login"),
     )
 
-    code_gen_counter = 0
-
     code = models.CharField("Unique session code", max_length=10, primary_key=True)
     config = models.ForeignKey(ApplicationConfig, on_delete=models.CASCADE)
     auth_mode = models.CharField(
@@ -120,9 +131,7 @@ class ApplicationSession(models.Model):
 
         # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
         # from the configuration, the current time and a counter
-        data = json.dumps(self.config.config).encode() + current_time_bytes() + str(self.code_gen_counter).encode()
-        self.code_gen_counter += 1
-        self.code = hashlib.blake2s(data, digest_size=5, key=HASH_KEY).hexdigest()
+        self.code = generate_hash_code(json.dumps(self.config.config).encode(), 5)
 
         return self.code
 
@@ -141,8 +150,6 @@ class ApplicationSessionGate(models.Model):
     A gate to bundle several application sessions especially for testing different variants of an app or different
     apps.
     """
-
-    code_gen_counter = 0
 
     code = models.CharField("Unique gate session code", max_length=10, primary_key=True)
     label = models.CharField(
@@ -167,9 +174,7 @@ class ApplicationSessionGate(models.Model):
 
         # generate a code of length 10 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
         # from the current time and a counter
-        data = "appsessiongate".encode() + current_time_bytes() + str(self.code_gen_counter).encode()
-        self.code_gen_counter += 1
-        self.code = hashlib.blake2s(data, digest_size=5, key=HASH_KEY).hexdigest()
+        self.code = generate_hash_code("appsessiongate".encode(), 5)
 
         return self.code
 
@@ -192,8 +197,6 @@ class ApplicationSessionGate(models.Model):
 class UserApplicationSession(models.Model):
     """A session tied to a user for a specific application session."""
 
-    code_gen_counter = 0
-
     application_session = models.ForeignKey(ApplicationSession, on_delete=models.CASCADE)
 
     # the following depends on the auth_mode of the application_session:
@@ -214,11 +217,9 @@ class UserApplicationSession(models.Model):
         if self.code and not force:
             raise ValueError("`self.code` is already given and overwriting is disabled (`force` is False)")
 
-        # generate a code of length 64 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
-        # from the configuration, the current time and a counter
-        data = self.application_session.code.encode() + current_time_bytes() + str(self.code_gen_counter).encode()
-        self.code_gen_counter += 1
-        self.code = hashlib.blake2s(data, digest_size=32, key=HASH_KEY).hexdigest()
+        # generate a code of length 32 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
+        # from the app session code, the current time and a counter
+        self.code = generate_hash_code(self.application_session.code.encode(), 32)
 
         return self.code
 
