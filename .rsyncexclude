@@ -14,3 +14,6 @@ src/multila/settings.py
 venv/
 **/__pycache__
 docs/
+.pre-commit-config.yaml
+.ruff_cache/
+ruff.toml
