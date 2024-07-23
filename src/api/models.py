@@ -189,6 +189,8 @@ class ApplicationSessionGate(models.Model):
 class UserApplicationSession(models.Model):
     """A session tied to a user for a specific application session."""
 
+    code_gen_counter = 0
+
     application_session = models.ForeignKey(ApplicationSession, on_delete=models.CASCADE)
 
     # the following depends on the auth_mode of the application_session:
@@ -210,8 +212,9 @@ class UserApplicationSession(models.Model):
             raise ValueError("`self.code` is already given and overwriting is disabled (`force` is False)")
 
         # generate a code of length 64 characters (hexdigest, i.e. numbers 0-9 and characters a-f); the code is derived
-        # from the application session code and the current time
-        data = self.application_session.code.encode() + current_time_bytes()
+        # from the configuration, the current time and a counter
+        data = self.application_session.code.encode() + current_time_bytes() + str(self.code_gen_counter).encode()
+        self.code_gen_counter += 1
         self.code = hashlib.blake2s(data, digest_size=32, key=HASH_KEY).hexdigest()
 
         return self.code

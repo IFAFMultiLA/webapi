@@ -725,6 +725,7 @@ class ViewTests(CustomAPITestCase):
     def test_start_tracking(self):
         # request application session – also sets CSRF token in cookie
         response = self.client.get(reverse("session"), {"sess": self.app_sess_no_auth.code})
+        print(response.json())
         auth_token = response.json()["user_code"]
 
         # test start tracking
