@@ -6,21 +6,30 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('api', '0016_applicationsession_description'),
+        ("api", "0016_applicationsession_description"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ApplicationSessionGate',
+            name="ApplicationSessionGate",
             fields=[
-                ('code', models.CharField(max_length=10, primary_key=True, serialize=False, verbose_name='Unique session code')),
-                ('description', models.CharField(blank=True, default='', max_length=256, verbose_name='Description')),
-                ('updated', models.DateTimeField(auto_now=True, verbose_name='Last update')),
-                ('app_sessions', models.ManyToManyField(to='api.applicationsession')),
-                ('updated_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                (
+                    "code",
+                    models.CharField(
+                        max_length=10, primary_key=True, serialize=False, verbose_name="Unique session code"
+                    ),
+                ),
+                ("description", models.CharField(blank=True, default="", max_length=256, verbose_name="Description")),
+                ("updated", models.DateTimeField(auto_now=True, verbose_name="Last update")),
+                ("app_sessions", models.ManyToManyField(to="api.applicationsession")),
+                (
+                    "updated_by",
+                    models.ForeignKey(
+                        null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL
+                    ),
+                ),
             ],
         ),
     ]

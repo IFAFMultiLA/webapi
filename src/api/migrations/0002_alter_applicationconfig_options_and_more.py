@@ -6,25 +6,28 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('api', '0001_initial'),
+        ("api", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='applicationconfig',
-            options={'verbose_name': 'Application configuration'},
+            name="applicationconfig",
+            options={"verbose_name": "Application configuration"},
         ),
         migrations.AddField(
-            model_name='applicationconfig',
-            name='updated_by',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL),
+            model_name="applicationconfig",
+            name="updated_by",
+            field=models.ForeignKey(
+                null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AddField(
-            model_name='applicationsession',
-            name='updated_by',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL),
+            model_name="applicationsession",
+            name="updated_by",
+            field=models.ForeignKey(
+                null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL
+            ),
         ),
     ]

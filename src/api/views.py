@@ -22,17 +22,25 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from ipware import get_client_ip
 
-from .models import ApplicationSession, ApplicationSessionGate, ApplicationConfig, UserApplicationSession, User, \
-    TrackingSession, Application, UserFeedback
+from .models import (
+    ApplicationSession,
+    ApplicationSessionGate,
+    ApplicationConfig,
+    UserApplicationSession,
+    User,
+    TrackingSession,
+    Application,
+    UserFeedback,
+)
 from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 
 # --- constants ---
 
 DEFAULT_ERROR_VIEWS = {
-    status.HTTP_400_BAD_REQUEST: ('Bad request.', default_views.bad_request),
-    status.HTTP_403_FORBIDDEN: ('Permission denied.', default_views.permission_denied),
-    status.HTTP_404_NOT_FOUND: ('Not found.', default_views.page_not_found),
-    status.HTTP_500_INTERNAL_SERVER_ERROR: ('Server error.', default_views.server_error)
+    status.HTTP_400_BAD_REQUEST: ("Bad request.", default_views.bad_request),
+    status.HTTP_403_FORBIDDEN: ("Permission denied.", default_views.permission_denied),
+    status.HTTP_404_NOT_FOUND: ("Not found.", default_views.page_not_found),
+    status.HTTP_500_INTERNAL_SERVER_ERROR: ("Server error.", default_views.server_error),
 }
 
 MIN_PASSWORD_LENGTH = 8
@@ -51,16 +59,17 @@ def require_user_session_token(view_fn):
     pass the user application session object `user_app_sess_obj` and the parsed JSON data as `parsed_data` to the
     view function.
     """
+
     @wraps(view_fn)
     def wrap(request, *args, **kwargs):
         # get authorization header
-        auth_data = request.headers.get('authorization', '').split(' ')  # expected format: "Token <token code>"
-        if len(auth_data) == 2 and auth_data[0].lower() == 'token':
+        auth_data = request.headers.get("authorization", "").split(" ")  # expected format: "Token <token code>"
+        if len(auth_data) == 2 and auth_data[0].lower() == "token":
             # get the token
             token = auth_data[1]
 
             # get the application session code
-            sess = request.data.get('sess', None) or request.query_params.get('sess', None)
+            sess = request.data.get("sess", None) or request.query_params.get("sess", None)
 
             if token and sess:
                 try:
@@ -69,13 +78,15 @@ def require_user_session_token(view_fn):
                 except UserApplicationSession.DoesNotExist:
                     return HttpResponse(status=status.HTTP_401_UNAUTHORIZED)
 
-                if user_app_sess_obj.application_session.auth_mode == 'login' and not user_app_sess_obj.user:
+                if user_app_sess_obj.application_session.auth_mode == "login" and not user_app_sess_obj.user:
                     # login requires a user object
                     return HttpResponse(status=status.HTTP_401_UNAUTHORIZED)
-                elif user_app_sess_obj.application_session.auth_mode == 'none' and user_app_sess_obj.user:
+                elif user_app_sess_obj.application_session.auth_mode == "none" and user_app_sess_obj.user:
                     # when auth mode is "none", the user should be anonymous
-                    raise RuntimeError('application session authentication mode is "none" but user is authenticated '
-                                       f'as "{user_app_sess_obj.user}"')
+                    raise RuntimeError(
+                        'application session authentication mode is "none" but user is authenticated '
+                        f'as "{user_app_sess_obj.user}"'
+                    )
 
                 # set the authenticated user (will be None if auth_mode is "none")
                 request.user = user_app_sess_obj.user
@@ -93,24 +104,27 @@ def require_tracking_session(view_fn):
     pass it to the view function `view_fn` along with the user application session object `user_app_sess_obj` and the
     parsed JSON data `parsed_data`.
     """
+
     @wraps(view_fn)
     def wrap(request, user_app_sess_obj, parsed_data):
         # get tracking session ID
-        tracking_session_id = parsed_data.get('tracking_session_id', None)
+        tracking_session_id = parsed_data.get("tracking_session_id", None)
 
         if tracking_session_id:
             try:
                 # get tracking session for this user application session
-                tracking_sess_obj = TrackingSession.objects.get(id=tracking_session_id,
-                                                                user_app_session_id=user_app_sess_obj.pk,
-                                                                end_time__isnull=True)  # tracking session still active
+                tracking_sess_obj = TrackingSession.objects.get(
+                    id=tracking_session_id, user_app_session_id=user_app_sess_obj.pk, end_time__isnull=True
+                )  # tracking session still active
             except TrackingSession.DoesNotExist:
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
-            return view_fn(request,
-                           user_app_sess_obj=user_app_sess_obj,
-                           parsed_data=parsed_data,
-                           tracking_sess_obj=tracking_sess_obj)
+            return view_fn(
+                request,
+                user_app_sess_obj=user_app_sess_obj,
+                parsed_data=parsed_data,
+                tracking_sess_obj=tracking_sess_obj,
+            )
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
@@ -123,8 +137,9 @@ def require_tracking_session(view_fn):
 def index(request):
     return render(request, "index.html")
 
+
 @ensure_csrf_cookie
-@api_view(['GET'])
+@api_view(["GET"])
 def app_session(request):
     """
     Request an application session identified via GET parameter `sess`. If an application session requires user
@@ -151,22 +166,19 @@ def app_session(request):
     - optional `config`: application configuration as JSON object (when `auth_mode` is "none")
     """
 
-    if request.method == 'GET':
-        sess_code = request.GET.get('sess', None)
+    if request.method == "GET":
+        sess_code = request.GET.get("sess", None)
         if sess_code:
             # get the application session
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
-            response_data = {'sess_code': app_sess_obj.code, 'auth_mode': app_sess_obj.auth_mode}
+            response_data = {"sess_code": app_sess_obj.code, "auth_mode": app_sess_obj.auth_mode}
 
-            if app_sess_obj.auth_mode == 'none':
+            if app_sess_obj.auth_mode == "none":
                 # create a user code
-                app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj)    # user_id will stay None
+                app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj)  # user_id will stay None
 
                 # set additional response data
-                response_data.update({
-                    'user_code': user_sess_obj.code,
-                    'config': app_config_obj.config
-                })
+                response_data.update({"user_code": user_sess_obj.code, "config": app_config_obj.config})
 
                 return_status = status.HTTP_201_CREATED
             else:
@@ -174,19 +186,21 @@ def app_session(request):
                 return_status = status.HTTP_200_OK
 
             return JsonResponse(response_data, status=return_status)
-        elif referrer := request.GET.get('referrer', request.META.get('HTTP_REFERER', None)):
-            default_app_sessions = Application.objects.filter(default_application_session__isnull=False)\
-                .values('url', 'default_application_session__code')
+        elif referrer := request.GET.get("referrer", request.META.get("HTTP_REFERER", None)):
+            default_app_sessions = Application.objects.filter(default_application_session__isnull=False).values(
+                "url", "default_application_session__code"
+            )
 
             for app_sess in default_app_sessions:
-                if app_sess['url'] == referrer or (referrer.endswith('/') and app_sess['url'] + '/' == referrer):
-                    return JsonResponse({'sess_code': app_sess['default_application_session__code']},
-                                        status=status.HTTP_200_OK)
+                if app_sess["url"] == referrer or (referrer.endswith("/") and app_sess["url"] + "/" == referrer):
+                    return JsonResponse(
+                        {"sess_code": app_sess["default_application_session__code"]}, status=status.HTTP_200_OK
+                    )
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def app_session_login(request):
     """
     Log in for an application session that requires authentication. The following data must be provided via POST:
@@ -218,40 +232,43 @@ def app_session_login(request):
     - `config`: application configuration as JSON object
     """
 
-    if request.method == 'POST':
+    if request.method == "POST":
         data = request.data
-        sess_code = data.get('sess', None)
-        username = data.get('username', None)
-        email = data.get('email', None)
-        password = data.get('password', None)
+        sess_code = data.get("sess", None)
+        username = data.get("username", None)
+        email = data.get("email", None)
+        password = data.get("password", None)
 
         if sess_code and (username or email) and password:
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
 
-            if app_sess_obj.auth_mode == 'login':
+            if app_sess_obj.auth_mode == "login":
                 ident_args = {}
                 if username:
-                    ident_args['username'] = username
+                    ident_args["username"] = username
                 if email:
-                    ident_args['email'] = email
+                    ident_args["email"] = email
                 assert ident_args
                 user_obj = get_object_or_404(User, **ident_args)
 
                 if user_obj.check_password(password):
                     app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj, user_obj)
 
-                    return JsonResponse({
-                        'sess_code': app_sess_obj.code,
-                        'auth_mode': app_sess_obj.auth_mode,
-                        'user_code': user_sess_obj.code,
-                        'config': app_config_obj.config
-                    }, status=status.HTTP_201_CREATED)
+                    return JsonResponse(
+                        {
+                            "sess_code": app_sess_obj.code,
+                            "auth_mode": app_sess_obj.auth_mode,
+                            "user_code": user_sess_obj.code,
+                            "config": app_config_obj.config,
+                        },
+                        status=status.HTTP_201_CREATED,
+                    )
                 else:
                     return HttpResponse(status=status.HTTP_401_UNAUTHORIZED)
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def register_user(request):
     """
     Register a new user with a username and/or email address and password. The following data must be provided via POST:
@@ -274,14 +291,15 @@ def register_user(request):
 
     If a user account was created successfully, an HTTP 201 response is returned.
     """
-    def _validation_error(err, msg):
-        return JsonResponse({'error': err, 'message': msg}, status=status.HTTP_403_FORBIDDEN)
 
-    if request.method == 'POST':
+    def _validation_error(err, msg):
+        return JsonResponse({"error": err, "message": msg}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == "POST":
         data = request.data
-        username = data.get('username', None)
-        email = data.get('email', None)
-        password = data.get('password', None)
+        username = data.get("username", None)
+        email = data.get("email", None)
+        password = data.get("password", None)
 
         if (username or email) and password:
             if email:
@@ -289,30 +307,31 @@ def register_user(request):
                 try:
                     validate_email(email)
                 except ValidationError:
-                    return _validation_error('invalid_email', 'The provided email address seems invalid.')
+                    return _validation_error("invalid_email", "The provided email address seems invalid.")
 
             # we require only very few, very basic password safety checks as a password breach does not impose a high
             # risk in this application
             if len(password) < MIN_PASSWORD_LENGTH:
-                return _validation_error('pw_too_short',
-                                         f'Password must be at least {MIN_PASSWORD_LENGTH} characters long.')
+                return _validation_error(
+                    "pw_too_short", f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
+                )
             if password == username:
-                return _validation_error('pw_same_as_user', f'Password must be different from provided username.')
+                return _validation_error("pw_same_as_user", "Password must be different from provided username.")
             if password == email:
-                return _validation_error('pw_same_as_email', f'Password must be different from provided email.')
+                return _validation_error("pw_same_as_email", "Password must be different from provided email.")
 
             # try to create the account
             try:
                 User.objects.create_user(username or email, email=email, password=password)
             except IntegrityError:  # oops, already exists
-                return _validation_error('user_already_registered', 'This account already exists.')
+                return _validation_error("user_already_registered", "This account already exists.")
 
             return HttpResponse(status=status.HTTP_201_CREATED)
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST', 'GET'])
+@api_view(["POST", "GET"])
 @require_user_session_token
 def user_feedback(request, user_app_sess_obj, parsed_data):
     """
@@ -361,22 +380,22 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
         }
     """
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # post new user feedback
-        parsed_data['user_app_session'] = user_app_sess_obj.pk
+        parsed_data["user_app_session"] = user_app_sess_obj.pk
 
         # get the app. config. for this app. session
         app_config = user_app_sess_obj.application_session.config.config
 
         # remove data that should not be there according to the configuration
-        if not app_config.get('feedback', True):
-            if 'score' in parsed_data:
-                del parsed_data['score']
-            if 'text' in parsed_data:
-                del parsed_data['text']
+        if not app_config.get("feedback", True):
+            if "score" in parsed_data:
+                del parsed_data["score"]
+            if "text" in parsed_data:
+                del parsed_data["text"]
 
         # if we have a tracking session, make sure it belongs to the user app. session
-        if tracking_session := parsed_data.get('tracking_session', None):
+        if tracking_session := parsed_data.get("tracking_session", None):
             try:
                 tracking_sess = TrackingSession.objects.get(id=tracking_session)
                 if tracking_sess.user_app_session_id != user_app_sess_obj.pk:
@@ -386,8 +405,10 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
 
         # see if we already have an existing user feedback instance to perform an update
         try:
-            user_feedback_obj = UserFeedback.objects.get(user_app_session=parsed_data['user_app_session'],
-                                                         content_section=parsed_data.get('content_section', None))
+            user_feedback_obj = UserFeedback.objects.get(
+                user_app_session=parsed_data["user_app_session"],
+                content_section=parsed_data.get("content_section", None),
+            )
 
             # perform an update
             response_status = status.HTTP_200_OK
@@ -404,23 +425,25 @@ def user_feedback(request, user_app_sess_obj, parsed_data):
                 # store to DB
                 with transaction.atomic():
                     user_feedback_serializer.save()
-            except IntegrityError:   # DB constrain failed
+            except IntegrityError:  # DB constrain failed
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
             # all OK
             return HttpResponse(status=response_status)
         else:
-            return JsonResponse({'validation_errors': user_feedback_serializer.errors},
-                                status=status.HTTP_400_BAD_REQUEST)
-    elif request.method == 'GET':
+            return JsonResponse(
+                {"validation_errors": user_feedback_serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
+    elif request.method == "GET":
         # get existing user feedback
-        user_feedback = UserFeedback.objects.filter(user_app_session=user_app_sess_obj)\
-            .values('content_section', 'score', 'text')
+        user_feedback = UserFeedback.objects.filter(user_app_session=user_app_sess_obj).values(
+            "content_section", "score", "text"
+        )
 
-        return JsonResponse({'user_feedback': list(user_feedback)}, status=status.HTTP_200_OK)
+        return JsonResponse({"user_feedback": list(user_feedback)}, status=status.HTTP_200_OK)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @require_user_session_token
 def start_tracking(request, user_app_sess_obj, parsed_data):
     """
@@ -443,34 +466,36 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
 
     - `tracking_session_id`: tracking session ID for started tracking session
     """
-    if request.method == 'POST':
-        parsed_data['user_app_session'] = user_app_sess_obj.pk
+    if request.method == "POST":
+        parsed_data["user_app_session"] = user_app_sess_obj.pk
 
         try:
             # there already exists a tracking session for this user session
             tracking_sess_obj = TrackingSession.objects.get(user_app_session=user_app_sess_obj, end_time__isnull=True)
-            return JsonResponse({'tracking_session_id': tracking_sess_obj.pk}, status=status.HTTP_200_OK)
+            return JsonResponse({"tracking_session_id": tracking_sess_obj.pk}, status=status.HTTP_200_OK)
         except TrackingSession.DoesNotExist:
             # create a new tracking session
-            if 'end_time' not in parsed_data and 'id' not in parsed_data:
-                if 'device_info' not in parsed_data:
-                    parsed_data['device_info'] = {}
+            if "end_time" not in parsed_data and "id" not in parsed_data:
+                if "device_info" not in parsed_data:
+                    parsed_data["device_info"] = {}
                 # find out client IP and store it in "device info" JSON data
                 client_ip, _ = get_client_ip(request)
-                parsed_data['device_info']['client_ip'] = client_ip
+                parsed_data["device_info"]["client_ip"] = client_ip
 
                 tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
                 if tracking_sess_serializer.is_valid():
                     tracking_sess_serializer.save()
-                    return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk},
-                                        status=status.HTTP_201_CREATED)
+                    return JsonResponse(
+                        {"tracking_session_id": tracking_sess_serializer.instance.pk}, status=status.HTTP_201_CREATED
+                    )
                 else:
-                    return JsonResponse({'validation_errors': tracking_sess_serializer.errors},
-                                        status=status.HTTP_400_BAD_REQUEST)
+                    return JsonResponse(
+                        {"validation_errors": tracking_sess_serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+                    )
             return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @require_user_session_token
 @require_tracking_session
 def stop_tracking(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
@@ -494,23 +519,25 @@ def stop_tracking(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 
     - `tracking_session_id`: stopped tracking session ID (same as in request)
     """
-    if request.method == 'POST':
-        if 'end_time' in parsed_data:
-            tracking_sess_serializer = TrackingSessionSerializer(tracking_sess_obj,
-                                                                 data={'end_time': parsed_data['end_time']},
-                                                                 partial=True)
+    if request.method == "POST":
+        if "end_time" in parsed_data:
+            tracking_sess_serializer = TrackingSessionSerializer(
+                tracking_sess_obj, data={"end_time": parsed_data["end_time"]}, partial=True
+            )
             if tracking_sess_serializer.is_valid():
                 tracking_sess_serializer.save()
-                return JsonResponse({'tracking_session_id': tracking_sess_serializer.instance.pk},
-                                    status=status.HTTP_200_OK)
+                return JsonResponse(
+                    {"tracking_session_id": tracking_sess_serializer.instance.pk}, status=status.HTTP_200_OK
+                )
             else:
-                return JsonResponse({'validation_errors': tracking_sess_serializer.errors},
-                                    status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse(
+                    {"validation_errors": tracking_sess_serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+                )
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @require_user_session_token
 @require_tracking_session
 def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
@@ -535,45 +562,44 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 
     - `tracking_event_id`: saved tracking event ID
     """
-    if request.method == 'POST':
-        data = parsed_data.get('event', {})
-        data['tracking_session'] = tracking_sess_obj.pk
+    if request.method == "POST":
+        data = parsed_data.get("event", {})
+        data["tracking_session"] = tracking_sess_obj.pk
         event_serializer = TrackingEventSerializer(data=data)
 
         if event_serializer.is_valid():
             event_serializer.save()
-            return JsonResponse({'tracking_event_id': event_serializer.instance.pk}, status=status.HTTP_201_CREATED)
+            return JsonResponse({"tracking_event_id": event_serializer.instance.pk}, status=status.HTTP_201_CREATED)
         else:
-            return JsonResponse({'validation_errors': event_serializer.errors},
-                                status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"validation_errors": event_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 def csrf_failure(request, reason=""):
     """
     Default CSRF failure view to format a CSRF failure as JSON.
     """
-    if request.headers.get('content-type', None) == 'application/json':
-        return JsonResponse({'error': 'CSRF check failure.', 'reason': reason}, status=status.HTTP_401_UNAUTHORIZED)
+    if request.headers.get("content-type", None) == "application/json":
+        return JsonResponse({"error": "CSRF check failure.", "reason": reason}, status=status.HTTP_401_UNAUTHORIZED)
     else:
         return default_csrf_failure(request, reason=reason)
 
 
-def bad_request_failure(request, exception, template_name='status.HTTP_400_BAD_REQUEST.html'):
+def bad_request_failure(request, exception, template_name="status.HTTP_400_BAD_REQUEST.html"):
     """HTTP status status.HTTP_400_BAD_REQUEST / bad request response view."""
     return _wrap_failure_request(request, status.HTTP_400_BAD_REQUEST, exception=exception, template_name=template_name)
 
 
-def permission_denied_failure(request, exception, template_name='403.html'):
+def permission_denied_failure(request, exception, template_name="403.html"):
     """HTTP status 403 / permission denied response view."""
     return _wrap_failure_request(request, status.HTTP_403_FORBIDDEN, exception=exception, template_name=template_name)
 
 
-def not_found_failure(request, exception, template_name='404.html'):
+def not_found_failure(request, exception, template_name="404.html"):
     """HTTP status 404 / not found response view."""
     return _wrap_failure_request(request, status.HTTP_404_NOT_FOUND, exception=exception, template_name=template_name)
 
 
-def server_error_failure(request, template_name='500.html'):
+def server_error_failure(request, template_name="500.html"):
     """HTTP status 500 / server failure response view."""
     return _wrap_failure_request(request, status.HTTP_500_INTERNAL_SERVER_ERROR, template_name=template_name)
 
@@ -587,7 +613,7 @@ def app_session_gate(request, sessioncode):
     redirection index and redirect it to that URL. Increase the next redirection index by 1.
     """
 
-    cookie_key = 'gate_app_sess_' + sessioncode
+    cookie_key = "gate_app_sess_" + sessioncode
     app_sess = None
 
     with transaction.atomic():
@@ -606,10 +632,10 @@ def app_session_gate(request, sessioncode):
             except ApplicationSession.DoesNotExist:
                 pass
 
-        if app_sess is None:   # first visit – app. session not already stored in a cookie
+        if app_sess is None:  # first visit – app. session not already stored in a cookie
             # get the redirect URL at the current index
             index = min(n_app_sess - 1, gate.next_forward_index)
-            app_sess = gate.app_sessions.order_by('code')[index]
+            app_sess = gate.app_sessions.order_by("code")[index]
 
             # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to visit one
             # app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
@@ -619,7 +645,7 @@ def app_session_gate(request, sessioncode):
     if app_sess:
         # set cookie and redirect to app. session
         response = HttpResponseRedirect(app_sess.session_url())
-        response.set_cookie(cookie_key, app_sess.code, max_age=60*60*12, secure=True)
+        response.set_cookie(cookie_key, app_sess.code, max_age=60 * 60 * 12, secure=True)
         return response
     # something went wrong
     return HttpResponse(status=status.HTTP_404_NOT_FOUND)
@@ -634,8 +660,8 @@ def _wrap_failure_request(request, status, **kwargs):
     standard HTML response.
     """
     error_msg, default_view = DEFAULT_ERROR_VIEWS[status]
-    if request.headers.get('content-type', None) == 'application/json':
-        return JsonResponse({'error': error_msg}, status=status)
+    if request.headers.get("content-type", None) == "application/json":
+        return JsonResponse({"error": error_msg}, status=status)
     else:
         return default_view(request, **kwargs)
 

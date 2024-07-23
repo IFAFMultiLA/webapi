@@ -5,15 +5,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('api', '0013_userfeedback_either_score_or_text_must_be_given'),
+        ("api", "0013_userfeedback_either_score_or_text_must_be_given"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='userfeedback',
-            name='score',
-            field=models.SmallIntegerField(default=None, null=True, validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(5)], verbose_name='Feedback score'),
+            model_name="userfeedback",
+            name="score",
+            field=models.SmallIntegerField(
+                default=None,
+                null=True,
+                validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(5)],
+                verbose_name="Feedback score",
+            ),
         ),
     ]
