@@ -23,7 +23,23 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
     "feedback": True,
     "summary": True,
     "reset_button": True,
-    "tracking": {"mouse": True, "inputs": True, "attribute_changes": False, "chapters": True},
+    "tracking": {
+        "ip": True,
+        "user_agent": True,
+        "mouse": True,  # mouse movements
+        "clicks": True,  # mouse clicks
+        "scrolling": True,
+        "inputs": True,
+        "attribute_changes": False,
+        "chapters": True,
+        "summary": True,
+        "visibility": True,
+        "exercise_hint": True,
+        "exercise_submitted": True,
+        "exercise_result": True,
+        "question_submission": True,
+        "video_progress": True,
+    },
 }
 
 
