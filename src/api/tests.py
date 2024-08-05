@@ -433,7 +433,10 @@ class ViewTests(CustomAPITestCase):
         # create a config for this app
         app_config = ApplicationConfig.objects.create(application=app, label="test config", config={"test": True})
         app_config_no_feedback = ApplicationConfig.objects.create(
-            application=app, label="config. w/ no qualitative feedback", config={"feedback": False}
+            application=app, label="config. w/o qualitative feedback", config={"feedback": False}
+        )
+        app_config_no_ip = ApplicationConfig.objects.create(
+            application=app, label="config. w/o IP tracking", config={"tracking": {"ip": False}}
         )
 
         # create an app session w/o authentication
@@ -452,6 +455,22 @@ class ViewTests(CustomAPITestCase):
         self.app_sess_no_auth_no_feedback.generate_code()
         assert len({self.app_sess_no_auth.code, self.app_sess_login.code, self.app_sess_no_auth_no_feedback.code}) == 3
         self.app_sess_no_auth_no_feedback.save()
+
+        # create an app session using the "no IP tracking" config
+        self.app_sess_no_auth_no_ip = ApplicationSession(config=app_config_no_ip, auth_mode="none")
+        self.app_sess_no_auth_no_ip.generate_code()
+        assert (
+            len(
+                {
+                    self.app_sess_no_auth.code,
+                    self.app_sess_login.code,
+                    self.app_sess_no_auth_no_feedback.code,
+                    self.app_sess_no_auth_no_ip.code,
+                }
+            )
+            == 4
+        )
+        self.app_sess_no_auth_no_ip.save()
 
         # create a second test app
         self.app_with_default_sess = Application.objects.create(name="test app 2", url="https://test2.app")
@@ -821,6 +840,27 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.json(), {"tracking_session_id": tracking_sess.id})
         self.assertEqual(tracking_sess.start_time, now.astimezone(timezone.utc))
         self.assertEqual(tracking_sess.device_info, valid_data["device_info"])
+
+        # request application session – also sets CSRF token in cookie
+        response = self.client.get(reverse("session"), {"sess": self.app_sess_no_auth_no_ip.code})
+        auth_token = response.json()["user_code"]
+
+        # test start tracking
+        url = reverse("start_tracking")
+        now = tznow()
+        valid_data = {
+            "sess": self.app_sess_no_auth_no_ip.code,
+            "start_time": now.isoformat(),
+            "device_info": {"test key": "test value", "client_ip": "127.0.0.1"},
+        }
+
+        # OK without device_info
+        response = self.client.post_json(url, data=valid_data, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        tracking_sess = TrackingSession.objects.get(user_app_session__code=auth_token)
+        self.assertEqual(response.json(), {"tracking_session_id": tracking_sess.id})
+        self.assertEqual(tracking_sess.start_time, now.astimezone(timezone.utc))
+        self.assertEqual(tracking_sess.device_info["client_ip"], None)
 
     def test_stop_tracking(self):
         # request application session – also sets CSRF token in cookie
