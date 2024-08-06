@@ -480,7 +480,8 @@ def start_tracking(request, user_app_sess_obj, parsed_data):
                     parsed_data["device_info"] = {}
                 # find out client IP and store it in "device info" JSON data
                 client_ip, _ = get_client_ip(request)
-                parsed_data["device_info"]["client_ip"] = client_ip
+                app_config = user_app_sess_obj.application_session.config.config.get("tracking", {})
+                parsed_data["device_info"]["client_ip"] = client_ip if app_config.get("ip", True) else None
 
                 tracking_sess_serializer = TrackingSessionSerializer(data=parsed_data)
                 if tracking_sess_serializer.is_valid():

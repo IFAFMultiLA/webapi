@@ -112,29 +112,100 @@ class ApplicationConfigForm(forms.ModelForm):
         initial=True,
         required=False,
     )
+    track_ip = forms.BooleanField(
+        label="Record user IP",
+        help_text="Record the user's IP address.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["ip"],
+        required=False,
+    )
+    track_user_agent = forms.BooleanField(
+        label="Record user agent",
+        help_text="Record the user's browser.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["user_agent"],
+        required=False,
+    )
+    track_device_info = forms.BooleanField(
+        label="Track device information",
+        help_text="Enable tracking user device information (form factor, window size and content size).",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["device_info"],
+        required=False,
+    )
+    track_visibility = forms.BooleanField(
+        label="Track browser visibility state",
+        help_text="Enable tracking the state of the user's browser window visibility.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["visibility"],
+        required=False,
+    )
     track_mouse = forms.BooleanField(
-        label="Enable mouse tracking",
-        help_text="Enable tracking mouse movements, scrolls and clicks or touches when "
-        "the user device has no mouse.",
+        label="Track mouse movements",
+        help_text="Enable tracking mouse movements.",
         initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["mouse"],
         required=False,
     )
+    track_clicks = forms.BooleanField(
+        label="Track mouse clicks",
+        help_text="Enable tracking mouse clicks or touches when the user device has no mouse.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["clicks"],
+        required=False,
+    )
+    track_scrolling = forms.BooleanField(
+        label="Track scrolling",
+        help_text="Enable tracking when the user scrolls through the application.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["scrolling"],
+        required=False,
+    )
     track_inputs = forms.BooleanField(
-        label="Enable input tracking",
+        label="Track form inputs",
         help_text="Enable tracking form inputs.",
         initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["inputs"],
         required=False,
     )
     track_attribute_changes = forms.BooleanField(
-        label="Enable tracking HTML element attribute changes",
+        label="Track HTML element attribute changes",
         help_text="Warning: When enabled, this generates a lot of usually " "unnecessary data.",
         initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["attribute_changes"],
         required=False,
     )
     track_chapters = forms.BooleanField(
-        label="Enable chapter tracking",
+        label="Tracking chapter changes",
         help_text="Enable tracking of switching between chapters.",
         initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["chapters"],
+        required=False,
+    )
+    track_summary = forms.BooleanField(
+        label="Track summary panel events",
+        help_text="Enable tracking of summary panel events (in case the summary panel is enabled).",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["summary"],
+        required=False,
+    )
+    track_exercise_hint = forms.BooleanField(
+        label="Track exercise hint requests",
+        help_text="Enable tracking of exercise hint displays.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["exercise_hint"],
+        required=False,
+    )
+    track_exercise_submitted = forms.BooleanField(
+        label="Track exercise submissions",
+        help_text="Enable tracking of exercise submissions.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["exercise_submitted"],
+        required=False,
+    )
+    track_exercise_result = forms.BooleanField(
+        label="Track exercise result displays",
+        help_text="Enable tracking of exercise result displays.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["exercise_result"],
+        required=False,
+    )
+    track_question_submission = forms.BooleanField(
+        label="Track question submissions",
+        help_text="Enable tracking of question submissions.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["question_submission"],
+        required=False,
+    )
+    track_video_progress = forms.BooleanField(
+        label="Track video display progress",
+        help_text="Enable tracking of video display events.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["video_progress"],
         required=False,
     )
     exclude = forms.CharField(
