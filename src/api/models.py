@@ -26,6 +26,8 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
     "tracking": {
         "ip": True,
         "user_agent": True,
+        "device_info": True,
+        "visibility": True,
         "mouse": True,  # mouse movements
         "clicks": True,  # mouse clicks
         "scrolling": True,
@@ -33,7 +35,6 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
         "attribute_changes": False,
         "chapters": True,
         "summary": True,
-        "visibility": True,
         "exercise_hint": True,
         "exercise_submitted": True,
         "exercise_result": True,

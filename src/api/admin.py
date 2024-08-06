@@ -124,6 +124,18 @@ class ApplicationConfigForm(forms.ModelForm):
         initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["user_agent"],
         required=False,
     )
+    track_device_info = forms.BooleanField(
+        label="Track device information",
+        help_text="Enable tracking user device information (form factor, window size and content size).",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["device_info"],
+        required=False,
+    )
+    track_visibility = forms.BooleanField(
+        label="Track browser visibility state",
+        help_text="Enable tracking the state of the user's browser window visibility.",
+        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["visibility"],
+        required=False,
+    )
     track_mouse = forms.BooleanField(
         label="Track mouse movements",
         help_text="Enable tracking mouse movements.",
@@ -164,12 +176,6 @@ class ApplicationConfigForm(forms.ModelForm):
         label="Track summary panel events",
         help_text="Enable tracking of summary panel events (in case the summary panel is enabled).",
         initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["summary"],
-        required=False,
-    )
-    track_visibility = forms.BooleanField(
-        label="Track browser visibility state",
-        help_text="Enable tracking the state of the user's browser window visibility.",
-        initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["visibility"],
         required=False,
     )
     track_exercise_hint = forms.BooleanField(
