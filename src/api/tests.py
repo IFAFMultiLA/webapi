@@ -450,10 +450,43 @@ class ViewTests(CustomAPITestCase):
         assert self.app_sess_no_auth.code != self.app_sess_login.code
         self.app_sess_login.save()
 
+        # create an app session that is inactive
+        self.app_sess_inactive = ApplicationSession(config=app_config, auth_mode="none", is_active=False)
+        self.app_sess_inactive.generate_code()
+        assert len({self.app_sess_no_auth.code, self.app_sess_login.code, self.app_sess_inactive.code}) == 3
+        self.app_sess_inactive.save()
+
+        # create an app session that is inactive and requires login
+        self.app_sess_inactive_w_login = ApplicationSession(config=app_config, auth_mode="login", is_active=False)
+        self.app_sess_inactive_w_login.generate_code()
+        assert (
+            len(
+                {
+                    self.app_sess_no_auth.code,
+                    self.app_sess_login.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
+                }
+            )
+            == 4
+        )
+        self.app_sess_inactive_w_login.save()
+
         # create an app session using the "no qual. feedback" config
         self.app_sess_no_auth_no_feedback = ApplicationSession(config=app_config_no_feedback, auth_mode="none")
         self.app_sess_no_auth_no_feedback.generate_code()
-        assert len({self.app_sess_no_auth.code, self.app_sess_login.code, self.app_sess_no_auth_no_feedback.code}) == 3
+        assert (
+            len(
+                {
+                    self.app_sess_no_auth.code,
+                    self.app_sess_login.code,
+                    self.app_sess_no_auth_no_feedback.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
+                }
+            )
+            == 5
+        )
         self.app_sess_no_auth_no_feedback.save()
 
         # create an app session using the "no IP tracking" config
@@ -466,9 +499,11 @@ class ViewTests(CustomAPITestCase):
                     self.app_sess_login.code,
                     self.app_sess_no_auth_no_feedback.code,
                     self.app_sess_no_auth_no_ip.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
                 }
             )
-            == 4
+            == 6
         )
         self.app_sess_no_auth_no_ip.save()
 
@@ -489,10 +524,13 @@ class ViewTests(CustomAPITestCase):
                     self.app_sess_no_auth.code,
                     self.app_sess_login.code,
                     self.app_sess_no_auth_no_feedback.code,
+                    self.app_sess_no_auth_no_ip.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
                     self.app_sess_no_auth2.code,
                 }
             )
-            == 4
+            == 7
         )
         self.app_sess_no_auth2.save()
 
@@ -538,6 +576,7 @@ class ViewTests(CustomAPITestCase):
             {
                 "sess_code": valid_data["sess"],
                 "auth_mode": "none",
+                "active": True,
                 "user_code": user_app_sess.code,
                 "config": self.app_sess_no_auth.config.config,
             },
@@ -550,7 +589,27 @@ class ViewTests(CustomAPITestCase):
         self.assertIn("csrftoken", response.cookies)
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(UserApplicationSession.objects.filter(application_session=self.app_sess_login).count(), 0)
-        self.assertEqual(response.json(), {"sess_code": valid_data["sess"], "auth_mode": "login"})
+        self.assertEqual(response.json(), {"sess_code": valid_data["sess"], "auth_mode": "login", "active": True})
+
+        # OK – inactive app session
+        valid_data = {"sess": self.app_sess_inactive.code}
+        response = self.client.get(url, valid_data)
+        self.assertIn("csrftoken", response.cookies)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json(),
+            {"sess_code": valid_data["sess"], "auth_mode": "none", "active": False},
+        )
+
+        # OK – inactive app session that requires login
+        valid_data = {"sess": self.app_sess_inactive_w_login.code}
+        response = self.client.get(url, valid_data)
+        self.assertIn("csrftoken", response.cookies)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json(),
+            {"sess_code": valid_data["sess"], "auth_mode": "login", "active": False},
+        )
 
         # test default app session – OK
         response = self.client.get(url, HTTP_REFERER=self.app_with_default_sess.url)
@@ -558,9 +617,7 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(
             response.json(),
-            {
-                "sess_code": self.app_sess_no_auth2.code,
-            },
+            {"sess_code": self.app_sess_no_auth2.code, "active": True},
         )
 
         # test default app session – OK too
@@ -569,9 +626,7 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(
             response.json(),
-            {
-                "sess_code": self.app_sess_no_auth2.code,
-            },
+            {"sess_code": self.app_sess_no_auth2.code, "active": True},
         )
 
         # test default app session – OK too
@@ -580,9 +635,7 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(
             response.json(),
-            {
-                "sess_code": self.app_sess_no_auth2.code,
-            },
+            {"sess_code": self.app_sess_no_auth2.code, "active": True},
         )
 
         # test default app session – fail
@@ -641,6 +694,14 @@ class ViewTests(CustomAPITestCase):
                 url, data={"sess": self.app_sess_login.code, "username": self.user.username, "password": "foo"}
             ).status_code,
             status.HTTP_401_UNAUTHORIZED,
+        )
+        # inactive app session
+        self.assertEqual(
+            self.client.post_json(
+                url,
+                data={"sess": self.app_sess_inactive_w_login.code, "username": self.user.username, "password": "foo"},
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
         )
         # no CSRF token
         # self.assertEqual(self.client.post_json(url, data=valid_data, omit_csrftoken=True).status_code,

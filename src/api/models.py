@@ -134,6 +134,7 @@ class ApplicationSession(models.Model):
         choices=AUTH_MODE_OPTIONS, max_length=max_options_length(AUTH_MODE_OPTIONS), blank=False
     )
     description = models.CharField("Description", max_length=256, blank=True, default="")
+    is_active = models.BooleanField("Is active", default=True)
     updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 

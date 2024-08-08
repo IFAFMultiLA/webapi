@@ -355,19 +355,26 @@ class ApplicationAdmin(admin.ModelAdmin):
             rows.append(f'<tr><th colspan="2"><a href="{config_url}?application={obj.id}">{config_label}</a></th></tr>')
 
             # iterate through sessions of this application configuration
-            for sess_code, sess_descr in config_data["sessions"].items():
+            for sess_code, (sess_descr, sess_active) in config_data["sessions"].items():
                 sess_url = reverse("admin:api_applicationsession_change", args=[sess_code])
                 if sess_descr:
                     sess_descr = f" – {Truncator(sess_descr).chars(25)}"
                 if obj.default_application_session and obj.default_application_session.code == sess_code:
-                    sess_item_style = ' style="font-weight: bold;"'
+                    sess_item_style = "font-weight: bold;"
                 else:
                     sess_item_style = ""
+                if sess_active:
+                    sess_inactive_notice = ""
+                else:
+                    sess_inactive_notice = " (inactive)"
+                    sess_item_style += "color: gray;"
+
                 app_sess_url = application_session_url(obj, sess_code)
                 rows.append(
-                    f"<tr><td{sess_item_style}>"
-                    f'<a href="{sess_url}?config={config_id}">{sess_code}{sess_descr}</a></td>'
-                    f'<td><a href="{app_sess_url}" target="_blank">{app_sess_url}</a></td></tr>'
+                    f"<tr><td>"
+                    f'<a href="{sess_url}?config={config_id}" style="{sess_item_style}">'
+                    f"{sess_code}{sess_descr}{sess_inactive_notice}</a></td>"
+                    f'<td><a href="{app_sess_url}" style="{sess_item_style}" target="_blank">{app_sess_url}</a></td></tr>'
                 )
 
             rows.append(
@@ -403,6 +410,7 @@ class ApplicationAdmin(admin.ModelAdmin):
                 "applicationconfig__label",
                 "applicationconfig__applicationsession__code",
                 "applicationconfig__applicationsession__description",
+                "applicationconfig__applicationsession__is_active",
             )
         )
         # iterate through application sessions and build hierarchical dict:
@@ -411,14 +419,14 @@ class ApplicationAdmin(admin.ModelAdmin):
         #     <config_id>: {
         #       "config_label": "<config. label>",
         #       "sessions": {
-        #         <session code>: "<session description>",
+        #         <session code>: ["<session description>", <is_active>],
         #         ...
         #       },
         #       ...
         #     },
         #     ...
         # }
-        for app_id, config_id, config_label, sess_code, sess_descr in qs_app_sessions:
+        for app_id, config_id, config_label, sess_code, sess_descr, sess_active in qs_app_sessions:
             if config_id is None:
                 continue
 
@@ -428,7 +436,7 @@ class ApplicationAdmin(admin.ModelAdmin):
                 conf_dict = {"config_label": config_label, "sessions": {}}
 
             if sess_code:
-                conf_dict["sessions"][sess_code] = sess_descr
+                conf_dict["sessions"][sess_code] = [sess_descr, sess_active]
 
             self._apps_confs_sessions[app_id][config_id] = conf_dict
 
@@ -577,7 +585,7 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
     create / edit forms of this admin.
     """
 
-    fields = ["code", "session_url", "description", "auth_mode", "updated", "updated_by"]
+    fields = ["code", "session_url", "description", "auth_mode", "is_active", "updated", "updated_by"]
     readonly_fields = ["config", "code", "session_url", "updated", "updated_by"]
     list_display = []
 

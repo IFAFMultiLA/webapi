@@ -168,12 +168,18 @@ def app_session(request):
 
     if request.method == "GET":
         sess_code = request.GET.get("sess", None)
+        response_data = None
+        return_status = None
         if sess_code:
             # get the application session
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
-            response_data = {"sess_code": app_sess_obj.code, "auth_mode": app_sess_obj.auth_mode}
+            response_data = {
+                "sess_code": app_sess_obj.code,
+                "auth_mode": app_sess_obj.auth_mode,
+                "active": app_sess_obj.is_active,
+            }
 
-            if app_sess_obj.auth_mode == "none":
+            if app_sess_obj.auth_mode == "none" and app_sess_obj.is_active:
                 # create a user code
                 app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj)  # user_id will stay None
 
@@ -182,20 +188,24 @@ def app_session(request):
 
                 return_status = status.HTTP_201_CREATED
             else:
-                # user must login; no additional response data
+                # app session is inactive or user must login; no additional response data
                 return_status = status.HTTP_200_OK
-
-            return JsonResponse(response_data, status=return_status)
         elif referrer := request.GET.get("referrer", request.META.get("HTTP_REFERER", None)):
             default_app_sessions = Application.objects.filter(default_application_session__isnull=False).values(
-                "url", "default_application_session__code"
+                "url", "default_application_session__is_active", "default_application_session__code"
             )
 
             for app_sess in default_app_sessions:
                 if app_sess["url"] == referrer or (referrer.endswith("/") and app_sess["url"] + "/" == referrer):
-                    return JsonResponse(
-                        {"sess_code": app_sess["default_application_session__code"]}, status=status.HTTP_200_OK
-                    )
+                    response_data = {
+                        "sess_code": app_sess["default_application_session__code"],
+                        "active": app_sess["default_application_session__is_active"],
+                    }
+                    return_status = status.HTTP_200_OK
+                    break
+
+        if response_data and return_status:
+            return JsonResponse(response_data, status=return_status)
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
@@ -242,7 +252,7 @@ def app_session_login(request):
         if sess_code and (username or email) and password:
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
 
-            if app_sess_obj.auth_mode == "login":
+            if app_sess_obj.auth_mode == "login" and app_sess_obj.is_active:
                 ident_args = {}
                 if username:
                     ident_args["username"] = username
