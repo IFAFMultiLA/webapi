@@ -10,8 +10,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import TrackingSession, TrackingEvent, UserFeedback
-
+from .models import TrackingEvent, TrackingSession, UserFeedback
 
 # maximum age  of sent event timestamps
 TIMESTAMP_VALIDATION_MAX_AGE = timedelta(minutes=5)

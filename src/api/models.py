@@ -9,11 +9,11 @@ import json
 from datetime import datetime
 
 from django.conf import settings
-from django.urls import reverse
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
 from django.db.models import Q
+from django.urls import reverse
 
 HASH_KEY = settings.SECRET_KEY.encode()[:32]  # hash salt
 APPLICATION_CONFIG_DEFAULT_JSON = {

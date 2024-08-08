@@ -9,30 +9,30 @@ be formatted in ISO 8601 format.
 
 from functools import wraps
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
+from django.db.utils import IntegrityError
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import defaults as default_views
 from django.views.csrf import csrf_failure as default_csrf_failure
-from django.db.utils import IntegrityError
-from django.core.validators import validate_email
-from django.core.exceptions import ValidationError
+from django.views.decorators.csrf import ensure_csrf_cookie
+from ipware import get_client_ip
 from rest_framework import status
 from rest_framework.decorators import api_view
-from ipware import get_client_ip
 
 from .models import (
+    Application,
+    ApplicationConfig,
     ApplicationSession,
     ApplicationSessionGate,
-    ApplicationConfig,
-    UserApplicationSession,
-    User,
     TrackingSession,
-    Application,
+    User,
+    UserApplicationSession,
     UserFeedback,
 )
-from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
+from .serializers import TrackingEventSerializer, TrackingSessionSerializer, UserFeedbackSerializer
 
 # --- constants ---
 
@@ -620,44 +620,51 @@ def server_error_failure(request, template_name="500.html"):
 
 def app_session_gate(request, sessioncode):
     """
-    Session gate redirect. Look up session gate with code `sessioncode`, select the next app session at the next
-    redirection index and redirect it to that URL. Increase the next redirection index by 1.
+    Session gate redirect. Look up an application session or an application session *gate* with code `sessioncode`,
+    select the next app session at the next redirection index and redirect it to that URL. Increase the next redirection
+    index by 1.
     """
 
     cookie_key = "gate_app_sess_" + sessioncode
     app_sess = None
 
-    with transaction.atomic():
-        # get the app. session gate
-        gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
+    try:
+        # first, try to fetch an application session with that code ...
+        app_sess = ApplicationSession.objects.get(code=sessioncode)
+    except ApplicationSession.DoesNotExist:
+        # ... if that fails, fetch an application session gate with that code
+        with transaction.atomic():
+            # get the app. session gate
+            gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
 
-        # make sure it has at least 1 app session assigned
-        n_app_sess = gate.app_sessions.count()
-        if n_app_sess <= 0:
-            return HttpResponse(status=status.HTTP_204_NO_CONTENT)
+            # make sure it has at least 1 app session assigned
+            n_app_sess = gate.app_sessions.count()
+            if n_app_sess <= 0:
+                return HttpResponse(status=status.HTTP_204_NO_CONTENT)
 
-        # try to get the app. session from the cookie
-        if app_sess_from_cookie := request.COOKIES.get(cookie_key, None):
-            try:
-                app_sess = gate.app_sessions.get(code=app_sess_from_cookie)
-            except ApplicationSession.DoesNotExist:
-                pass
+            # try to get the app. session from the cookie
+            if app_sess_from_cookie := request.COOKIES.get(cookie_key, None):
+                try:
+                    app_sess = gate.app_sessions.get(code=app_sess_from_cookie)
+                except ApplicationSession.DoesNotExist:
+                    pass
 
-        if app_sess is None:  # first visit – app. session not already stored in a cookie
-            # get the redirect URL at the current index
-            index = min(n_app_sess - 1, gate.next_forward_index)
-            app_sess = gate.app_sessions.order_by("code")[index]
+            if app_sess is None:  # first visit – app. session not already stored in a cookie
+                # get the redirect URL at the current index
+                index = min(n_app_sess - 1, gate.next_forward_index)
+                app_sess = gate.app_sessions.order_by("code")[index]
 
-            # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to visit one
-            # app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
-            gate.next_forward_index = (index + 1) % n_app_sess
-            gate.save()
+                # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to
+                # visit one app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
+                gate.next_forward_index = (index + 1) % n_app_sess
+                gate.save()
 
     if app_sess:
         # set cookie and redirect to app. session
         response = HttpResponseRedirect(app_sess.session_url())
         response.set_cookie(cookie_key, app_sess.code, max_age=60 * 60 * 12, secure=True)
         return response
+
     # something went wrong
     return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 

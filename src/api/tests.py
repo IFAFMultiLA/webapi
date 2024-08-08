@@ -8,41 +8,40 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from django.forms.models import ModelFormMetaclass, ModelForm
-from django.http import SimpleCookie, HttpResponseRedirect
-from django.template.response import TemplateResponse
-from django.test import TestCase, RequestFactory
-from django.urls import reverse
 from django.db.utils import IntegrityError
+from django.forms.models import ModelForm, ModelFormMetaclass
+from django.http import HttpResponseRedirect, SimpleCookie
+from django.template.response import TemplateResponse
+from django.test import RequestFactory, TestCase
+from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APIClient, APITestCase
 
-from .models import (
-    max_options_length,
-    current_time_bytes,
-    generate_hash_code,
-    Application,
-    ApplicationConfig,
-    ApplicationSession,
-    UserApplicationSession,
-    User,
-    TrackingSession,
-    TrackingEvent,
-    UserFeedback,
-    ApplicationSessionGate,
-)
-from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 from .admin import (
-    admin_site,
     ApplicationAdmin,
     ApplicationConfigAdmin,
     ApplicationSessionAdmin,
-    TrackingSessionAdmin,
-    TrackingEventAdmin,
-    UserFeedbackAdmin,
     ApplicationSessionGateAdmin,
+    TrackingEventAdmin,
+    TrackingSessionAdmin,
+    UserFeedbackAdmin,
+    admin_site,
 )
-
+from .models import (
+    Application,
+    ApplicationConfig,
+    ApplicationSession,
+    ApplicationSessionGate,
+    TrackingEvent,
+    TrackingSession,
+    User,
+    UserApplicationSession,
+    UserFeedback,
+    current_time_bytes,
+    generate_hash_code,
+    max_options_length,
+)
+from .serializers import TrackingEventSerializer, TrackingSessionSerializer, UserFeedbackSerializer
 
 # ----- helper functions -----
 
@@ -649,7 +648,11 @@ class ViewTests(CustomAPITestCase):
 
         # test application session login
         self.client.handler.enforce_csrf_checks = True
-        valid_data = {"sess": self.app_sess_login.code, "username": self.user.username, "password": self.user_password}
+        valid_data = {
+            "sess": self.app_sess_login.code,
+            "username": self.user.username,
+            "password": self.user_password,
+        }
         url = reverse("session_login")
 
         # failures
@@ -838,7 +841,8 @@ class ViewTests(CustomAPITestCase):
 
         # failures
         self.assertEqual(
-            self.client.get(url, data=valid_data, auth_token=auth_token).status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+            self.client.get(url, data=valid_data, auth_token=auth_token).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
         )  # wrong method
         self.assertEqual(
             self.client.post_json(url, data={}, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST
@@ -948,7 +952,8 @@ class ViewTests(CustomAPITestCase):
 
         # failures
         self.assertEqual(
-            self.client.get(url, data=valid_data, auth_token=auth_token).status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+            self.client.get(url, data=valid_data, auth_token=auth_token).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
         )  # wrong method
         self.assertEqual(
             self.client.post_json(url, data={}, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST
@@ -1015,7 +1020,8 @@ class ViewTests(CustomAPITestCase):
 
         # failure with repeated request -> tracking session already ended
         self.assertEqual(
-            self.client.post_json(url, data=valid_data, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST
+            self.client.post_json(url, data=valid_data, auth_token=auth_token).status_code,
+            status.HTTP_400_BAD_REQUEST,
         )
 
         # start tracking with same user session -> receive new tracking session ID
@@ -1352,6 +1358,12 @@ class ViewTests(CustomAPITestCase):
         # it's important to sort them, as this determines the order in which the redirects happen
         app_sessions = sorted(app_sessions, key=lambda x: x.code)
         app_session_codes = {sess.code for sess in app_sessions}
+
+        # first check direct forwards to the app sessions (not via gate)
+        for appsess in app_sessions:
+            response = self.client.get(reverse("gate", args=[appsess.code]))
+            self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+            self.assertEqual(response.url, appsess.session_url())
 
         # iterate through the number of app sessions that we want to assign to a gate
         for n_app_sessions in range(len(app_sessions)):

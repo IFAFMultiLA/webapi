@@ -7,49 +7,48 @@ ModelAdmin classes to generate the django administration backend.
 """
 
 import csv
+import json
 import os.path
 import shutil
-import threading
 import tempfile
+import threading
 from collections import defaultdict
-from glob import glob
 from datetime import datetime
-from zipfile import ZipFile, ZIP_DEFLATED
-from zoneinfo import ZoneInfo
+from glob import glob
 from urllib.parse import urlsplit, urlunsplit
-import json
+from zipfile import ZIP_DEFLATED, ZipFile
+from zoneinfo import ZoneInfo
 
 from django import forms
+from django.conf import settings
 from django.contrib import admin, messages
-from django.contrib.auth.admin import UserAdmin, GroupAdmin
-from django.contrib.auth.models import User, Group
-from django.db.models import Count, Max, Avg, F
+from django.contrib.auth.admin import GroupAdmin, UserAdmin
+from django.contrib.auth.models import Group, User
 from django.db import connection as db_conn
+from django.db.models import Avg, Count, F, Max
 from django.http import (
-    JsonResponse,
-    HttpResponseForbidden,
-    HttpResponseNotFound,
     FileResponse,
     HttpResponse,
+    HttpResponseForbidden,
+    HttpResponseNotFound,
     HttpResponseRedirect,
+    JsonResponse,
 )
-from django.template.response import TemplateResponse
-from django.urls import path, reverse, re_path
-from django.utils.safestring import mark_safe
 from django.shortcuts import get_object_or_404, redirect
-from django.conf import settings
+from django.template.response import TemplateResponse
+from django.urls import path, re_path, reverse
+from django.utils.safestring import mark_safe
 from django.utils.text import Truncator
 
 from .models import (
+    APPLICATION_CONFIG_DEFAULT_JSON,
     Application,
     ApplicationConfig,
     ApplicationSession,
     ApplicationSessionGate,
-    TrackingSession,
     TrackingEvent,
+    TrackingSession,
     UserFeedback,
-    APPLICATION_CONFIG_DEFAULT_JSON,
-    application_session_url,
 )
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
@@ -329,6 +328,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         Custom init method to define additional attributes.
         """
         super().__init__(*args, **kwargs)
+        self._cur_changelist_request = None
         self._apps_confs_sessions = None
 
     @admin.display(ordering="name", description="Name")
@@ -369,12 +369,21 @@ class ApplicationAdmin(admin.ModelAdmin):
                     sess_inactive_notice = " (inactive)"
                     sess_item_style += "color: gray;"
 
-                app_sess_url = application_session_url(obj, sess_code)
+                gate_url = reverse("gate", args=(sess_code,))
+                if hasattr(settings, "BASE_URL"):
+                    base_url = settings.BASE_URL
+                    if base_url.endswith("/"):
+                        base_url = base_url[:-1]
+                    full_gate_url = base_url + gate_url
+                else:
+                    full_gate_url = self._cur_changelist_request.build_absolute_uri(gate_url)
+
                 rows.append(
                     f"<tr><td>"
                     f'<a href="{sess_url}?config={config_id}" style="{sess_item_style}">'
                     f"{sess_code}{sess_descr}{sess_inactive_notice}</a></td>"
-                    f'<td><a href="{app_sess_url}" style="{sess_item_style}" target="_blank">{app_sess_url}</a></td></tr>'
+                    f'<td><a href="{full_gate_url}" style="{sess_item_style}" target="_blank">{full_gate_url}'
+                    f"</a></td></tr>"
                 )
 
             rows.append(
@@ -399,6 +408,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         Customized changelist view. Retrieve application configurations and sessions and store them in a hierarchical
         dict in `self._apps_confs_sessions` to be used in `configurations_and_sessions` and `session_urls` methods.
         """
+        self._cur_changelist_request = request
         self._apps_confs_sessions = defaultdict(dict)
         # load application sessions per application configurations per applications
         qs_app_sessions = (
@@ -1203,7 +1213,7 @@ class MultiLAAdminSite(admin.AdminSite):
         Custom view for "dataview", i.e. overview of collected data.
         """
 
-        # data formatting functions for the table; see COLUMN_FORMATING below
+        # data formatting functions for the table; see column_formating below
         def default_format(v, _=None, __=None):
             return "-" if v is None else v
 
@@ -1258,14 +1268,14 @@ class MultiLAAdminSite(admin.AdminSite):
             return mark_safe(f"<a href={userfeedback_url}>&#8505; {v}</a>")
 
         # aggregation level choices for form
-        CONFIGFORM_GROUPBY_CHOICES = [
+        configform_groupby_choices = [
             ("app", "Application"),
             ("app_config", "Application config."),
             ("app_session", "Application session"),
         ]
 
         # map field names to "human readable" column names
-        COLUMN_DESCRIPTIONS = {
+        column_descriptions = {
             "applicationconfig__label": "Application config.",
             "applicationconfig__applicationsession__code": "App. session code",
             "applicationconfig__applicationsession__auth_mode": "Auth. mode",
@@ -1282,7 +1292,7 @@ class MultiLAAdminSite(admin.AdminSite):
         }
 
         # map field names to custom formating functions
-        COLUMN_FORMATING = {
+        column_formating = {
             "n_feedback": format_userfeedback_link,
             "avg_feedback_score": format_rounded,
             "avg_trackingsess_duration": format_timedelta,
@@ -1294,7 +1304,7 @@ class MultiLAAdminSite(admin.AdminSite):
 
         # form to select the aggregation level
         class ConfigForm(forms.Form):
-            groupby = forms.ChoiceField(label="Group by", choices=CONFIGFORM_GROUPBY_CHOICES, required=False)
+            groupby = forms.ChoiceField(label="Group by", choices=configform_groupby_choices, required=False)
 
         # handle request
         if request.method == "POST":  # form was submitted: populate with submitted data
@@ -1307,7 +1317,7 @@ class MultiLAAdminSite(admin.AdminSite):
 
         # get aggregation level "groupby" stored in session
         viewconfig = request.session.get("dataview_configform", {})
-        groupby = viewconfig.get("groupby", CONFIGFORM_GROUPBY_CHOICES[0][0])
+        groupby = viewconfig.get("groupby", configform_groupby_choices[0][0])
 
         # table expressions
         usersess_expr = "applicationconfig__applicationsession__userapplicationsession"
@@ -1378,7 +1388,7 @@ class MultiLAAdminSite(admin.AdminSite):
         table_data = defaultdict(list)
         for row in data_rows:
             formatted_row = [
-                COLUMN_FORMATING.get(k, default_format)(row[k], row, groupby)
+                column_formating.get(k, default_format)(row[k], row, groupby)
                 for k in data_fields
                 if k not in hidden_fields
             ]
@@ -1391,7 +1401,7 @@ class MultiLAAdminSite(admin.AdminSite):
             "subtitle": "Data view",
             "app_label": "datamanager",
             "configform": configform,
-            "table_columns": [COLUMN_DESCRIPTIONS[k] for k in data_fields if k in COLUMN_DESCRIPTIONS],
+            "table_columns": [column_descriptions[k] for k in data_fields if k in column_descriptions],
             "table_data": table_data.items(),
         }
 
@@ -1464,7 +1474,7 @@ class MultiLAAdminSite(admin.AdminSite):
             tmpdir = tempfile.mkdtemp()
 
             # map SQL query field names to CSV column names
-            QUERIES_AND_FIELDS = {
+            queries_and_fields = {
                 "app_sessions": (
                     "SELECT {fields} FROM api_application a "
                     "LEFT JOIN api_applicationconfig ac ON a.id = ac.application_id "
@@ -1529,9 +1539,9 @@ class MultiLAAdminSite(admin.AdminSite):
                 else:
                     return x
 
-            # write CSVs for the data from the queries defined in `QUERIES_AND_FIELDS`
+            # write CSVs for the data from the queries defined in `queries_and_fields`
             stored_csvs = []
-            for csvname, (query_template, query_filter, query_fields) in QUERIES_AND_FIELDS.items():
+            for csvname, (query_template, query_filter, query_fields) in queries_and_fields.items():
                 query_select = ",".join(f"{sqlfield} AS {csvfield}" for sqlfield, csvfield in query_fields)
                 query = query_template.format(fields=query_select)
                 if app_sess:

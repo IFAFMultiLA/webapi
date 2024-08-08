@@ -4,8 +4,8 @@ Common utilities.
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
-from django.utils.deprecation import MiddlewareMixin
 from django.conf import settings
+from django.utils.deprecation import MiddlewareMixin
 
 
 class DisableCSRF(MiddlewareMixin):
