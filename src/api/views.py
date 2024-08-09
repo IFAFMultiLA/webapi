@@ -627,12 +627,14 @@ def app_session_gate(request, sessioncode):
 
     cookie_key = "gate_app_sess_" + sessioncode
     app_sess = None
+    set_cookie = False
 
     try:
         # first, try to fetch an application session with that code ...
         app_sess = ApplicationSession.objects.get(code=sessioncode)
     except ApplicationSession.DoesNotExist:
         # ... if that fails, fetch an application session gate with that code
+        set_cookie = True
         with transaction.atomic():
             # get the app. session gate
             gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
@@ -660,10 +662,14 @@ def app_session_gate(request, sessioncode):
                 gate.save()
 
     if app_sess:
-        # set cookie and redirect to app. session
-        response = HttpResponseRedirect(app_sess.session_url())
-        response.set_cookie(cookie_key, app_sess.code, max_age=60 * 60 * 12, secure=True)
-        return response
+        if app_sess.is_active:
+            # set cookie and redirect to app. session
+            response = HttpResponseRedirect(app_sess.session_url())
+            if set_cookie:
+                response.set_cookie(cookie_key, app_sess.code, max_age=60 * 60 * 12, secure=True)
+            return response
+        else:
+            return render(request, "app_sess_inactive.html")
 
     # something went wrong
     return HttpResponse(status=status.HTTP_404_NOT_FOUND)

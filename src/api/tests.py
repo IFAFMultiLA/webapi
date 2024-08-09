@@ -1365,6 +1365,14 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(response.status_code, status.HTTP_302_FOUND)
             self.assertEqual(response.url, appsess.session_url())
 
+        # check an inactive app session
+        appsess_inactive = ApplicationSession(config=appconfig, auth_mode="none", is_active=False)
+        appsess_inactive.generate_code()
+        appsess_inactive.save()
+        response = self.client.get(reverse("gate", args=[appsess_inactive.code]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.headers["Content-Type"].startswith("text/html"))
+
         # iterate through the number of app sessions that we want to assign to a gate
         for n_app_sessions in range(len(app_sessions)):
             # create the gate with `n_app_sessions` app sessions

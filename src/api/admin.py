@@ -595,9 +595,16 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
     create / edit forms of this admin.
     """
 
-    fields = ["code", "session_url", "description", "auth_mode", "is_active", "updated", "updated_by"]
-    readonly_fields = ["config", "code", "session_url", "updated", "updated_by"]
+    fields = ["code", "session_gate_url", "description", "auth_mode", "is_active", "updated", "updated_by"]
+    readonly_fields = ["config", "code", "session_gate_url", "updated", "updated_by"]
     list_display = []
+
+    def __init__(self, *args, **kwargs):
+        """
+        Custom init method to define additional attributes.
+        """
+        super().__init__(*args, **kwargs)
+        self._cur_change_request = None
 
     @staticmethod
     def _get_config_id(request):
@@ -612,11 +619,30 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
 
         return config_id
 
+    @admin.display(description="Session URL")
+    def session_gate_url(self, obj):
+        """Display session gate URL (readonly) in change form."""
+        gate_url = reverse("gate", args=(obj.code,))
+        if hasattr(settings, "BASE_URL"):
+            base_url = settings.BASE_URL
+            if base_url.endswith("/"):
+                base_url = base_url[:-1]
+            full_gate_url = base_url + gate_url
+        else:
+            full_gate_url = self._cur_change_request.build_absolute_uri(gate_url)
+
+        redir_url = obj.session_url()
+
+        return mark_safe(
+            f'<a href="{full_gate_url}" target="_blank">{full_gate_url}</a> &rArr; '
+            f'<a href="{redir_url}" target="_blank">{redir_url}</a>'
+        )
+
     def get_fields(self, request, obj=None):
         """Customize fields: Remove some fields when creating a new application session."""
         fields = super().get_fields(request, obj=obj)
         if obj is None:
-            return [f for f in fields if f not in {"code", "session_url", "updated", "updated_by"}]
+            return [f for f in fields if f not in {"code", "session_gate_url", "updated", "updated_by"}]
         return fields
 
     def save_model(self, request, obj, form, change):
@@ -645,6 +671,8 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         """
         Customize view: Make sure to get the current configuration ID for which this application session is updated.
         """
+        self._cur_change_request = request
+
         if not self._get_config_id(request):
             messages.error(request, "No application configuration selected.")
             return redirect(reverse("admin:api_application_changelist"))
