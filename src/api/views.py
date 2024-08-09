@@ -161,6 +161,7 @@ def app_session(request):
     Returns a JSON response with:
 
     - `sess_code`: session code
+    - `active`: boolean value indicating if the application session is active
     - optional `auth_mode`: authentication mode ("none" or "login") if `sess` was passed
     - optional `user_code`: generated user authentication token (when `auth_mode` is "none")
     - optional `config`: application configuration as JSON object (when `auth_mode` is "none")
