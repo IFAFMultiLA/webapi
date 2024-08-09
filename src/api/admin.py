@@ -707,7 +707,11 @@ class ApplicationSessionGateAppSessionsInlineModelChoiceField(forms.ModelChoiceF
     """
 
     def label_from_instance(self, app_session):
-        return f"{app_session.config.application.name} / {app_session.config.label} / {app_session.code}"
+        """Custom label for application session model choice field."""
+        label = f"{app_session.config.application.name} / {app_session.config.label} / {app_session.code}"
+        if not app_session.is_active:
+            label += " (inactive)"
+        return label
 
 
 class ApplicationSessionGateAppSessionsInline(admin.TabularInline):
@@ -768,11 +772,13 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
 
         return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
 
-    @admin.display(ordering=None, description="Sessions in gate")
+    @admin.display(ordering=None, description="Active sessions in gate")
     def sessions_in_gate(self, obj):
-        """Custom field to show all assigned sessions in each gate. Highlight next session code with bold font."""
+        """
+        Custom field to show all assigned *active* sessions in each gate. Highlight next session code with bold font.
+        """
         links = []
-        for i, app_sess_code in enumerate(obj.app_sessions.order_by("code").values("code")):
+        for i, app_sess_code in enumerate(obj.app_sessions.filter(is_active=True).order_by("code").values("code")):
             app_sess_code = app_sess_code["code"]
             link = (
                 f'<a href="{reverse("admin:api_applicationsession_change", args=[app_sess_code])}">'

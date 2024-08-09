@@ -636,25 +636,26 @@ def app_session_gate(request, sessioncode):
         # ... if that fails, fetch an application session gate with that code
         set_cookie = True
         with transaction.atomic():
-            # get the app. session gate
+            # get the app. session gate and its active app sessions
             gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
+            active_app_sessions = gate.app_sessions.filter(is_active=True)
 
-            # make sure it has at least 1 app session assigned
-            n_app_sess = gate.app_sessions.count()
+            # make sure it has at least 1 active app session assigned
+            n_app_sess = active_app_sessions.count()
             if n_app_sess <= 0:
                 return HttpResponse(status=status.HTTP_204_NO_CONTENT)
 
             # try to get the app. session from the cookie
             if app_sess_from_cookie := request.COOKIES.get(cookie_key, None):
                 try:
-                    app_sess = gate.app_sessions.get(code=app_sess_from_cookie)
+                    app_sess = active_app_sessions.get(code=app_sess_from_cookie)
                 except ApplicationSession.DoesNotExist:
                     pass
 
             if app_sess is None:  # first visit – app. session not already stored in a cookie
                 # get the redirect URL at the current index
                 index = min(n_app_sess - 1, gate.next_forward_index)
-                app_sess = gate.app_sessions.order_by("code")[index]
+                app_sess = active_app_sessions.order_by("code")[index]
 
                 # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to
                 # visit one app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions

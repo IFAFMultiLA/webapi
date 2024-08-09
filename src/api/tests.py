@@ -1373,6 +1373,10 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.headers["Content-Type"].startswith("text/html"))
 
+        # also add the inactive app session
+        app_sessions_active_only = app_sessions.copy()
+        app_sessions.insert(1, appsess_inactive)
+
         # iterate through the number of app sessions that we want to assign to a gate
         for n_app_sessions in range(len(app_sessions)):
             # create the gate with `n_app_sessions` app sessions
@@ -1380,12 +1384,13 @@ class ViewTests(CustomAPITestCase):
             gate.generate_code()
             gate.save()
             gate.app_sessions.set(app_sessions[:n_app_sessions])
+            n_active_app_sessions = gate.app_sessions.filter(is_active=True).count()
 
             # visit the gate with that session multiple times
             for reset_cookies in (False, True):
-                for i in range(n_app_sessions * 2):
+                for i in range(n_active_app_sessions * 2):
                     response = self.client.get(reverse("gate", args=[gate.code]))
-                    if n_app_sessions == 0:
+                    if n_active_app_sessions == 0:
                         # gate with no assigned app sessions always returns "204 no content"
                         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
                     else:
@@ -1396,12 +1401,12 @@ class ViewTests(CustomAPITestCase):
                         if reset_cookies:
                             # cookies were reset – simulates a new client -> visit one app session after another,
                             # e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
-                            appsess = app_sessions[i % n_app_sessions]
+                            appsess = app_sessions_active_only[i % n_active_app_sessions]
                             self.assertEqual(response.url, appsess.session_url())
                         else:
                             # cookies remain – simulates same client -> visit same app session as before (here, always
                             # the first of the gate)
-                            self.assertEqual(response.url, app_sessions[0].session_url())
+                            self.assertEqual(response.url, app_sessions_active_only[0].session_url())
 
                     if reset_cookies:
                         self.client.cookies = SimpleCookie()
