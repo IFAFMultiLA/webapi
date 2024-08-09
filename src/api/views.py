@@ -638,6 +638,9 @@ def app_session_gate(request, sessioncode):
         with transaction.atomic():
             # get the app. session gate and its active app sessions
             gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
+            if not gate.is_active:  # the gate is not active -> show a message
+                return render(request, "app_sess_inactive.html")
+
             active_app_sessions = gate.app_sessions.filter(is_active=True)
 
             # make sure it has at least 1 active app session assigned

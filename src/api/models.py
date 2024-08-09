@@ -179,6 +179,7 @@ class ApplicationSessionGate(models.Model):
         verbose_name="Application sessions",
         help_text="Application sessions to which this gate forwards",
     )
+    is_active = models.BooleanField("Is active", default=True)
     next_forward_index = models.PositiveIntegerField(default=0)  # stores index to next target app session
     updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)

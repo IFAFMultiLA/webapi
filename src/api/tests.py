@@ -1377,6 +1377,14 @@ class ViewTests(CustomAPITestCase):
         app_sessions_active_only = app_sessions.copy()
         app_sessions.insert(1, appsess_inactive)
 
+        # check an inactive gate
+        gate = ApplicationSessionGate(label="inactive testgate", is_active=False)
+        gate.generate_code()
+        gate.save()
+        response = self.client.get(reverse("gate", args=[gate.code]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.headers["Content-Type"].startswith("text/html"))
+
         # iterate through the number of app sessions that we want to assign to a gate
         for n_app_sessions in range(len(app_sessions)):
             # create the gate with `n_app_sessions` app sessions

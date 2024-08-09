@@ -735,9 +735,9 @@ class ApplicationSessionGateAppSessionsInline(admin.TabularInline):
 class ApplicationSessionGateAdmin(admin.ModelAdmin):
     """Model admin for application session gates."""
 
-    fields = ["code", "session_url", "label", "description", "updated", "updated_by"]
+    fields = ["code", "session_url", "is_active", "label", "description", "updated", "updated_by"]
     readonly_fields = ["code", "session_url", "updated", "updated_by"]
-    list_display = ["label", "code", "session_url", "sessions_in_gate", "updated", "updated_by"]
+    list_display = ["label", "code", "session_url", "is_active", "sessions_in_gate", "updated", "updated_by"]
     ordering = ["label"]
     inlines = [ApplicationSessionGateAppSessionsInline]
 
