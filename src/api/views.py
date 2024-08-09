@@ -9,30 +9,30 @@ be formatted in ISO 8601 format.
 
 from functools import wraps
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
+from django.db.utils import IntegrityError
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views import defaults as default_views
 from django.views.csrf import csrf_failure as default_csrf_failure
-from django.db.utils import IntegrityError
-from django.core.validators import validate_email
-from django.core.exceptions import ValidationError
+from django.views.decorators.csrf import ensure_csrf_cookie
+from ipware import get_client_ip
 from rest_framework import status
 from rest_framework.decorators import api_view
-from ipware import get_client_ip
 
 from .models import (
+    Application,
+    ApplicationConfig,
     ApplicationSession,
     ApplicationSessionGate,
-    ApplicationConfig,
-    UserApplicationSession,
-    User,
     TrackingSession,
-    Application,
+    User,
+    UserApplicationSession,
     UserFeedback,
 )
-from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
+from .serializers import TrackingEventSerializer, TrackingSessionSerializer, UserFeedbackSerializer
 
 # --- constants ---
 
@@ -161,6 +161,7 @@ def app_session(request):
     Returns a JSON response with:
 
     - `sess_code`: session code
+    - `active`: boolean value indicating if the application session is active
     - optional `auth_mode`: authentication mode ("none" or "login") if `sess` was passed
     - optional `user_code`: generated user authentication token (when `auth_mode` is "none")
     - optional `config`: application configuration as JSON object (when `auth_mode` is "none")
@@ -168,12 +169,18 @@ def app_session(request):
 
     if request.method == "GET":
         sess_code = request.GET.get("sess", None)
+        response_data = None
+        return_status = None
         if sess_code:
             # get the application session
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
-            response_data = {"sess_code": app_sess_obj.code, "auth_mode": app_sess_obj.auth_mode}
+            response_data = {
+                "sess_code": app_sess_obj.code,
+                "auth_mode": app_sess_obj.auth_mode,
+                "active": app_sess_obj.is_active,
+            }
 
-            if app_sess_obj.auth_mode == "none":
+            if app_sess_obj.auth_mode == "none" and app_sess_obj.is_active:
                 # create a user code
                 app_config_obj, user_sess_obj = _generate_user_session(app_sess_obj)  # user_id will stay None
 
@@ -182,20 +189,24 @@ def app_session(request):
 
                 return_status = status.HTTP_201_CREATED
             else:
-                # user must login; no additional response data
+                # app session is inactive or user must login; no additional response data
                 return_status = status.HTTP_200_OK
-
-            return JsonResponse(response_data, status=return_status)
         elif referrer := request.GET.get("referrer", request.META.get("HTTP_REFERER", None)):
             default_app_sessions = Application.objects.filter(default_application_session__isnull=False).values(
-                "url", "default_application_session__code"
+                "url", "default_application_session__is_active", "default_application_session__code"
             )
 
             for app_sess in default_app_sessions:
                 if app_sess["url"] == referrer or (referrer.endswith("/") and app_sess["url"] + "/" == referrer):
-                    return JsonResponse(
-                        {"sess_code": app_sess["default_application_session__code"]}, status=status.HTTP_200_OK
-                    )
+                    response_data = {
+                        "sess_code": app_sess["default_application_session__code"],
+                        "active": app_sess["default_application_session__is_active"],
+                    }
+                    return_status = status.HTTP_200_OK
+                    break
+
+        if response_data and return_status:
+            return JsonResponse(response_data, status=return_status)
 
         return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
@@ -242,7 +253,7 @@ def app_session_login(request):
         if sess_code and (username or email) and password:
             app_sess_obj = get_object_or_404(ApplicationSession, code=sess_code)
 
-            if app_sess_obj.auth_mode == "login":
+            if app_sess_obj.auth_mode == "login" and app_sess_obj.is_active:
                 ident_args = {}
                 if username:
                     ident_args["username"] = username
@@ -610,44 +621,61 @@ def server_error_failure(request, template_name="500.html"):
 
 def app_session_gate(request, sessioncode):
     """
-    Session gate redirect. Look up session gate with code `sessioncode`, select the next app session at the next
-    redirection index and redirect it to that URL. Increase the next redirection index by 1.
+    Session gate redirect. Look up an application session or an application session *gate* with code `sessioncode`,
+    select the next app session at the next redirection index and redirect it to that URL. Increase the next redirection
+    index by 1.
     """
 
     cookie_key = "gate_app_sess_" + sessioncode
     app_sess = None
+    set_cookie = False
 
-    with transaction.atomic():
-        # get the app. session gate
-        gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
+    try:
+        # first, try to fetch an application session with that code ...
+        app_sess = ApplicationSession.objects.get(code=sessioncode)
+    except ApplicationSession.DoesNotExist:
+        # ... if that fails, fetch an application session gate with that code
+        set_cookie = True
+        with transaction.atomic():
+            # get the app. session gate and its active app sessions
+            gate = get_object_or_404(ApplicationSessionGate, code=sessioncode)
+            if not gate.is_active:  # the gate is not active -> show a message
+                return render(request, "app_sess_inactive.html")
 
-        # make sure it has at least 1 app session assigned
-        n_app_sess = gate.app_sessions.count()
-        if n_app_sess <= 0:
-            return HttpResponse(status=status.HTTP_204_NO_CONTENT)
+            active_app_sessions = gate.app_sessions.filter(is_active=True)
 
-        # try to get the app. session from the cookie
-        if app_sess_from_cookie := request.COOKIES.get(cookie_key, None):
-            try:
-                app_sess = gate.app_sessions.get(code=app_sess_from_cookie)
-            except ApplicationSession.DoesNotExist:
-                pass
+            # make sure it has at least 1 active app session assigned
+            n_app_sess = active_app_sessions.count()
+            if n_app_sess <= 0:
+                return HttpResponse(status=status.HTTP_204_NO_CONTENT)
 
-        if app_sess is None:  # first visit – app. session not already stored in a cookie
-            # get the redirect URL at the current index
-            index = min(n_app_sess - 1, gate.next_forward_index)
-            app_sess = gate.app_sessions.order_by("code")[index]
+            # try to get the app. session from the cookie
+            if app_sess_from_cookie := request.COOKIES.get(cookie_key, None):
+                try:
+                    app_sess = active_app_sessions.get(code=app_sess_from_cookie)
+                except ApplicationSession.DoesNotExist:
+                    pass
 
-            # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to visit one
-            # app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
-            gate.next_forward_index = (index + 1) % n_app_sess
-            gate.save()
+            if app_sess is None:  # first visit – app. session not already stored in a cookie
+                # get the redirect URL at the current index
+                index = min(n_app_sess - 1, gate.next_forward_index)
+                app_sess = active_app_sessions.order_by("code")[index]
+
+                # increase the next redirection index by 1 within bounds [0, <number of app. sessions>] in order to
+                # visit one app session after another, e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
+                gate.next_forward_index = (index + 1) % n_app_sess
+                gate.save()
 
     if app_sess:
-        # set cookie and redirect to app. session
-        response = HttpResponseRedirect(app_sess.session_url())
-        response.set_cookie(cookie_key, app_sess.code, max_age=60 * 60 * 12, secure=True)
-        return response
+        if app_sess.is_active:
+            # set cookie and redirect to app. session
+            response = HttpResponseRedirect(app_sess.session_url())
+            if set_cookie:
+                response.set_cookie(cookie_key, app_sess.code, max_age=60 * 60 * 12, secure=True)
+            return response
+        else:
+            return render(request, "app_sess_inactive.html")
+
     # something went wrong
     return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 

@@ -4,12 +4,11 @@ URL routing.
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
-from django.urls import path
 from django.conf import settings
+from django.urls import path
 from rest_framework.schemas import get_schema_view
 
 from . import views
-
 
 # map URL patterns to views
 urlpatterns = [

@@ -8,41 +8,40 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from django.forms.models import ModelFormMetaclass, ModelForm
-from django.http import SimpleCookie, HttpResponseRedirect
-from django.template.response import TemplateResponse
-from django.test import TestCase, RequestFactory
-from django.urls import reverse
 from django.db.utils import IntegrityError
+from django.forms.models import ModelForm, ModelFormMetaclass
+from django.http import HttpResponseRedirect, SimpleCookie
+from django.template.response import TemplateResponse
+from django.test import RequestFactory, TestCase
+from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APIClient, APITestCase
 
-from .models import (
-    max_options_length,
-    current_time_bytes,
-    generate_hash_code,
-    Application,
-    ApplicationConfig,
-    ApplicationSession,
-    UserApplicationSession,
-    User,
-    TrackingSession,
-    TrackingEvent,
-    UserFeedback,
-    ApplicationSessionGate,
-)
-from .serializers import TrackingSessionSerializer, TrackingEventSerializer, UserFeedbackSerializer
 from .admin import (
-    admin_site,
     ApplicationAdmin,
     ApplicationConfigAdmin,
     ApplicationSessionAdmin,
-    TrackingSessionAdmin,
-    TrackingEventAdmin,
-    UserFeedbackAdmin,
     ApplicationSessionGateAdmin,
+    TrackingEventAdmin,
+    TrackingSessionAdmin,
+    UserFeedbackAdmin,
+    admin_site,
 )
-
+from .models import (
+    Application,
+    ApplicationConfig,
+    ApplicationSession,
+    ApplicationSessionGate,
+    TrackingEvent,
+    TrackingSession,
+    User,
+    UserApplicationSession,
+    UserFeedback,
+    current_time_bytes,
+    generate_hash_code,
+    max_options_length,
+)
+from .serializers import TrackingEventSerializer, TrackingSessionSerializer, UserFeedbackSerializer
 
 # ----- helper functions -----
 
@@ -450,10 +449,43 @@ class ViewTests(CustomAPITestCase):
         assert self.app_sess_no_auth.code != self.app_sess_login.code
         self.app_sess_login.save()
 
+        # create an app session that is inactive
+        self.app_sess_inactive = ApplicationSession(config=app_config, auth_mode="none", is_active=False)
+        self.app_sess_inactive.generate_code()
+        assert len({self.app_sess_no_auth.code, self.app_sess_login.code, self.app_sess_inactive.code}) == 3
+        self.app_sess_inactive.save()
+
+        # create an app session that is inactive and requires login
+        self.app_sess_inactive_w_login = ApplicationSession(config=app_config, auth_mode="login", is_active=False)
+        self.app_sess_inactive_w_login.generate_code()
+        assert (
+            len(
+                {
+                    self.app_sess_no_auth.code,
+                    self.app_sess_login.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
+                }
+            )
+            == 4
+        )
+        self.app_sess_inactive_w_login.save()
+
         # create an app session using the "no qual. feedback" config
         self.app_sess_no_auth_no_feedback = ApplicationSession(config=app_config_no_feedback, auth_mode="none")
         self.app_sess_no_auth_no_feedback.generate_code()
-        assert len({self.app_sess_no_auth.code, self.app_sess_login.code, self.app_sess_no_auth_no_feedback.code}) == 3
+        assert (
+            len(
+                {
+                    self.app_sess_no_auth.code,
+                    self.app_sess_login.code,
+                    self.app_sess_no_auth_no_feedback.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
+                }
+            )
+            == 5
+        )
         self.app_sess_no_auth_no_feedback.save()
 
         # create an app session using the "no IP tracking" config
@@ -466,9 +498,11 @@ class ViewTests(CustomAPITestCase):
                     self.app_sess_login.code,
                     self.app_sess_no_auth_no_feedback.code,
                     self.app_sess_no_auth_no_ip.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
                 }
             )
-            == 4
+            == 6
         )
         self.app_sess_no_auth_no_ip.save()
 
@@ -489,10 +523,13 @@ class ViewTests(CustomAPITestCase):
                     self.app_sess_no_auth.code,
                     self.app_sess_login.code,
                     self.app_sess_no_auth_no_feedback.code,
+                    self.app_sess_no_auth_no_ip.code,
+                    self.app_sess_inactive.code,
+                    self.app_sess_inactive_w_login.code,
                     self.app_sess_no_auth2.code,
                 }
             )
-            == 4
+            == 7
         )
         self.app_sess_no_auth2.save()
 
@@ -538,6 +575,7 @@ class ViewTests(CustomAPITestCase):
             {
                 "sess_code": valid_data["sess"],
                 "auth_mode": "none",
+                "active": True,
                 "user_code": user_app_sess.code,
                 "config": self.app_sess_no_auth.config.config,
             },
@@ -550,7 +588,27 @@ class ViewTests(CustomAPITestCase):
         self.assertIn("csrftoken", response.cookies)
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(UserApplicationSession.objects.filter(application_session=self.app_sess_login).count(), 0)
-        self.assertEqual(response.json(), {"sess_code": valid_data["sess"], "auth_mode": "login"})
+        self.assertEqual(response.json(), {"sess_code": valid_data["sess"], "auth_mode": "login", "active": True})
+
+        # OK – inactive app session
+        valid_data = {"sess": self.app_sess_inactive.code}
+        response = self.client.get(url, valid_data)
+        self.assertIn("csrftoken", response.cookies)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json(),
+            {"sess_code": valid_data["sess"], "auth_mode": "none", "active": False},
+        )
+
+        # OK – inactive app session that requires login
+        valid_data = {"sess": self.app_sess_inactive_w_login.code}
+        response = self.client.get(url, valid_data)
+        self.assertIn("csrftoken", response.cookies)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json(),
+            {"sess_code": valid_data["sess"], "auth_mode": "login", "active": False},
+        )
 
         # test default app session – OK
         response = self.client.get(url, HTTP_REFERER=self.app_with_default_sess.url)
@@ -558,9 +616,7 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(
             response.json(),
-            {
-                "sess_code": self.app_sess_no_auth2.code,
-            },
+            {"sess_code": self.app_sess_no_auth2.code, "active": True},
         )
 
         # test default app session – OK too
@@ -569,9 +625,7 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(
             response.json(),
-            {
-                "sess_code": self.app_sess_no_auth2.code,
-            },
+            {"sess_code": self.app_sess_no_auth2.code, "active": True},
         )
 
         # test default app session – OK too
@@ -580,9 +634,7 @@ class ViewTests(CustomAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)  # doesn't create a user session
         self.assertEqual(
             response.json(),
-            {
-                "sess_code": self.app_sess_no_auth2.code,
-            },
+            {"sess_code": self.app_sess_no_auth2.code, "active": True},
         )
 
         # test default app session – fail
@@ -596,7 +648,11 @@ class ViewTests(CustomAPITestCase):
 
         # test application session login
         self.client.handler.enforce_csrf_checks = True
-        valid_data = {"sess": self.app_sess_login.code, "username": self.user.username, "password": self.user_password}
+        valid_data = {
+            "sess": self.app_sess_login.code,
+            "username": self.user.username,
+            "password": self.user_password,
+        }
         url = reverse("session_login")
 
         # failures
@@ -641,6 +697,14 @@ class ViewTests(CustomAPITestCase):
                 url, data={"sess": self.app_sess_login.code, "username": self.user.username, "password": "foo"}
             ).status_code,
             status.HTTP_401_UNAUTHORIZED,
+        )
+        # inactive app session
+        self.assertEqual(
+            self.client.post_json(
+                url,
+                data={"sess": self.app_sess_inactive_w_login.code, "username": self.user.username, "password": "foo"},
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
         )
         # no CSRF token
         # self.assertEqual(self.client.post_json(url, data=valid_data, omit_csrftoken=True).status_code,
@@ -777,7 +841,8 @@ class ViewTests(CustomAPITestCase):
 
         # failures
         self.assertEqual(
-            self.client.get(url, data=valid_data, auth_token=auth_token).status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+            self.client.get(url, data=valid_data, auth_token=auth_token).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
         )  # wrong method
         self.assertEqual(
             self.client.post_json(url, data={}, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST
@@ -887,7 +952,8 @@ class ViewTests(CustomAPITestCase):
 
         # failures
         self.assertEqual(
-            self.client.get(url, data=valid_data, auth_token=auth_token).status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+            self.client.get(url, data=valid_data, auth_token=auth_token).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
         )  # wrong method
         self.assertEqual(
             self.client.post_json(url, data={}, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST
@@ -954,7 +1020,8 @@ class ViewTests(CustomAPITestCase):
 
         # failure with repeated request -> tracking session already ended
         self.assertEqual(
-            self.client.post_json(url, data=valid_data, auth_token=auth_token).status_code, status.HTTP_400_BAD_REQUEST
+            self.client.post_json(url, data=valid_data, auth_token=auth_token).status_code,
+            status.HTTP_400_BAD_REQUEST,
         )
 
         # start tracking with same user session -> receive new tracking session ID
@@ -1292,6 +1359,32 @@ class ViewTests(CustomAPITestCase):
         app_sessions = sorted(app_sessions, key=lambda x: x.code)
         app_session_codes = {sess.code for sess in app_sessions}
 
+        # first check direct forwards to the app sessions (not via gate)
+        for appsess in app_sessions:
+            response = self.client.get(reverse("gate", args=[appsess.code]))
+            self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+            self.assertEqual(response.url, appsess.session_url())
+
+        # check an inactive app session
+        appsess_inactive = ApplicationSession(config=appconfig, auth_mode="none", is_active=False)
+        appsess_inactive.generate_code()
+        appsess_inactive.save()
+        response = self.client.get(reverse("gate", args=[appsess_inactive.code]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.headers["Content-Type"].startswith("text/html"))
+
+        # also add the inactive app session
+        app_sessions_active_only = app_sessions.copy()
+        app_sessions.insert(1, appsess_inactive)
+
+        # check an inactive gate
+        gate = ApplicationSessionGate(label="inactive testgate", is_active=False)
+        gate.generate_code()
+        gate.save()
+        response = self.client.get(reverse("gate", args=[gate.code]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.headers["Content-Type"].startswith("text/html"))
+
         # iterate through the number of app sessions that we want to assign to a gate
         for n_app_sessions in range(len(app_sessions)):
             # create the gate with `n_app_sessions` app sessions
@@ -1299,12 +1392,13 @@ class ViewTests(CustomAPITestCase):
             gate.generate_code()
             gate.save()
             gate.app_sessions.set(app_sessions[:n_app_sessions])
+            n_active_app_sessions = gate.app_sessions.filter(is_active=True).count()
 
             # visit the gate with that session multiple times
             for reset_cookies in (False, True):
-                for i in range(n_app_sessions * 2):
+                for i in range(n_active_app_sessions * 2):
                     response = self.client.get(reverse("gate", args=[gate.code]))
-                    if n_app_sessions == 0:
+                    if n_active_app_sessions == 0:
                         # gate with no assigned app sessions always returns "204 no content"
                         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
                     else:
@@ -1315,12 +1409,12 @@ class ViewTests(CustomAPITestCase):
                         if reset_cookies:
                             # cookies were reset – simulates a new client -> visit one app session after another,
                             # e.g. A -> B -> A -> B -> ... for a gate with 2 app sessions
-                            appsess = app_sessions[i % n_app_sessions]
+                            appsess = app_sessions_active_only[i % n_active_app_sessions]
                             self.assertEqual(response.url, appsess.session_url())
                         else:
                             # cookies remain – simulates same client -> visit same app session as before (here, always
                             # the first of the gate)
-                            self.assertEqual(response.url, app_sessions[0].session_url())
+                            self.assertEqual(response.url, app_sessions_active_only[0].session_url())
 
                     if reset_cookies:
                         self.client.cookies = SimpleCookie()

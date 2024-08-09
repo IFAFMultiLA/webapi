@@ -1,3 +1,11 @@
+exclude = ["src/api/migrations"]
 line-length = 120
 indent-width = 4
 target-version = "py310"
+
+[lint]
+select = ["F", "W", "E", "I", "N"]
+
+[format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"

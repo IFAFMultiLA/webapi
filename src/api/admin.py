@@ -7,49 +7,48 @@ ModelAdmin classes to generate the django administration backend.
 """
 
 import csv
+import json
 import os.path
 import shutil
-import threading
 import tempfile
+import threading
 from collections import defaultdict
-from glob import glob
 from datetime import datetime
-from zipfile import ZipFile, ZIP_DEFLATED
-from zoneinfo import ZoneInfo
+from glob import glob
 from urllib.parse import urlsplit, urlunsplit
-import json
+from zipfile import ZIP_DEFLATED, ZipFile
+from zoneinfo import ZoneInfo
 
 from django import forms
+from django.conf import settings
 from django.contrib import admin, messages
-from django.contrib.auth.admin import UserAdmin, GroupAdmin
-from django.contrib.auth.models import User, Group
-from django.db.models import Count, Max, Avg, F
+from django.contrib.auth.admin import GroupAdmin, UserAdmin
+from django.contrib.auth.models import Group, User
 from django.db import connection as db_conn
+from django.db.models import Avg, Count, F, Max
 from django.http import (
-    JsonResponse,
-    HttpResponseForbidden,
-    HttpResponseNotFound,
     FileResponse,
     HttpResponse,
+    HttpResponseForbidden,
+    HttpResponseNotFound,
     HttpResponseRedirect,
+    JsonResponse,
 )
-from django.template.response import TemplateResponse
-from django.urls import path, reverse, re_path
-from django.utils.safestring import mark_safe
 from django.shortcuts import get_object_or_404, redirect
-from django.conf import settings
+from django.template.response import TemplateResponse
+from django.urls import path, re_path, reverse
+from django.utils.safestring import mark_safe
 from django.utils.text import Truncator
 
 from .models import (
+    APPLICATION_CONFIG_DEFAULT_JSON,
     Application,
     ApplicationConfig,
     ApplicationSession,
     ApplicationSessionGate,
-    TrackingSession,
     TrackingEvent,
+    TrackingSession,
     UserFeedback,
-    APPLICATION_CONFIG_DEFAULT_JSON,
-    application_session_url,
 )
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
@@ -329,6 +328,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         Custom init method to define additional attributes.
         """
         super().__init__(*args, **kwargs)
+        self._cur_changelist_request = None
         self._apps_confs_sessions = None
 
     @admin.display(ordering="name", description="Name")
@@ -355,19 +355,35 @@ class ApplicationAdmin(admin.ModelAdmin):
             rows.append(f'<tr><th colspan="2"><a href="{config_url}?application={obj.id}">{config_label}</a></th></tr>')
 
             # iterate through sessions of this application configuration
-            for sess_code, sess_descr in config_data["sessions"].items():
+            for sess_code, (sess_descr, sess_active) in config_data["sessions"].items():
                 sess_url = reverse("admin:api_applicationsession_change", args=[sess_code])
                 if sess_descr:
                     sess_descr = f" – {Truncator(sess_descr).chars(25)}"
                 if obj.default_application_session and obj.default_application_session.code == sess_code:
-                    sess_item_style = ' style="font-weight: bold;"'
+                    sess_item_style = "font-weight: bold;"
                 else:
                     sess_item_style = ""
-                app_sess_url = application_session_url(obj, sess_code)
+                if sess_active:
+                    sess_inactive_notice = ""
+                else:
+                    sess_inactive_notice = " (inactive)"
+                    sess_item_style += "color: gray;"
+
+                gate_url = reverse("gate", args=(sess_code,))
+                if hasattr(settings, "BASE_URL"):
+                    base_url = settings.BASE_URL
+                    if base_url.endswith("/"):
+                        base_url = base_url[:-1]
+                    full_gate_url = base_url + gate_url
+                else:
+                    full_gate_url = self._cur_changelist_request.build_absolute_uri(gate_url)
+
                 rows.append(
-                    f"<tr><td{sess_item_style}>"
-                    f'<a href="{sess_url}?config={config_id}">{sess_code}{sess_descr}</a></td>'
-                    f'<td><a href="{app_sess_url}" target="_blank">{app_sess_url}</a></td></tr>'
+                    f"<tr><td>"
+                    f'<a href="{sess_url}?config={config_id}" style="{sess_item_style}">'
+                    f"{sess_code}{sess_descr}{sess_inactive_notice}</a></td>"
+                    f'<td><a href="{full_gate_url}" style="{sess_item_style}" target="_blank">{full_gate_url}'
+                    f"</a></td></tr>"
                 )
 
             rows.append(
@@ -392,6 +408,7 @@ class ApplicationAdmin(admin.ModelAdmin):
         Customized changelist view. Retrieve application configurations and sessions and store them in a hierarchical
         dict in `self._apps_confs_sessions` to be used in `configurations_and_sessions` and `session_urls` methods.
         """
+        self._cur_changelist_request = request
         self._apps_confs_sessions = defaultdict(dict)
         # load application sessions per application configurations per applications
         qs_app_sessions = (
@@ -403,6 +420,7 @@ class ApplicationAdmin(admin.ModelAdmin):
                 "applicationconfig__label",
                 "applicationconfig__applicationsession__code",
                 "applicationconfig__applicationsession__description",
+                "applicationconfig__applicationsession__is_active",
             )
         )
         # iterate through application sessions and build hierarchical dict:
@@ -411,14 +429,14 @@ class ApplicationAdmin(admin.ModelAdmin):
         #     <config_id>: {
         #       "config_label": "<config. label>",
         #       "sessions": {
-        #         <session code>: "<session description>",
+        #         <session code>: ["<session description>", <is_active>],
         #         ...
         #       },
         #       ...
         #     },
         #     ...
         # }
-        for app_id, config_id, config_label, sess_code, sess_descr in qs_app_sessions:
+        for app_id, config_id, config_label, sess_code, sess_descr, sess_active in qs_app_sessions:
             if config_id is None:
                 continue
 
@@ -428,7 +446,7 @@ class ApplicationAdmin(admin.ModelAdmin):
                 conf_dict = {"config_label": config_label, "sessions": {}}
 
             if sess_code:
-                conf_dict["sessions"][sess_code] = sess_descr
+                conf_dict["sessions"][sess_code] = [sess_descr, sess_active]
 
             self._apps_confs_sessions[app_id][config_id] = conf_dict
 
@@ -577,9 +595,16 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
     create / edit forms of this admin.
     """
 
-    fields = ["code", "session_url", "description", "auth_mode", "updated", "updated_by"]
-    readonly_fields = ["config", "code", "session_url", "updated", "updated_by"]
+    fields = ["code", "session_gate_url", "description", "auth_mode", "is_active", "updated", "updated_by"]
+    readonly_fields = ["config", "code", "session_gate_url", "updated", "updated_by"]
     list_display = []
+
+    def __init__(self, *args, **kwargs):
+        """
+        Custom init method to define additional attributes.
+        """
+        super().__init__(*args, **kwargs)
+        self._cur_change_request = None
 
     @staticmethod
     def _get_config_id(request):
@@ -594,11 +619,30 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
 
         return config_id
 
+    @admin.display(description="Session URL")
+    def session_gate_url(self, obj):
+        """Display session gate URL (readonly) in change form."""
+        gate_url = reverse("gate", args=(obj.code,))
+        if hasattr(settings, "BASE_URL"):
+            base_url = settings.BASE_URL
+            if base_url.endswith("/"):
+                base_url = base_url[:-1]
+            full_gate_url = base_url + gate_url
+        else:
+            full_gate_url = self._cur_change_request.build_absolute_uri(gate_url)
+
+        redir_url = obj.session_url()
+
+        return mark_safe(
+            f'<a href="{full_gate_url}" target="_blank">{full_gate_url}</a> &rArr; '
+            f'<a href="{redir_url}" target="_blank">{redir_url}</a>'
+        )
+
     def get_fields(self, request, obj=None):
         """Customize fields: Remove some fields when creating a new application session."""
         fields = super().get_fields(request, obj=obj)
         if obj is None:
-            return [f for f in fields if f not in {"code", "session_url", "updated", "updated_by"}]
+            return [f for f in fields if f not in {"code", "session_gate_url", "updated", "updated_by"}]
         return fields
 
     def save_model(self, request, obj, form, change):
@@ -627,6 +671,8 @@ class ApplicationSessionAdmin(admin.ModelAdmin):
         """
         Customize view: Make sure to get the current configuration ID for which this application session is updated.
         """
+        self._cur_change_request = request
+
         if not self._get_config_id(request):
             messages.error(request, "No application configuration selected.")
             return redirect(reverse("admin:api_application_changelist"))
@@ -661,7 +707,11 @@ class ApplicationSessionGateAppSessionsInlineModelChoiceField(forms.ModelChoiceF
     """
 
     def label_from_instance(self, app_session):
-        return f"{app_session.config.application.name} / {app_session.config.label} / {app_session.code}"
+        """Custom label for application session model choice field."""
+        label = f"{app_session.config.application.name} / {app_session.config.label} / {app_session.code}"
+        if not app_session.is_active:
+            label += " (inactive)"
+        return label
 
 
 class ApplicationSessionGateAppSessionsInline(admin.TabularInline):
@@ -685,9 +735,9 @@ class ApplicationSessionGateAppSessionsInline(admin.TabularInline):
 class ApplicationSessionGateAdmin(admin.ModelAdmin):
     """Model admin for application session gates."""
 
-    fields = ["code", "session_url", "label", "description", "updated", "updated_by"]
+    fields = ["code", "session_url", "is_active", "label", "description", "updated", "updated_by"]
     readonly_fields = ["code", "session_url", "updated", "updated_by"]
-    list_display = ["label", "code", "session_url", "sessions_in_gate", "updated", "updated_by"]
+    list_display = ["label", "code", "session_url", "is_active", "sessions_in_gate", "updated", "updated_by"]
     ordering = ["label"]
     inlines = [ApplicationSessionGateAppSessionsInline]
 
@@ -722,11 +772,13 @@ class ApplicationSessionGateAdmin(admin.ModelAdmin):
 
         return mark_safe(f'<a href="{sess_url}" target="_blank">{sess_url}</a>')
 
-    @admin.display(ordering=None, description="Sessions in gate")
+    @admin.display(ordering=None, description="Active sessions in gate")
     def sessions_in_gate(self, obj):
-        """Custom field to show all assigned sessions in each gate. Highlight next session code with bold font."""
+        """
+        Custom field to show all assigned *active* sessions in each gate. Highlight next session code with bold font.
+        """
         links = []
-        for i, app_sess_code in enumerate(obj.app_sessions.order_by("code").values("code")):
+        for i, app_sess_code in enumerate(obj.app_sessions.filter(is_active=True).order_by("code").values("code")):
             app_sess_code = app_sess_code["code"]
             link = (
                 f'<a href="{reverse("admin:api_applicationsession_change", args=[app_sess_code])}">'
@@ -1195,7 +1247,7 @@ class MultiLAAdminSite(admin.AdminSite):
         Custom view for "dataview", i.e. overview of collected data.
         """
 
-        # data formatting functions for the table; see COLUMN_FORMATING below
+        # data formatting functions for the table; see column_formating below
         def default_format(v, _=None, __=None):
             return "-" if v is None else v
 
@@ -1250,14 +1302,14 @@ class MultiLAAdminSite(admin.AdminSite):
             return mark_safe(f"<a href={userfeedback_url}>&#8505; {v}</a>")
 
         # aggregation level choices for form
-        CONFIGFORM_GROUPBY_CHOICES = [
+        configform_groupby_choices = [
             ("app", "Application"),
             ("app_config", "Application config."),
             ("app_session", "Application session"),
         ]
 
         # map field names to "human readable" column names
-        COLUMN_DESCRIPTIONS = {
+        column_descriptions = {
             "applicationconfig__label": "Application config.",
             "applicationconfig__applicationsession__code": "App. session code",
             "applicationconfig__applicationsession__auth_mode": "Auth. mode",
@@ -1274,7 +1326,7 @@ class MultiLAAdminSite(admin.AdminSite):
         }
 
         # map field names to custom formating functions
-        COLUMN_FORMATING = {
+        column_formating = {
             "n_feedback": format_userfeedback_link,
             "avg_feedback_score": format_rounded,
             "avg_trackingsess_duration": format_timedelta,
@@ -1286,7 +1338,7 @@ class MultiLAAdminSite(admin.AdminSite):
 
         # form to select the aggregation level
         class ConfigForm(forms.Form):
-            groupby = forms.ChoiceField(label="Group by", choices=CONFIGFORM_GROUPBY_CHOICES, required=False)
+            groupby = forms.ChoiceField(label="Group by", choices=configform_groupby_choices, required=False)
 
         # handle request
         if request.method == "POST":  # form was submitted: populate with submitted data
@@ -1299,7 +1351,7 @@ class MultiLAAdminSite(admin.AdminSite):
 
         # get aggregation level "groupby" stored in session
         viewconfig = request.session.get("dataview_configform", {})
-        groupby = viewconfig.get("groupby", CONFIGFORM_GROUPBY_CHOICES[0][0])
+        groupby = viewconfig.get("groupby", configform_groupby_choices[0][0])
 
         # table expressions
         usersess_expr = "applicationconfig__applicationsession__userapplicationsession"
@@ -1370,7 +1422,7 @@ class MultiLAAdminSite(admin.AdminSite):
         table_data = defaultdict(list)
         for row in data_rows:
             formatted_row = [
-                COLUMN_FORMATING.get(k, default_format)(row[k], row, groupby)
+                column_formating.get(k, default_format)(row[k], row, groupby)
                 for k in data_fields
                 if k not in hidden_fields
             ]
@@ -1383,7 +1435,7 @@ class MultiLAAdminSite(admin.AdminSite):
             "subtitle": "Data view",
             "app_label": "datamanager",
             "configform": configform,
-            "table_columns": [COLUMN_DESCRIPTIONS[k] for k in data_fields if k in COLUMN_DESCRIPTIONS],
+            "table_columns": [column_descriptions[k] for k in data_fields if k in column_descriptions],
             "table_data": table_data.items(),
         }
 
@@ -1456,7 +1508,7 @@ class MultiLAAdminSite(admin.AdminSite):
             tmpdir = tempfile.mkdtemp()
 
             # map SQL query field names to CSV column names
-            QUERIES_AND_FIELDS = {
+            queries_and_fields = {
                 "app_sessions": (
                     "SELECT {fields} FROM api_application a "
                     "LEFT JOIN api_applicationconfig ac ON a.id = ac.application_id "
@@ -1521,9 +1573,9 @@ class MultiLAAdminSite(admin.AdminSite):
                 else:
                     return x
 
-            # write CSVs for the data from the queries defined in `QUERIES_AND_FIELDS`
+            # write CSVs for the data from the queries defined in `queries_and_fields`
             stored_csvs = []
-            for csvname, (query_template, query_filter, query_fields) in QUERIES_AND_FIELDS.items():
+            for csvname, (query_template, query_filter, query_fields) in queries_and_fields.items():
                 query_select = ",".join(f"{sqlfield} AS {csvfield}" for sqlfield, csvfield in query_fields)
                 query = query_template.format(fields=query_select)
                 if app_sess:

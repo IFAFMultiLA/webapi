@@ -9,11 +9,11 @@ import json
 from datetime import datetime
 
 from django.conf import settings
-from django.urls import reverse
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
 from django.db.models import Q
+from django.urls import reverse
 
 HASH_KEY = settings.SECRET_KEY.encode()[:32]  # hash salt
 APPLICATION_CONFIG_DEFAULT_JSON = {
@@ -134,6 +134,7 @@ class ApplicationSession(models.Model):
         choices=AUTH_MODE_OPTIONS, max_length=max_options_length(AUTH_MODE_OPTIONS), blank=False
     )
     description = models.CharField("Description", max_length=256, blank=True, default="")
+    is_active = models.BooleanField("Is active", default=True)
     updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
@@ -178,6 +179,7 @@ class ApplicationSessionGate(models.Model):
         verbose_name="Application sessions",
         help_text="Application sessions to which this gate forwards",
     )
+    is_active = models.BooleanField("Is active", default=True)
     next_forward_index = models.PositiveIntegerField(default=0)  # stores index to next target app session
     updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
