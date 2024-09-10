@@ -86,6 +86,7 @@ class Application(models.Model):
 
     name = models.CharField("Name", max_length=64, unique=True, blank=False)
     url = models.URLField("URL", max_length=512, unique=True, blank=False)
+    local_appdir = models.CharField("Local app deployment directory", default=None, max_length=512, null=True)
     updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     default_application_session = models.ForeignKey("ApplicationSession", null=True, on_delete=models.SET_NULL)

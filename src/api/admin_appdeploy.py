@@ -5,7 +5,6 @@ Functions for optional app deployment feature.
 """
 
 import os
-import pathlib
 import re
 import shutil
 from tempfile import mkdtemp
@@ -24,6 +23,7 @@ def handle_uploaded_app_deploy_file(file, app_title, replace=False):
     :return: URL safe app name derived from `app_title`
     """
     with ZipFile(file, "r") as z:
+        # find required "renv.lock" -> this marks the project directory
         apppath = None
         for zpath in z.namelist():
             if os.path.basename(zpath) == "renv.lock":
@@ -33,8 +33,18 @@ def handle_uploaded_app_deploy_file(file, app_title, replace=False):
         if apppath is None:
             raise FileNotFoundError("required renv.lock file not found")
 
+        # create list of members from the zip file that will be extracted
         ignore_patterns = [
-            re.compile(pttrn, re.I) for pttrn in (r"^\..+", r"^renv/", r".+\.rproj$", r"^makefile$", r"^readme.md$")
+            re.compile(pttrn, re.I)
+            for pttrn in (
+                r"^\..+",
+                r"^renv/",
+                r".+\.rproj$",
+                r"^makefile$",
+                r"^readme.md$",
+                "^install.txt$",
+                "^restart.txt$",
+            )
         ]
         members = []
         for zpath in z.namelist():
@@ -44,15 +54,16 @@ def handle_uploaded_app_deploy_file(file, app_title, replace=False):
                 else:
                     relpath = zpath
 
-                if all(pttrn.match(relpath) is None for pttrn in ignore_patterns):
+                if all(pttrn.search(relpath) is None for pttrn in ignore_patterns):
                     members.append(os.path.join(apppath, relpath))
 
-        appname = re.sub("[^a-z0-9_-]", "", app_title.lower().replace(" ", "_"))
-
+        # extract the selected members to a temp. location
         tmptarget = mkdtemp("_new_app")
         z.extractall(tmptarget, members)
 
-        deploytarget = os.path.join(settings.APPS_DEPLOYMENT["upload_path"], appname)
+        # move the deployment files from the temp. location to the final location
+        appname = re.sub("[^a-z0-9_-]", "", app_title.lower().replace(" ", "_"))
+        deploytarget = settings.APPS_DEPLOYMENT["upload_path"] / appname
 
         if os.path.exists(deploytarget):
             if replace:
@@ -62,7 +73,20 @@ def handle_uploaded_app_deploy_file(file, app_title, replace=False):
 
         shutil.move(os.path.join(tmptarget, apppath), deploytarget)
 
-        if replace:
-            (pathlib.Path(deploytarget) / "restart.txt").touch()
+        # trigger (re-)installation of dependencies
+        (deploytarget / "install.txt").touch()
 
         return appname
+
+
+def remove_deployed_app(appdir):
+    """
+    Remove the deployed app from `appdir`.
+    """
+    if not appdir or re.search("[^a-z0-9_-]", appdir):
+        raise ValueError("invalid app path")
+
+    deploytarget = settings.APPS_DEPLOYMENT["upload_path"] / appdir
+    if not deploytarget.is_relative_to(settings.APPS_DEPLOYMENT["upload_path"]):
+        raise ValueError("invalid app path")
+    shutil.rmtree(deploytarget)

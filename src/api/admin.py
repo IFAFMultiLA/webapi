@@ -57,7 +57,7 @@ DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 can_upload_apps = settings.APPS_DEPLOYMENT and os.access(settings.APPS_DEPLOYMENT["upload_path"], os.W_OK)
 
 if can_upload_apps:
-    from .admin_appdeploy import handle_uploaded_app_deploy_file
+    from .admin_appdeploy import handle_uploaded_app_deploy_file, remove_deployed_app
 
 # --- shared utilities ---
 
@@ -368,8 +368,8 @@ class ApplicationAdmin(admin.ModelAdmin):
     """
 
     form = ApplicationForm
-    fields = ["name", "app_upload", "url", "default_application_session", "updated", "updated_by"]
-    readonly_fields = ["updated", "updated_by"]
+    fields = ["name", "app_upload", "local_appdir", "url", "default_application_session", "updated", "updated_by"]
+    readonly_fields = ["local_appdir", "updated", "updated_by"]
     list_display = ["name_w_url", "configurations_and_sessions", "updated", "updated_by"]
     inlines = [ApplicationConfigInline]
 
@@ -517,9 +517,11 @@ class ApplicationAdmin(admin.ModelAdmin):
                     if settings.APPS_DEPLOYMENT["base_url"].endswith("/")
                     else settings.APPS_DEPLOYMENT["base_url"] + "/"
                 )
+                form.instance.local_appdir = url_safe_app_name
                 form.instance.url = app_base_url + url_safe_app_name
             except Exception as e:
                 messages.error(request, f"An error occurred while trying to deploy the uploaded app: {e}.")
+                return redirect("admin:index")
         return super().save_form(request, form, change)
 
     def save_model(self, request, obj, form, change):
@@ -528,6 +530,15 @@ class ApplicationAdmin(admin.ModelAdmin):
         """
         obj.updated_by = request.user
         return super().save_model(request, obj, form, change)
+
+    def delete_model(self, request, obj):
+        super().delete_model(request, obj)
+        if can_upload_apps and obj.local_appdir:
+            try:
+                remove_deployed_app(obj.local_appdir)
+                messages.success(request, f'Deployed app was removed from directory "{obj.local_appdir}"')
+            except Exception as e:
+                messages.error(request, f'Could not remove the app at directory "{obj.local_appdir}": {e}')
 
     def get_fields(self, request, obj=None):
         """
@@ -539,11 +550,13 @@ class ApplicationAdmin(admin.ModelAdmin):
             if can_upload_apps:
                 return fields
             else:
-                return [f for f in fields if f != "app_upload"]
+                return [f for f in fields if f not in {"app_upload", "local_appdir"}]
         else:
             # on create, don't show "default application session" field, as we can't possibly have created any
             # application session for this application, yet
-            return [f for f in fields if f not in {"default_application_session", "updated_by", "updated"}]
+            return [
+                f for f in fields if f not in {"default_application_session", "updated_by", "updated", "local_appdir"}
+            ]
 
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""
