@@ -110,7 +110,7 @@ class ApplicationForm(forms.ModelForm):
         """Custom file upload cleaning. Check that the uploaded file is a ZIP archive."""
         app_upload = self.cleaned_data["app_upload"]
 
-        if app_upload.content_type not in {
+        if app_upload and app_upload.content_type not in {
             "application/zip",
             "application/x-zip-compressed",
             "application/zip-compressed",
