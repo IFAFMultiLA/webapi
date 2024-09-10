@@ -24,6 +24,7 @@ from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.models import Group, User
+from django.core.exceptions import ValidationError
 from django.db import connection as db_conn
 from django.db.models import Avg, Count, F, Max
 from django.http import (
@@ -53,6 +54,10 @@ from .models import (
 
 DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 
+can_upload_apps = settings.APPS_DEPLOYMENT and os.access(settings.APPS_DEPLOYMENT["upload_path"], os.W_OK)
+
+if can_upload_apps:
+    from .admin_appdeploy import handle_uploaded_app_deploy_file
 
 # --- shared utilities ---
 
@@ -86,6 +91,50 @@ def format_value_as_json(value, maxlines=None):
 class JSONEncoderWithIdent(json.JSONEncoder):
     def __init__(self, *args, indent, **kwargs):
         super().__init__(*args, indent=2, **kwargs)
+
+
+class ApplicationForm(forms.ModelForm):
+    """
+    Custom form for adding new applications.
+
+    Adds an extra field and validations for app deployment via upload.
+    """
+
+    app_upload = forms.FileField(
+        label="Upload app",
+        help_text="Upload a ZIP file containing the R application and a renv lockfile.",
+        required=False,
+    )
+
+    def clean_app_upload(self):
+        """Custom file upload cleaning. Check that the uploaded file is a ZIP archive."""
+        app_upload = self.cleaned_data["app_upload"]
+
+        if app_upload.content_type not in {
+            "application/zip",
+            "application/x-zip-compressed",
+            "application/zip-compressed",
+        }:
+            raise ValidationError("Uploaded file does not have the correct file type. A ZIP file is required.")
+
+        return app_upload
+
+    def clean(self):
+        """Custom form cleaning. Check that an URL must be set manually when no app was uploaded."""
+        cleaned_data = super().clean()
+
+        if can_upload_apps:
+            app_upload = cleaned_data.get("app_upload")
+            url = cleaned_data.get("url")
+
+            if not app_upload and not url:
+                raise ValidationError("If not uploading an app, you must specify an URL.")
+        else:
+            return cleaned_data
+
+    class Meta:  # looks like it's not (easily) possible to define fieldsets and/or a custom template in a ModelForm
+        model = Application
+        exclude = ["updated", "updated_by"]
 
 
 class ApplicationConfigForm(forms.ModelForm):
@@ -318,7 +367,8 @@ class ApplicationAdmin(admin.ModelAdmin):
     Admin for Application model.
     """
 
-    fields = ["name", "url", "default_application_session", "updated", "updated_by"]
+    form = ApplicationForm
+    fields = ["name", "app_upload", "url", "default_application_session", "updated", "updated_by"]
     readonly_fields = ["updated", "updated_by"]
     list_display = ["name_w_url", "configurations_and_sessions", "updated", "updated_by"]
     inlines = [ApplicationConfigInline]
@@ -452,6 +502,26 @@ class ApplicationAdmin(admin.ModelAdmin):
 
         return super().changelist_view(request, extra_context=extra_context)
 
+    def save_form(self, request, form, change):
+        """
+        Customized form saving used for handling app deployments via the admin interface.
+        """
+
+        if can_upload_apps and "app_upload" in request.FILES:
+            try:
+                url_safe_app_name = handle_uploaded_app_deploy_file(
+                    request.FILES["app_upload"], form.instance.name, replace=change
+                )
+                app_base_url = (
+                    settings.APPS_DEPLOYMENT["base_url"]
+                    if settings.APPS_DEPLOYMENT["base_url"].endswith("/")
+                    else settings.APPS_DEPLOYMENT["base_url"] + "/"
+                )
+                form.instance.url = app_base_url + url_safe_app_name
+            except Exception as e:
+                messages.error(request, f"An error occurred while trying to deploy the uploaded app: {e}.")
+        return super().save_form(request, form, change)
+
     def save_model(self, request, obj, form, change):
         """
         Custom model save method to add current user to the `updated_by` field.
@@ -466,7 +536,10 @@ class ApplicationAdmin(admin.ModelAdmin):
         fields = super().get_fields(request, obj=obj)
         if obj:
             # on update return all fields
-            return fields
+            if can_upload_apps:
+                return fields
+            else:
+                return [f for f in fields if f != "app_upload"]
         else:
             # on create, don't show "default application session" field, as we can't possibly have created any
             # application session for this application, yet
@@ -481,6 +554,13 @@ class ApplicationAdmin(admin.ModelAdmin):
         Customize form to display application sessions choices on update.
         """
         form = super().get_form(request, obj=obj, change=change, **kwargs)
+
+        if settings.APPS_DEPLOYMENT:
+            if not os.access(settings.APPS_DEPLOYMENT["upload_path"], os.W_OK):
+                messages.warning(request, "App upload path is not writable.")
+            else:
+                form.base_fields["url"].required = False
+                form.base_fields["url"].help_text = "URL field will be automatically set upon upload."
 
         if obj:
             # on update, set up the "default application session" field to fetch all related application sessions
