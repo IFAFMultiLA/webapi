@@ -154,6 +154,7 @@ DATA_EXPORT_DIR = BASE_DIR.parent / "data" / "export"
 CODEBOOK_PATH = BASE_DIR.parent / "data" / "codebook.pdf"
 APPS_DEPLOYMENT = {  # set to None to disable app upload feature
     "upload_path": BASE_DIR.parent / "apps_deployed",  # must be writable
+    "log_path": BASE_DIR.parent / "apps_deployed" / "log",  # directory where Shiny writes logs; optional; can be None
     "base_url": "http://localhost:8001",  # base URL for all deployed apps inside `upload_path`
 }
 

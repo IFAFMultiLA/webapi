@@ -57,7 +57,8 @@ DEFAULT_TZINFO = ZoneInfo(settings.TIME_ZONE)
 can_upload_apps = settings.APPS_DEPLOYMENT and os.access(settings.APPS_DEPLOYMENT["upload_path"], os.W_OK)
 
 if can_upload_apps:
-    from .admin_appdeploy import handle_uploaded_app_deploy_file, remove_deployed_app
+    from .admin_appdeploy import get_deployed_app_info, handle_uploaded_app_deploy_file, remove_deployed_app
+
 
 # --- shared utilities ---
 
@@ -372,6 +373,7 @@ class ApplicationAdmin(admin.ModelAdmin):
     readonly_fields = ["local_appdir", "updated", "updated_by"]
     list_display = ["name_w_url", "configurations_and_sessions", "updated", "updated_by"]
     inlines = [ApplicationConfigInline]
+    change_form_template = "admin/app_change_form.html" if can_upload_apps else None
 
     def __init__(self, *args, **kwargs):
         """
@@ -502,6 +504,16 @@ class ApplicationAdmin(admin.ModelAdmin):
 
         return super().changelist_view(request, extra_context=extra_context)
 
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if can_upload_apps and object_id:
+            obj = get_object_or_404(Application, pk=object_id)
+            if obj.local_appdir:
+                extra_context = extra_context or {}
+                extra_context.update(
+                    {"show_app_monitor": obj.local_appdir, "app_info": get_deployed_app_info(obj.local_appdir)}
+                )
+        return super().changeform_view(request, object_id=object_id, form_url=form_url, extra_context=extra_context)
+
     def save_form(self, request, form, change):
         """
         Customized form saving used for handling app deployments via the admin interface.
@@ -510,7 +522,10 @@ class ApplicationAdmin(admin.ModelAdmin):
         if can_upload_apps and "app_upload" in request.FILES:
             try:
                 url_safe_app_name = handle_uploaded_app_deploy_file(
-                    request.FILES["app_upload"], form.instance.name, replace=change
+                    request.FILES["app_upload"],
+                    form.instance.name,
+                    app_name=form.instance.local_appdir if change and form.instance.local_appdir else None,
+                    replace=change,
                 )
                 app_base_url = (
                     settings.APPS_DEPLOYMENT["base_url"]
