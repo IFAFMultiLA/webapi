@@ -142,6 +142,7 @@ USE_TZ = True
 STATIC_URL = "/api_static_files/"
 DATA_EXPORT_DIR = "/data_export"
 CODEBOOK_PATH = "/codebook.pdf"
+APPS_DEPLOYMENT = None
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
