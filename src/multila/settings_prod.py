@@ -142,7 +142,11 @@ USE_TZ = True
 STATIC_URL = "/api_static_files/"
 DATA_EXPORT_DIR = "/data_export"
 CODEBOOK_PATH = "/codebook.pdf"
-APPS_DEPLOYMENT = None
+APPS_DEPLOYMENT = {  # set to None to disable app upload feature
+    "upload_path": BASE_DIR.parent / "apps_deployed",  # must be writable
+    "log_path": BASE_DIR.parent / "apps_deployed" / "log",  # directory where Shiny writes logs; optional; can be None
+    "base_url": "https://rshiny.f4.htw-berlin.de/TestgenauigkeitBayes/",  # base URL for all deployed apps
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
