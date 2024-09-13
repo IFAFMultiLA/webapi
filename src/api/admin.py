@@ -569,9 +569,11 @@ class ApplicationAdmin(admin.ModelAdmin):
         else:
             # on create, don't show "default application session" field, as we can't possibly have created any
             # application session for this application, yet
-            return [
-                f for f in fields if f not in {"default_application_session", "updated_by", "updated", "local_appdir"}
-            ]
+            dismiss_fields = {"default_application_session", "updated_by", "updated", "local_appdir"}
+            if not can_upload_apps:
+                dismiss_fields.add("app_upload")
+
+            return [f for f in fields if f not in dismiss_fields]
 
     def get_queryset(self, request):
         """Custom queryset for more efficient queries."""

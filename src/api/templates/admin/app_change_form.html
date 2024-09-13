@@ -53,7 +53,7 @@
 
 {% if app_info.error_logs %}
     <dl>
-      <dt>Error logs</dt>
+      <dt>Shiny logs</dt>
       <dd>
           {% for logname, logcontent in app_info.error_logs.items %}
               <h4><code>{{ logname }}</code></h4>

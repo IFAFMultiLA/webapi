@@ -156,6 +156,8 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
     "upload_path": BASE_DIR.parent / "apps_deployed",  # must be writable
     "log_path": BASE_DIR.parent / "apps_deployed" / "log",  # directory where Shiny writes logs; optional; can be None
     "base_url": "http://localhost:8001",  # base URL for all deployed apps inside `upload_path`
+    "remove_mode": "delete",  # either "keep" (do nothing), "delete" (removes the app directory) or
+    # "remove.txt" (writes a "remove.txt" file in the app dir.)
 }
 
 # Default primary key field type

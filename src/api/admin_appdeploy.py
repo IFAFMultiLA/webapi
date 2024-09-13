@@ -14,6 +14,12 @@ from zipfile import ZipFile
 
 from django.conf import settings
 
+setting_upload_path = pathlib.Path(settings.APPS_DEPLOYMENT["upload_path"])
+if settings.APPS_DEPLOYMENT.get("log_path"):
+    setting_log_path = pathlib.Path(settings.APPS_DEPLOYMENT["log_path"])
+else:
+    setting_log_path = None
+
 
 def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=False):
     """
@@ -47,6 +53,7 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
                 r"^readme.md$",
                 "^install.txt$",
                 "^restart.txt$",
+                "^remove.txt$",
             )
         ]
         members = []
@@ -67,7 +74,7 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
         # move the deployment files from the temp. location to the final location
         if not app_name:
             app_name = re.sub("[^a-z0-9_-]", "", app_title.lower().replace(" ", "_"))
-        deploytarget = settings.APPS_DEPLOYMENT["upload_path"] / app_name
+        deploytarget = setting_upload_path / app_name
 
         if os.path.exists(deploytarget):
             if replace:
@@ -90,10 +97,15 @@ def remove_deployed_app(appdir):
     if not appdir or re.search("[^a-z0-9_-]", appdir):
         raise ValueError("invalid app path")
 
-    deploytarget = settings.APPS_DEPLOYMENT["upload_path"] / appdir
-    if not deploytarget.is_relative_to(settings.APPS_DEPLOYMENT["upload_path"]) or not deploytarget.exists():
+    mode = settings.APPS_DEPLOYMENT["remove_mode"]
+    deploytarget = setting_upload_path / appdir
+    if not deploytarget.is_relative_to(setting_upload_path) or not deploytarget.exists():
         raise ValueError("invalid app path")
-    shutil.rmtree(deploytarget)
+
+    if mode == "delete":
+        shutil.rmtree(deploytarget)
+    elif mode == "remove.txt":
+        (deploytarget / "remove.txt").touch()
 
 
 def get_deployed_app_info(appdir):
@@ -104,9 +116,9 @@ def get_deployed_app_info(appdir):
     :return: a dict with keys status, status_class, install_log and error_logs containing the respective information
              for the app
     """
-    deploytarget = settings.APPS_DEPLOYMENT["upload_path"] / appdir
+    deploytarget = setting_upload_path / appdir
 
-    if not deploytarget.exists():
+    if not deploytarget.exists() or (deploytarget / "remove.txt").exists():
         raise ValueError("invalid app path")
 
     if (deploytarget / "install.txt").is_file():
@@ -127,15 +139,21 @@ def get_deployed_app_info(appdir):
         status_class = "warning"
 
     if (deploytarget / "install.log").is_file():
-        install_log = (deploytarget / "install.log").read_text()
+        try:
+            install_log = (deploytarget / "install.log").read_text()
+        except Exception as err:
+            install_log = f"– an error occurred when trying to read the install.log file: {err} –"
     else:
         install_log = "– install.log file not found –"
 
-    log_path = settings.APPS_DEPLOYMENT.get("log_path", None)
     error_logs = {}
-    if log_path:
-        for logf in sorted(glob(str(log_path / f"{appdir}-*.log"))):
+    if setting_log_path:
+        for logf in sorted(glob(str(setting_log_path / f"{appdir}-*.log"))):
             logfpath = pathlib.Path(logf)
-            error_logs[logfpath.parts[-1]] = logfpath.read_text()
+            logfbasename = logfpath.parts[-1]
+            try:
+                error_logs[logfbasename] = logfpath.read_text()
+            except Exception as err:
+                error_logs[logfbasename] = f"– an error occurred when trying to read the error log file: {err} –"
 
     return {"status": status, "status_class": status_class, "install_log": install_log, "error_logs": error_logs}

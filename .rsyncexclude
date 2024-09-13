@@ -17,5 +17,6 @@ docs/
 .pre-commit-config.yaml
 .ruff_cache/
 ruff.toml
-manage_apps.sh
+manage_deployed_apps.sh
 apps_deployed/
+src/multila/settings_ci.py

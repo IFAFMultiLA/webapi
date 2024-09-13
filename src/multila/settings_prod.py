@@ -143,9 +143,10 @@ STATIC_URL = "/api_static_files/"
 DATA_EXPORT_DIR = "/data_export"
 CODEBOOK_PATH = "/codebook.pdf"
 APPS_DEPLOYMENT = {  # set to None to disable app upload feature
-    "upload_path": BASE_DIR.parent / "apps_deployed",  # must be writable
-    "log_path": BASE_DIR.parent / "apps_deployed" / "log",  # directory where Shiny writes logs; optional; can be None
-    "base_url": "https://rshiny.f4.htw-berlin.de/TestgenauigkeitBayes/",  # base URL for all deployed apps
+    "upload_path": os.environ.get("APP_UPLOAD_PATH"),  # must be writable
+    "log_path": os.environ.get("APP_LOG_PATH"),  # directory where Shiny writes logs; can be None
+    "base_url": os.environ.get("APP_BASE_URL"),  # base URL for all deployed apps
+    "remove_mode": os.environ.get("APP_REMOVE_MODE"),
 }
 
 # Default primary key field type
