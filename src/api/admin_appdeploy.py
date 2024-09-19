@@ -8,6 +8,7 @@ import os
 import pathlib
 import re
 import shutil
+from datetime import datetime
 from glob import glob
 from tempfile import mkdtemp
 from zipfile import ZipFile
@@ -74,11 +75,16 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
         # move the deployment files from the temp. location to the final location
         if not app_name:
             app_name = re.sub("[^a-z0-9_-]", "", app_title.lower().replace(" ", "_"))
+        if app_name == "log":
+            raise ValueError("The app directory cannot be named 'log'.")
         deploytarget = setting_upload_path / app_name
 
         if os.path.exists(deploytarget):
             if replace:
-                shutil.rmtree(deploytarget)
+                now = datetime.now().isoformat().replace(":", "-")
+                oldtarget = setting_upload_path / f"{app_name}~old-{now}"
+                shutil.move(deploytarget, oldtarget)
+                (oldtarget / "remove.txt").touch()
             else:
                 raise FileExistsError(f'Deployed app already exists at location "{deploytarget}"')
 
@@ -86,6 +92,7 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
 
         # trigger (re-)installation of dependencies
         (deploytarget / "install.txt").touch()
+        _trigger_update()
 
         return app_name
 
@@ -97,7 +104,7 @@ def remove_deployed_app(appdir):
     if not appdir or re.search("[^a-z0-9_-]", appdir):
         raise ValueError("invalid app path")
 
-    mode = settings.APPS_DEPLOYMENT["remove_mode"]
+    mode = settings.APPS_DEPLOYMENT.get("remove_mode", None)
     deploytarget = setting_upload_path / appdir
     if not deploytarget.is_relative_to(setting_upload_path) or not deploytarget.exists():
         raise ValueError("invalid app path")
@@ -106,6 +113,8 @@ def remove_deployed_app(appdir):
         shutil.rmtree(deploytarget)
     elif mode == "remove.txt":
         (deploytarget / "remove.txt").touch()
+
+    _trigger_update()
 
 
 def get_deployed_app_info(appdir):
@@ -157,3 +166,9 @@ def get_deployed_app_info(appdir):
                 error_logs[logfbasename] = f"– an error occurred when trying to read the error log file: {err} –"
 
     return {"status": status, "status_class": status_class, "install_log": install_log, "error_logs": error_logs}
+
+
+def _trigger_update():
+    trigger = settings.APPS_DEPLOYMENT.get("update_trigger_file", None)
+    if trigger:
+        pathlib.Path(trigger).touch()

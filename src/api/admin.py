@@ -509,9 +509,15 @@ class ApplicationAdmin(admin.ModelAdmin):
             obj = get_object_or_404(Application, pk=object_id)
             if obj.local_appdir:
                 extra_context = extra_context or {}
-                extra_context.update(
-                    {"show_app_monitor": obj.local_appdir, "app_info": get_deployed_app_info(obj.local_appdir)}
-                )
+                try:
+                    extra_context.update(
+                        {"show_app_monitor": obj.local_appdir, "app_info": get_deployed_app_info(obj.local_appdir)}
+                    )
+                except Exception as e:
+                    messages.error(
+                        request,
+                        f"An error occurred while trying to get information about the " f"deployed application: {e}.",
+                    )
         return super().changeform_view(request, object_id=object_id, form_url=form_url, extra_context=extra_context)
 
     def save_form(self, request, form, change):
@@ -536,7 +542,6 @@ class ApplicationAdmin(admin.ModelAdmin):
                 form.instance.url = app_base_url + url_safe_app_name
             except Exception as e:
                 messages.error(request, f"An error occurred while trying to deploy the uploaded app: {e}.")
-                return redirect("admin:index")
         return super().save_form(request, form, change)
 
     def save_model(self, request, obj, form, change):
