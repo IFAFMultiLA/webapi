@@ -5,6 +5,9 @@ Automated tests.
 """
 
 from datetime import datetime, timedelta, timezone
+from glob import glob
+from pathlib import Path
+from tempfile import mkdtemp
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -27,6 +30,7 @@ from .admin import (
     UserFeedbackAdmin,
     admin_site,
 )
+from .admin_appdeploy import handle_uploaded_app_deploy_file
 from .models import (
     Application,
     ApplicationConfig,
@@ -1632,3 +1636,45 @@ class ModelAdminTests(TestCase):
         modeladm = TrackingEventAdmin(TrackingEvent, admin_site)
 
         self._check_modeladmin_default_views(modeladm, check_views=["changelist_view"])
+
+
+# @override_settings(APPS_DEPLOYMENT=None) TODO: also check that APPS_DEPLOYMENT=None works
+if settings.APPS_DEPLOYMENT:
+
+    class ModelAdminAppUploadTests(TestCase):
+        def setUp(self):
+            self.testfiles_dir = Path("src") / "api" / "testfiles"
+
+        def test_handle_uploaded_app_deploy_file(self):
+            for use_trigger_file in (False, True):
+                uploaddir = Path(mkdtemp())
+                trigger_file = Path(mkdtemp()) / "trigger" if use_trigger_file else None
+
+                with self.settings(
+                    APPS_DEPLOYMENT=settings.APPS_DEPLOYMENT
+                    | {
+                        "upload_path": str(uploaddir),
+                        "log_path": str(uploaddir / "log"),
+                        "update_trigger_file": str(trigger_file) if trigger_file else None,
+                    }
+                ):
+                    # fail on zip file w/o renv.lock
+                    with self.assertRaisesRegex(FileNotFoundError, r"required renv.lock file not found"):
+                        handle_uploaded_app_deploy_file(self.testfiles_dir / "fail_norenv.zip", "No renv.lock")
+
+                    # ok scenarios
+                    for i, f in enumerate(glob(str(self.testfiles_dir / "ok_*.zip"))):
+                        for pass_appname in (False, True):
+                            expected_app_name = f"app_upload_test_{i}_{int(pass_appname)}"
+                            app_name = handle_uploaded_app_deploy_file(
+                                f,
+                                f"App upload test #{i} {int(pass_appname)}.",
+                                app_name=expected_app_name if pass_appname else None,
+                            )
+                            self.assertEqual(app_name, expected_app_name)
+                            self.assertTrue((uploaddir / app_name).exists())
+                            self.assertTrue((uploaddir / app_name / "renv.lock").exists())
+                            self.assertTrue((uploaddir / app_name / "install.txt").exists())
+
+                            if trigger_file:
+                                self.assertTrue(trigger_file.exists())

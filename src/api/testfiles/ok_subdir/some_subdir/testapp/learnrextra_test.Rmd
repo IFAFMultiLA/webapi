@@ -1,0 +1,178 @@
+---
+title: "Test tutorial for the learnrextra package"
+runtime: shiny_prerendered
+author: Markus Konrad
+email: markus.konrad@htw-berlin.de
+date: "`r format(Sys.time(), '%d.%m.%Y')`"
+output:
+    learnrextra::tutorial:
+        language: en
+        apiserver: http://localhost:8000/
+---
+
+```{r setup, include=FALSE}
+require(RAppArmor)     # necessary on server
+library(learnr)        # for quizzes, code exercises, etc.
+library(learnrextra)
+library(gradethis)     # for evaluating code exercises
+library(shiny)         # for interactive elements
+
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Page 1 – quizzes and code exercises
+
+Example quiz with single correct choice.
+
+```{r quiz1}
+question("Example question.",
+  answer("Example answer 1."),
+  answer("Example answer 2 (correct).", correct = TRUE),
+  answer("Example answer 3."),
+  allow_retry = TRUE
+)
+```
+
+Example quiz with multiple correct choices.
+
+```{r quiz2}
+question("Example question.",
+  answer("Example answer 1 (correct).", correct = TRUE),
+  answer("Example answer 2."),
+  answer("Example answer 3 (correct).", correct = TRUE),
+  allow_retry = TRUE
+)
+```
+
+```{r quiz3}
+question_mathexpression("Enter 3.14 or any calculation that leads to 3.14",
+  expected_result = 3.14,
+  correct_repeat_result = TRUE,
+  allow_retry = TRUE
+)
+```
+
+```{r quiz4}
+question_mathexpression_probability("Enter the probability of heads for a fair coin.",
+  expected_result = 0.5,
+  allow_retry = TRUE
+)
+```
+
+```{r quiz5}
+question_mathexpression_percentage("Enter the probability of heads for a fair coin in percent.",
+  expected_result = 50,
+  allow_retry = TRUE
+)
+```
+
+```{r survey}
+survey_items <- list(
+    list(
+        text = "Single choice question.",
+        answers = c("One.", "Two.")
+    ),
+    list(
+        text = "Multiple choice question.",
+        answers = c(
+            "foo" = "Foo.",
+            "bar" = "Bar.",
+            "foobar" = "Foobar."
+        ),
+        type = "learnr_checkbox"
+    ),
+    list(
+        text = "Free text question",
+        type = "learnr_text"
+    ),
+    list(
+        text = "Numeric answer between 1 and 5",
+        type = "learnr_numeric",
+        question_args = list(min = 1, max = 5, step = 1)
+    )
+)
+
+survey(survey_items)
+```
+
+
+```{r survey_likert1}
+survey_likert(c("Likert question 1", "Likert question 2"),
+              c("agree", "undecided", "don't agree"),
+              caption = "Likert scale survey 1")
+```
+
+
+```{r survey_likert2}
+survey_likert(c("likert3" = "Likert question 3",
+                "likert4" = "Likert question 4"),
+              list(
+                  c("-1" = "bad", "0" = "neutral", "1" = "positive"),
+                  c("foo" = "FOO", "bar" = "BAR")
+              ),
+              caption = "Likert scale survey 2")
+```
+
+
+
+**Example code exercise.** Fill in the gaps to generate 100 samples from a normal distribution with mean $\mu=-1$ and
+standard deviation $\sigma=3$. Report mean and standard deviation of the drawn samples.
+
+```{r code1, exercise=TRUE, exercise.timelimit=5, exercise.blanks = "___+"}
+x <- ___(100, mean = -1, sd = 3)  # draw samples
+c(___, ___)  # report mean and SD
+```
+
+```{r code1-solution}
+x <- rnorm(100, mean = -1, sd = 3)  # draw samples
+c(mean(x), sd(x))  # report mean and SD
+```
+
+```{r code1-check}
+grade_this_code()
+```
+
+
+## Page 2 – Shiny inputs
+
+
+```{r}
+checkboxInput("checkbox_input_test", "checkbox input test")
+dateInput("date_input_test", "date input test")
+dateRangeInput("date_range_input_test", "date range input test")
+numericInput("numeric_input_test", "num. input test", 0)
+radioButtons("radio_buttons_test", "radio buttons test", c("foo", "bar"))
+selectInput("select_input_test", "select input test", c("foo", "bar"))
+sliderInput("slider_input_test", "slider input test", 1, 10, 5, step = 1)
+textInput("text_input_test", "text input test")
+textAreaInput("text_input_test", "text area input test")
+```
+
+::: tracking_consent_text
+
+This is an example tracking consent information text.
+
+The following data is being recorded while interacting with this website:
+
+<ul>
+    <li>information on your browser (browser software, window dimensions)</li>
+    <li>start and end time when using this website</li>
+    <li class="trackingdata-chapters">changes between pages</li>
+    <li>information on quiz trials (given answers, results)</li>
+    <li>information on code exercises (submitted code, result, success)</li>
+    <li class="trackingdata-inputs">changes to input elements (e.g. sliders for interactive graphics)</li>
+    <li class="trackingdata-mouse">mouse movements</li>
+    <li class="trackingdata-mouse">page scrolls</li>
+    <li class="trackingdata-mouse">clicks</li>
+</ul>
+
+
+:::
+
+::: data_protection_text
+
+This is an example data protection text.
+
+...
+
+:::

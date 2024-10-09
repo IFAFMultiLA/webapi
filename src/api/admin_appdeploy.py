@@ -15,18 +15,25 @@ from zipfile import ZipFile
 
 from django.conf import settings
 
-setting_upload_path = pathlib.Path(settings.APPS_DEPLOYMENT["upload_path"])
-if settings.APPS_DEPLOYMENT.get("log_path"):
-    setting_log_path = pathlib.Path(settings.APPS_DEPLOYMENT["log_path"])
-else:
-    setting_log_path = None
+
+def _setting_upload_path():
+    """Helper function to get upload path."""
+    return pathlib.Path(settings.APPS_DEPLOYMENT["upload_path"])
+
+
+def _setting_log_path():
+    """Helper function to get app log path."""
+    if settings.APPS_DEPLOYMENT.get("log_path"):
+        return pathlib.Path(settings.APPS_DEPLOYMENT["log_path"])
+    else:
+        return None
 
 
 def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=False):
     """
     Handle uploaded form file `file` which should be a validated ZIP file that contains an R app for deployment.
 
-    :param file: deployment ZIP file
+    :param file: path to deployment ZIP file
     :param app_title: app title
     :param app_name: use this URL-safe app name if given, else derive it from `app_title`
     :param replace: if True, there should already exist a deployed app which should be replaced (i.e. updated)
@@ -77,12 +84,12 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
             app_name = re.sub("[^a-z0-9_-]", "", app_title.lower().replace(" ", "_"))
         if app_name == "log":
             raise ValueError("The app directory cannot be named 'log'.")
-        deploytarget = setting_upload_path / app_name
+        deploytarget = _setting_upload_path() / app_name
 
         if os.path.exists(deploytarget):
             if replace:
                 now = datetime.now().isoformat().replace(":", "-")
-                oldtarget = setting_upload_path / f"{app_name}~old-{now}"
+                oldtarget = _setting_upload_path() / f"{app_name}~old-{now}"
                 shutil.move(deploytarget, oldtarget)
                 (oldtarget / "remove.txt").touch()
             else:
@@ -105,8 +112,8 @@ def remove_deployed_app(appdir):
         raise ValueError("invalid app path")
 
     mode = settings.APPS_DEPLOYMENT.get("remove_mode", None)
-    deploytarget = setting_upload_path / appdir
-    if not deploytarget.is_relative_to(setting_upload_path) or not deploytarget.exists():
+    deploytarget = _setting_upload_path() / appdir
+    if not deploytarget.is_relative_to(_setting_upload_path()) or not deploytarget.exists():
         raise ValueError("invalid app path")
 
     if mode == "delete":
@@ -125,7 +132,7 @@ def get_deployed_app_info(appdir):
     :return: a dict with keys status, status_class, install_log and error_logs containing the respective information
              for the app
     """
-    deploytarget = setting_upload_path / appdir
+    deploytarget = _setting_upload_path() / appdir
 
     if not deploytarget.exists() or (deploytarget / "remove.txt").exists():
         raise ValueError("invalid app path")
@@ -156,8 +163,8 @@ def get_deployed_app_info(appdir):
         install_log = "– install.log file not found –"
 
     error_logs = {}
-    if setting_log_path:
-        for logf in sorted(glob(str(setting_log_path / f"{appdir}-*.log"))):
+    if _setting_log_path():
+        for logf in sorted(glob(str(_setting_log_path() / f"{appdir}-*.log"))):
             logfpath = pathlib.Path(logf)
             logfbasename = logfpath.parts[-1]
             try:
