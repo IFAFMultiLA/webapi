@@ -1659,11 +1659,18 @@ if settings.APPS_DEPLOYMENT:
                     }
                 ):
                     # fail on zip file w/o renv.lock
-                    with self.assertRaisesRegex(FileNotFoundError, r"required renv.lock file not found"):
+                    with self.assertRaisesRegex(FileNotFoundError, r"^Required renv.lock file not found.$"):
                         handle_uploaded_app_deploy_file(self.testfiles_dir / "fail_norenv.zip", "No renv.lock")
 
+                    # fail on app named "log"
+                    with self.assertRaisesRegex(ValueError, r"^The app directory cannot be named"):
+                        handle_uploaded_app_deploy_file(
+                            self.testfiles_dir / "ok_rootdir.zip", "invalid app name", app_name="log"
+                        )
+
                     # ok scenarios
-                    for i, f in enumerate(glob(str(self.testfiles_dir / "ok_*.zip"))):
+                    testfiles_ok = glob(str(self.testfiles_dir / "ok_*.zip"))
+                    for i, f in enumerate(testfiles_ok):
                         for pass_appname in (False, True):
                             expected_app_name = f"app_upload_test_{i}_{int(pass_appname)}"
                             app_name = handle_uploaded_app_deploy_file(
@@ -1676,5 +1683,23 @@ if settings.APPS_DEPLOYMENT:
                             self.assertTrue((uploaddir / app_name / "renv.lock").exists())
                             self.assertTrue((uploaddir / app_name / "install.txt").exists())
 
+                            for excl_file in ("renv", ".git", ".gitignore", ".git", "remove.txt", "restart.txt"):
+                                self.assertFalse((uploaddir / app_name / excl_file).exists())
+
                             if trigger_file:
                                 self.assertTrue(trigger_file.exists())
+
+                    # replace fail
+                    with self.assertRaisesRegex(FileExistsError, r"^Deployed app already exists at location"):
+                        handle_uploaded_app_deploy_file(
+                            testfiles_ok[0], "already exists", app_name="app_upload_test_0_0"
+                        )
+
+                    # replace ok
+                    self.assertEqual(
+                        handle_uploaded_app_deploy_file(
+                            testfiles_ok[0], "replacement", app_name="app_upload_test_0_0", replace=True
+                        ),
+                        "app_upload_test_0_0",
+                    )
+                    self.assertTrue((uploaddir / "app_upload_test_0_0" / "install.txt").exists())

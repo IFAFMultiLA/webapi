@@ -48,13 +48,14 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
                 break
 
         if apppath is None:
-            raise FileNotFoundError("required renv.lock file not found")
+            raise FileNotFoundError("Required renv.lock file not found.")
 
         # create list of members from the zip file that will be extracted
         ignore_patterns = [
             re.compile(pttrn, re.I)
             for pttrn in (
                 r"^\..+",
+                r"^\.git.*",
                 r"^renv/",
                 r".+\.rproj$",
                 r"^makefile$",
@@ -82,8 +83,11 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
         # move the deployment files from the temp. location to the final location
         if not app_name:
             app_name = re.sub("[^a-z0-9_-]", "", app_title.lower().replace(" ", "_"))
-        if app_name == "log":
-            raise ValueError("The app directory cannot be named 'log'.")
+        logdir_name = _setting_log_path().name
+        if _setting_log_path().parent == _setting_upload_path() and app_name == logdir_name:
+            raise ValueError(
+                f"The app directory cannot be named '{logdir_name}' (this is the name of the " f"log files directory)."
+            )
         deploytarget = _setting_upload_path() / app_name
 
         if os.path.exists(deploytarget):
