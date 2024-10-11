@@ -16,19 +16,6 @@ from zipfile import ZipFile
 from django.conf import settings
 
 
-def _setting_upload_path():
-    """Helper function to get upload path."""
-    return pathlib.Path(settings.APPS_DEPLOYMENT["upload_path"])
-
-
-def _setting_log_path():
-    """Helper function to get app log path."""
-    if settings.APPS_DEPLOYMENT.get("log_path"):
-        return pathlib.Path(settings.APPS_DEPLOYMENT["log_path"])
-    else:
-        return None
-
-
 def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=False):
     """
     Handle uploaded form file `file` which should be a validated ZIP file that contains an R app for deployment.
@@ -113,12 +100,16 @@ def remove_deployed_app(appdir):
     Remove the deployed app from `appdir`.
     """
     if not appdir or re.search("[^a-z0-9_-]", appdir):
-        raise ValueError("invalid app path")
+        raise ValueError("Invalid application path.")
 
     mode = settings.APPS_DEPLOYMENT.get("remove_mode", None)
     deploytarget = _setting_upload_path() / appdir
-    if not deploytarget.is_relative_to(_setting_upload_path()) or not deploytarget.exists():
-        raise ValueError("invalid app path")
+    if (
+        not deploytarget.is_relative_to(_setting_upload_path())
+        or not deploytarget.exists()
+        or deploytarget == _setting_log_path()
+    ):
+        raise ValueError("Invalid application path.")
 
     if mode == "delete":
         shutil.rmtree(deploytarget)
@@ -180,6 +171,20 @@ def get_deployed_app_info(appdir):
 
 
 def _trigger_update():
+    """Helper file to update a trigger file if the option is enabled in the settings."""
     trigger = settings.APPS_DEPLOYMENT.get("update_trigger_file", None)
     if trigger:
         pathlib.Path(trigger).touch()
+
+
+def _setting_upload_path():
+    """Helper function to get upload path."""
+    return pathlib.Path(settings.APPS_DEPLOYMENT["upload_path"])
+
+
+def _setting_log_path():
+    """Helper function to get app log path."""
+    if settings.APPS_DEPLOYMENT.get("log_path"):
+        return pathlib.Path(settings.APPS_DEPLOYMENT["log_path"])
+    else:
+        return None

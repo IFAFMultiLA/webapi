@@ -4,6 +4,7 @@ Automated tests.
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
+import itertools
 from datetime import datetime, timedelta, timezone
 from glob import glob
 from pathlib import Path
@@ -30,7 +31,7 @@ from .admin import (
     UserFeedbackAdmin,
     admin_site,
 )
-from .admin_appdeploy import handle_uploaded_app_deploy_file
+from .admin_appdeploy import handle_uploaded_app_deploy_file, remove_deployed_app
 from .models import (
     Application,
     ApplicationConfig,
@@ -1703,3 +1704,37 @@ if settings.APPS_DEPLOYMENT:
                         "app_upload_test_0_0",
                     )
                     self.assertTrue((uploaddir / "app_upload_test_0_0" / "install.txt").exists())
+
+        def test_remove_deployed_app(self):
+            for use_trigger_file, remove_mode in itertools.product((False, True), ("delete", "remove.txt", None)):
+                uploaddir = Path(mkdtemp())
+                trigger_file = Path(mkdtemp()) / "trigger" if use_trigger_file else None
+
+                with self.settings(
+                    APPS_DEPLOYMENT=settings.APPS_DEPLOYMENT
+                    | {
+                        "upload_path": str(uploaddir),
+                        "log_path": str(uploaddir / "log"),
+                        "update_trigger_file": str(trigger_file) if trigger_file else None,
+                        "remove_mode": remove_mode,
+                    }
+                ):
+                    # fail on invalid app directory
+                    for invalid_appdir in ("", "/", "../", str(uploaddir), str(uploaddir / "log"), "nonexistent"):
+                        with self.assertRaisesRegex(ValueError, r"^Invalid application path.$"):
+                            remove_deployed_app(invalid_appdir)
+
+                    # ok
+                    app_name = handle_uploaded_app_deploy_file(self.testfiles_dir / "ok_rootdir.zip", "delete me")
+                    self.assertTrue((uploaddir / app_name).exists())
+                    remove_deployed_app(app_name)
+
+                    if remove_mode == "delete":
+                        self.assertFalse((uploaddir / app_name).exists())
+                    else:
+                        self.assertTrue((uploaddir / app_name).exists())
+                        if remove_mode == "remove.txt":
+                            self.assertTrue((uploaddir / app_name / "remove.txt").exists())
+
+                    if trigger_file:
+                        self.assertTrue(trigger_file.exists())
