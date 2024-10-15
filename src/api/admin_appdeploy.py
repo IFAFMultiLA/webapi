@@ -123,14 +123,14 @@ def get_deployed_app_info(appdir):
     """
     Construct a dict with monitoring information for a deployed app at `appdir`.
 
-    :param appdir: deployed app path
+    :param appdir: deployed app directory
     :return: a dict with keys status, status_class, install_log and error_logs containing the respective information
              for the app
     """
     deploytarget = _setting_upload_path() / appdir
 
     if not deploytarget.exists() or (deploytarget / "remove.txt").exists():
-        raise ValueError("invalid app path")
+        raise ValueError("Invalid app directory.")
 
     if (deploytarget / "install.txt").is_file():
         if (deploytarget / "install_error.txt").is_file():

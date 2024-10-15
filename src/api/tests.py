@@ -31,7 +31,7 @@ from .admin import (
     UserFeedbackAdmin,
     admin_site,
 )
-from .admin_appdeploy import handle_uploaded_app_deploy_file, remove_deployed_app
+from .admin_appdeploy import get_deployed_app_info, handle_uploaded_app_deploy_file, remove_deployed_app
 from .models import (
     Application,
     ApplicationConfig,
@@ -1639,102 +1639,137 @@ class ModelAdminTests(TestCase):
         self._check_modeladmin_default_views(modeladm, check_views=["changelist_view"])
 
 
-# @override_settings(APPS_DEPLOYMENT=None) TODO: also check that APPS_DEPLOYMENT=None works
-if settings.APPS_DEPLOYMENT:
+class ModelAdminAppUploadTests(TestCase):
+    def setUp(self):
+        self.testfiles_dir = Path("src") / "api" / "testfiles"
 
-    class ModelAdminAppUploadTests(TestCase):
-        def setUp(self):
-            self.testfiles_dir = Path("src") / "api" / "testfiles"
+    @staticmethod
+    def _deployment_settings(uploaddir, trigger_file=None, remove_mode=None):
+        return (settings.APPS_DEPLOYMENT or {}) | {
+            "upload_path": str(uploaddir),
+            "log_path": str(uploaddir / "log"),
+            "update_trigger_file": str(trigger_file) if trigger_file else None,
+            "remove_mode": remove_mode,
+        }
 
-        def test_handle_uploaded_app_deploy_file(self):
-            for use_trigger_file in (False, True):
-                uploaddir = Path(mkdtemp())
-                trigger_file = Path(mkdtemp()) / "trigger" if use_trigger_file else None
+    def test_handle_uploaded_app_deploy_file(self):
+        for use_trigger_file in (False, True):
+            uploaddir = Path(mkdtemp())
+            trigger_file = Path(mkdtemp()) / "trigger" if use_trigger_file else None
 
-                with self.settings(
-                    APPS_DEPLOYMENT=settings.APPS_DEPLOYMENT
-                    | {
-                        "upload_path": str(uploaddir),
-                        "log_path": str(uploaddir / "log"),
-                        "update_trigger_file": str(trigger_file) if trigger_file else None,
-                    }
-                ):
-                    # fail on zip file w/o renv.lock
-                    with self.assertRaisesRegex(FileNotFoundError, r"^Required renv.lock file not found.$"):
-                        handle_uploaded_app_deploy_file(self.testfiles_dir / "fail_norenv.zip", "No renv.lock")
+            with self.settings(APPS_DEPLOYMENT=self._deployment_settings(uploaddir, trigger_file)):
+                # fail on zip file w/o renv.lock
+                with self.assertRaisesRegex(FileNotFoundError, r"^Required renv.lock file not found.$"):
+                    handle_uploaded_app_deploy_file(self.testfiles_dir / "fail_norenv.zip", "No renv.lock")
 
-                    # fail on app named "log"
-                    with self.assertRaisesRegex(ValueError, r"^The app directory cannot be named"):
-                        handle_uploaded_app_deploy_file(
-                            self.testfiles_dir / "ok_rootdir.zip", "invalid app name", app_name="log"
-                        )
-
-                    # ok scenarios
-                    testfiles_ok = glob(str(self.testfiles_dir / "ok_*.zip"))
-                    for i, f in enumerate(testfiles_ok):
-                        for pass_appname in (False, True):
-                            expected_app_name = f"app_upload_test_{i}_{int(pass_appname)}"
-                            app_name = handle_uploaded_app_deploy_file(
-                                f,
-                                f"App upload test #{i} {int(pass_appname)}.",
-                                app_name=expected_app_name if pass_appname else None,
-                            )
-                            self.assertEqual(app_name, expected_app_name)
-                            self.assertTrue((uploaddir / app_name).exists())
-                            self.assertTrue((uploaddir / app_name / "renv.lock").exists())
-                            self.assertTrue((uploaddir / app_name / "install.txt").exists())
-
-                            for excl_file in ("renv", ".git", ".gitignore", ".git", "remove.txt", "restart.txt"):
-                                self.assertFalse((uploaddir / app_name / excl_file).exists())
-
-                            if trigger_file:
-                                self.assertTrue(trigger_file.exists())
-
-                    # replace fail
-                    with self.assertRaisesRegex(FileExistsError, r"^Deployed app already exists at location"):
-                        handle_uploaded_app_deploy_file(
-                            testfiles_ok[0], "already exists", app_name="app_upload_test_0_0"
-                        )
-
-                    # replace ok
-                    self.assertEqual(
-                        handle_uploaded_app_deploy_file(
-                            testfiles_ok[0], "replacement", app_name="app_upload_test_0_0", replace=True
-                        ),
-                        "app_upload_test_0_0",
+                # fail on app named "log"
+                with self.assertRaisesRegex(ValueError, r"^The app directory cannot be named"):
+                    handle_uploaded_app_deploy_file(
+                        self.testfiles_dir / "ok_rootdir.zip", "invalid app name", app_name="log"
                     )
-                    self.assertTrue((uploaddir / "app_upload_test_0_0" / "install.txt").exists())
 
-        def test_remove_deployed_app(self):
-            for use_trigger_file, remove_mode in itertools.product((False, True), ("delete", "remove.txt", None)):
-                uploaddir = Path(mkdtemp())
-                trigger_file = Path(mkdtemp()) / "trigger" if use_trigger_file else None
-
-                with self.settings(
-                    APPS_DEPLOYMENT=settings.APPS_DEPLOYMENT
-                    | {
-                        "upload_path": str(uploaddir),
-                        "log_path": str(uploaddir / "log"),
-                        "update_trigger_file": str(trigger_file) if trigger_file else None,
-                        "remove_mode": remove_mode,
-                    }
-                ):
-                    # fail on invalid app directory
-                    for invalid_appdir in ("", "/", "../", str(uploaddir), str(uploaddir / "log"), "nonexistent"):
-                        with self.assertRaisesRegex(ValueError, r"^Invalid application path.$"):
-                            remove_deployed_app(invalid_appdir)
-
-                    # ok
-                    app_name = handle_uploaded_app_deploy_file(self.testfiles_dir / "ok_rootdir.zip", "delete me")
-                    self.assertTrue((uploaddir / app_name).exists())
-                    remove_deployed_app(app_name)
-
-                    if remove_mode == "delete":
-                        self.assertFalse((uploaddir / app_name).exists())
-                    else:
+                # ok scenarios
+                testfiles_ok = glob(str(self.testfiles_dir / "ok_*.zip"))
+                for i, f in enumerate(testfiles_ok):
+                    for pass_appname in (False, True):
+                        expected_app_name = f"app_upload_test_{i}_{int(pass_appname)}"
+                        app_name = handle_uploaded_app_deploy_file(
+                            f,
+                            f"App upload test #{i} {int(pass_appname)}.",
+                            app_name=expected_app_name if pass_appname else None,
+                        )
+                        self.assertEqual(app_name, expected_app_name)
                         self.assertTrue((uploaddir / app_name).exists())
-                        if remove_mode == "remove.txt":
-                            self.assertTrue((uploaddir / app_name / "remove.txt").exists())
+                        self.assertTrue((uploaddir / app_name / "renv.lock").exists())
+                        self.assertTrue((uploaddir / app_name / "install.txt").exists())
 
-                    if trigger_file:
-                        self.assertTrue(trigger_file.exists())
+                        for excl_file in ("renv", ".git", ".gitignore", ".git", "remove.txt", "restart.txt"):
+                            self.assertFalse((uploaddir / app_name / excl_file).exists())
+
+                        if trigger_file:
+                            self.assertTrue(trigger_file.exists())
+
+                # replace fail
+                with self.assertRaisesRegex(FileExistsError, r"^Deployed app already exists at location"):
+                    handle_uploaded_app_deploy_file(testfiles_ok[0], "already exists", app_name="app_upload_test_0_0")
+
+                # replace ok
+                self.assertEqual(
+                    handle_uploaded_app_deploy_file(
+                        testfiles_ok[0], "replacement", app_name="app_upload_test_0_0", replace=True
+                    ),
+                    "app_upload_test_0_0",
+                )
+                self.assertTrue((uploaddir / "app_upload_test_0_0" / "install.txt").exists())
+
+    def test_remove_deployed_app(self):
+        for use_trigger_file, remove_mode in itertools.product((False, True), ("delete", "remove.txt", None)):
+            uploaddir = Path(mkdtemp())
+            trigger_file = Path(mkdtemp()) / "trigger" if use_trigger_file else None
+
+            with self.settings(APPS_DEPLOYMENT=self._deployment_settings(uploaddir, trigger_file, remove_mode)):
+                # fail on invalid app directory
+                for invalid_appdir in ("", "/", "../", str(uploaddir), str(uploaddir / "log"), "nonexistent"):
+                    with self.assertRaisesRegex(ValueError, r"^Invalid application path.$"):
+                        remove_deployed_app(invalid_appdir)
+
+                # ok
+                app_name = handle_uploaded_app_deploy_file(self.testfiles_dir / "ok_rootdir.zip", "delete me")
+                self.assertTrue((uploaddir / app_name).exists())
+                remove_deployed_app(app_name)
+
+                if remove_mode == "delete":
+                    self.assertFalse((uploaddir / app_name).exists())
+                else:
+                    self.assertTrue((uploaddir / app_name).exists())
+                    if remove_mode == "remove.txt":
+                        self.assertTrue((uploaddir / app_name / "remove.txt").exists())
+
+                if trigger_file:
+                    self.assertTrue(trigger_file.exists())
+
+    def test_get_deployed_app_info(self):
+        def check_info_result(app_name, status, status_class, install_log, error_log):
+            res = get_deployed_app_info(app_name)
+            self.assertIsInstance(res, dict)
+            self.assertSetEqual(set(res.keys()), {"status", "status_class", "install_log", "error_logs"})
+            self.assertEqual(res["status"], status)
+            self.assertEqual(res["status_class"], status_class)
+            self.assertEqual(res["install_log"], install_log)
+            self.assertIsInstance(res["error_logs"], dict)
+            self.assertEqual(res["error_logs"], error_log)
+
+        uploaddir = Path(mkdtemp())
+        (uploaddir / "log").mkdir()
+
+        with self.settings(APPS_DEPLOYMENT=self._deployment_settings(uploaddir)):
+            # fail on non-existent app
+            with self.assertRaisesRegex(ValueError, r"^Invalid app directory.$"):
+                get_deployed_app_info("nonexistent")
+
+            # ok with fresh "upload"
+            app_name = handle_uploaded_app_deploy_file(self.testfiles_dir / "ok_rootdir.zip", "test app")
+            self.assertTrue((uploaddir / app_name).exists())
+            check_info_result(app_name, "installation scheduled", "warning", "– install.log file not found –", {})
+
+            # simulate installation
+            install_msg = "install test"
+            (uploaddir / app_name / "install.log").write_text(install_msg)
+            check_info_result(app_name, "installing", "warning", install_msg, {})
+
+            # simulate deployment success
+            (uploaddir / app_name / "restart.txt").touch()
+            (uploaddir / app_name / "install.txt").unlink()
+            check_info_result(app_name, "deployed", "success", install_msg, {})
+
+            # simulate installation error
+            (uploaddir / app_name / "restart.txt").unlink()
+            (uploaddir / app_name / "install.txt").touch()
+            (uploaddir / app_name / "install_error.txt").touch()
+            error_logs = {
+                f"{app_name}-1.log": "some error 1",
+                f"{app_name}-2.log": "some error 2",
+            }
+            for logfname, msg in error_logs.items():
+                (uploaddir / "log" / logfname).write_text(msg)
+            check_info_result(app_name, "installation error", "error", install_msg, error_logs)
