@@ -5,10 +5,12 @@ Automated tests.
 """
 
 import itertools
+import sys
 from datetime import datetime, timedelta, timezone
 from glob import glob
 from pathlib import Path
 from tempfile import mkdtemp
+from unittest import skipIf
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -1639,6 +1641,7 @@ class ModelAdminTests(TestCase):
         self._check_modeladmin_default_views(modeladm, check_views=["changelist_view"])
 
 
+@skipIf(sys.platform == "win32", "App upload functionality cannot be tested in Windows.")
 class ModelAdminAppUploadTests(TestCase):
     def setUp(self):
         self.testfiles_dir = Path("src") / "api" / "testfiles"
