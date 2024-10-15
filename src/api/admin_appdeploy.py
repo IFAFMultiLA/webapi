@@ -61,7 +61,10 @@ def handle_uploaded_app_deploy_file(file, app_title, app_name=None, replace=Fals
                     relpath = zpath
 
                 if all(pttrn.search(relpath) is None for pttrn in ignore_patterns):
-                    members.append(os.path.join(apppath, relpath))
+                    memberpath = os.path.join(apppath, relpath)
+                    if os.path.sep == "\\" and memberpath.endswith("\\\\"):
+                        memberpath = memberpath[:-1]
+                    members.append(memberpath)
 
         # extract the selected members to a temp. location
         tmptarget = mkdtemp("_new_app")
