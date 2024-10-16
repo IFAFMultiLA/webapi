@@ -1644,7 +1644,7 @@ class ModelAdminTests(TestCase):
 @skipIf(sys.platform == "win32", "App upload functionality cannot be tested in Windows.")
 class ModelAdminAppUploadTests(TestCase):
     def setUp(self):
-        self.testfiles_dir = Path("src") / "api" / "testfiles"
+        self.testfiles_dir = Path(__file__).parent.resolve() / "testfiles"
 
     @staticmethod
     def _deployment_settings(uploaddir, trigger_file=None, remove_mode=None):
