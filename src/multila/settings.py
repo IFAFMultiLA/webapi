@@ -152,6 +152,17 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR.parent / "static_files"
 DATA_EXPORT_DIR = BASE_DIR.parent / "data" / "export"
 CODEBOOK_PATH = BASE_DIR.parent / "data" / "codebook.pdf"
+APPS_DEPLOYMENT = {  # set to None to disable app upload feature
+    "upload_path": BASE_DIR.parent / "apps_deployed",  # must be writable
+    "log_path": BASE_DIR.parent / "apps_deployed" / "log",  # directory where Shiny writes logs; optional; can be None
+    "base_url": "http://localhost:8001",  # base URL for all deployed apps inside `upload_path`
+    # below: action to perform when removing a deployed app; if "delete", remove the whole app directory;
+    # if "remove.txt" write a "remove.txt" file in the app directory; otherwise do nothing
+    "remove_mode": "keep",
+    # below: path to a "trigger file" that is updated (via "touch") whenever there was a change to any deployed
+    # app in order to trigger dependency installation, app removal, etc. via an external program; optional
+    "update_trigger_file": None,
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

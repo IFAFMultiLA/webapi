@@ -1,0 +1,73 @@
+{% extends "admin/change_form.html" %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+#app_monitor {
+    width: 40%;
+    float: right;
+    background: rgb(248, 248, 248);
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+#app_monitor dl dd.status {
+    padding: 2px;
+}
+
+#app_monitor dl dd.status.success {
+    background: var(--message-success-bg);
+}
+
+#app_monitor dl dd.status.warning {
+    background: var(--message-warning-bg);
+}
+
+#app_monitor dl dd.status.error {
+    background: var(--message-error-bg);
+}
+
+#app_monitor pre {
+    max-width: 100%;
+    max-height: 30em;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    padding: 2px;
+}
+
+</style>
+{% endblock %}
+
+{% block field_sets %}
+{% if show_app_monitor %}
+<div id="app_monitor">
+
+<dl>
+  <dt>Local app status</dt>
+  <dd class="status {{ app_info.status_class }}">{{ app_info.status }}</dd>
+</dl>
+
+<dl>
+  <dt>Installation log</dt>
+  <dd><pre>{{ app_info.install_log }}</pre></dd>
+</dl>
+
+{% if app_info.error_logs %}
+    <dl>
+      <dt>Shiny logs</dt>
+      <dd>
+          {% for logname, logcontent in app_info.error_logs.items %}
+              <h4><code>{{ logname }}</code></h4>
+              <pre>{{ logcontent }}</pre>
+          {% endfor %}
+      </dd>
+    </dl>
+{% endif %}
+
+</div>
+{% endif %}
+{% for fieldset in adminform %}
+  {% include "admin/includes/fieldset.html" %}
+{% endfor %}
+
+<div style="clear:right"></div>
+{% endblock %}
