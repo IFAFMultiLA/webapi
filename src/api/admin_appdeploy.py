@@ -106,7 +106,7 @@ def remove_deployed_app(appdir):
         raise ValueError("Invalid application path.")
 
     mode = settings.APPS_DEPLOYMENT.get("remove_mode", None)
-    deploytarget = (_setting_upload_path() / appdir).resolve()
+    deploytarget = _setting_upload_path() / appdir
     if (
         not deploytarget.is_relative_to(_setting_upload_path())
         or not deploytarget.exists()
