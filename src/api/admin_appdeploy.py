@@ -132,7 +132,7 @@ def get_deployed_app_info(appdir):
     """
     deploytarget = _setting_upload_path() / appdir
 
-    if not deploytarget.exists() or (deploytarget / "remove.txt").exists():
+    if not deploytarget.exists():
         raise ValueError("Invalid app directory.")
 
     if (deploytarget / "install.txt").is_file():
@@ -148,6 +148,9 @@ def get_deployed_app_info(appdir):
     elif (deploytarget / "restart.txt").is_file():
         status = "deployed"
         status_class = "success"
+    elif (deploytarget / "remove.txt").is_file():
+        status = "removal scheduled"
+        status_class = "warning"
     else:
         status = "unknown"
         status_class = "warning"
