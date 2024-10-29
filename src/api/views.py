@@ -9,6 +9,7 @@ be formatted in ISO 8601 format.
 
 from functools import wraps
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
@@ -21,6 +22,11 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from ipware import get_client_ip
 from rest_framework import status
 from rest_framework.decorators import api_view
+
+if settings.CHATBOT_API:
+    from openai import OpenAI
+else:
+    OpenAI = None
 
 from .models import (
     Application,
@@ -584,6 +590,53 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
             return JsonResponse({"tracking_event_id": event_serializer.instance.pk}, status=status.HTTP_201_CREATED)
         else:
             return JsonResponse({"validation_errors": event_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@require_user_session_token
+def chatbot_message(request, user_app_sess_obj, parsed_data):
+    if OpenAI is None:
+        raise ImportError("Chatbot feature enabled, but openai package not installed.")
+
+    # post new message to chatbot API
+    if request.method == "POST":
+        # get the user's message
+        try:
+            message = parsed_data["message"]
+        except KeyError:
+            return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+        # optional: get language preference TODO
+        # language = parsed_data.get("language", "en")
+
+        # if we have a tracking session, make sure it belongs to the user app. session
+        tracking_sess = None
+        if tracking_session_id := parsed_data.get("tracking_session", None):
+            try:
+                tracking_sess = TrackingSession.objects.get(id=tracking_session_id)
+                if tracking_sess.user_app_session_id != user_app_sess_obj.pk:
+                    return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+            except TrackingSession.DoesNotExist:
+                return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+        # make an request to the API
+        client = OpenAI(api_key=settings.CHATBOT_API["key"])
+
+        completion = client.chat.completions.create(
+            model=settings.CHATBOT_API["model"],
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": message},
+            ],
+        )
+
+        # get the response
+        if not completion.choices:
+            return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        bot_response = completion.choices[0].message.content
+
+        return JsonResponse({"message": bot_response}, status=status.HTTP_200_OK)
 
 
 def csrf_failure(request, reason=""):

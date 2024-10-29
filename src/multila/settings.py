@@ -164,6 +164,11 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
     "update_trigger_file": None,
 }
 
+CHATBOT_API = {  # set to None to disable chatbot API feature
+    "key": os.environ.get("OPENAI_API_KEY"),
+    "model": "gpt-3.5-turbo",
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
