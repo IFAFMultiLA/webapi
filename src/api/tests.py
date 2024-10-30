@@ -1426,6 +1426,98 @@ class ViewTests(CustomAPITestCase):
                     if reset_cookies:
                         self.client.cookies = SimpleCookie()
 
+    def test_chatbot_message(self):
+        # prepare data: generate app, app configs and app session
+        app = Application(name="testapp", url="http://testapp.com", updated_by=self.user)
+        app.save()
+        appconfig_nochat = ApplicationConfig(
+            application=app, label="testconfig_nochat", config={"chatbot": False}, updated_by=self.user
+        )
+        appconfig_nochat.save()
+        appsess_nochat = ApplicationSession(config=appconfig_nochat, auth_mode="none")
+        appsess_nochat.generate_code()
+        appsess_nochat.save()
+        appconfig_nocontent = ApplicationConfig(
+            application=app, label="testconfig_nocontent", config={"chatbot": True}, updated_by=self.user
+        )
+        appconfig_nocontent.save()
+        appsess_nocontent = ApplicationSession(config=appconfig_nocontent, auth_mode="none")
+        appsess_nocontent.generate_code()
+        appsess_nocontent.save()
+        appconfig_chat = ApplicationConfig(
+            application=app,
+            label="testconfig_chat",
+            config={"chatbot": True},
+            updated_by=self.user,
+            app_content="some app content",
+        )
+        appconfig_chat.save()
+        appsess_chat = ApplicationSession(config=appconfig_chat, auth_mode="none")
+        appsess_chat.generate_code()
+        appsess_chat.save()
+
+        url = reverse("chatbot_message")
+        base_data = {
+            "language": "en",
+            "simulate": True,  # triggers view to NOT make actual (costly!) requests to the chatbot API
+        }
+
+        def get_sess_and_auth_code(appsess, with_tracking=False):
+            response = self.client.get(reverse("session"), {"sess": appsess.code})
+            auth_token = response.json()["user_code"]
+            tracking_sess_id = None
+
+            if with_tracking:
+                # start tracking
+                response = self.client.post_json(
+                    reverse("start_tracking"),
+                    data={"sess": appsess.code, "start_time": tznow().isoformat()},
+                    auth_token=auth_token,
+                )
+
+                tracking_sess_id = response.json()["tracking_session_id"]
+
+            return appsess.code, auth_token, tracking_sess_id
+
+        # try everything with and without tracking enabled
+        for with_tracking in (False, True):
+            # fail: app session without chatbot feature
+            sess_code, auth_token, _ = get_sess_and_auth_code(appsess_nochat)
+            response = self.client.post_json(url, data=base_data | {"sess": sess_code}, auth_token=auth_token)
+            self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+            # fail: request without message
+            sess_code, auth_token, tracking_sess_id = get_sess_and_auth_code(appsess_chat, with_tracking=with_tracking)
+            response = self.client.post_json(
+                url, data=base_data | {"sess": sess_code, "tracking_session": tracking_sess_id}, auth_token=auth_token
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+            # fail: no app content saved
+            sess_code, auth_token, tracking_sess_id = get_sess_and_auth_code(
+                appsess_nocontent, with_tracking=with_tracking
+            )
+            response = self.client.post_json(
+                url,
+                data=base_data | {"sess": sess_code, "tracking_session": tracking_sess_id, "message": "foo"},
+                auth_token=auth_token,
+            )
+            self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+            # ok (with simulated chatbot API response)
+            sess_code, auth_token, tracking_sess_id = get_sess_and_auth_code(appsess_chat, with_tracking=with_tracking)
+            response = self.client.post_json(
+                url,
+                data=base_data | {"sess": sess_code, "tracking_session": tracking_sess_id, "message": "foo"},
+                auth_token=auth_token,
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.headers["Content-Type"], "application/json")
+            resp_data = response.json()
+            self.assertEqual(set(resp_data.keys()), {"message"})
+            self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
+            self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+
 
 # ----- admin -----
 

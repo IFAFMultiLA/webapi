@@ -155,6 +155,13 @@ class ApplicationConfigForm(forms.ModelForm):
         initial=True,
         required=False,
     )
+    if settings.CHATBOT_API:
+        chatbot = forms.BooleanField(
+            label="Enable chatbot",
+            help_text="Provide an interactive assistant in the application.",
+            initial=False,
+            required=False,
+        )
     reset_button = forms.BooleanField(
         label="Enable reset button",
         help_text="Show a reset button to clear all inputs and restart the tutorial.",
@@ -179,6 +186,13 @@ class ApplicationConfigForm(forms.ModelForm):
         initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["device_info"],
         required=False,
     )
+    if settings.CHATBOT_API:
+        track_chatbot = forms.BooleanField(
+            label="Track communication with chatbot",
+            help_text="Enable tracking chatbot communication if chatbot feature is enabled.",
+            initial=APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["chatbot"],
+            required=False,
+        )
     track_visibility = forms.BooleanField(
         label="Track browser visibility state",
         help_text="Enable tracking the state of the user's browser window visibility.",
@@ -313,19 +327,27 @@ class ApplicationConfigForm(forms.ModelForm):
 
         # make copy of default config
         config = APPLICATION_CONFIG_DEFAULT_JSON.copy()
+
         # apply fields with comma-separated values by turning them into a list
         for f in ("exclude", "js", "css"):
             config[f] = [v.strip() for v in self.cleaned_data.get(f, "").split(",") if v.strip()]
+
         # apply fields with on/off options
-        for f in ("feedback", "summary", "reset_button"):
+        fields = ["feedback", "summary", "reset_button"]
+        if settings.CHATBOT_API:
+            fields.append("chatbot")
+        for f in fields:
             config[f] = self.cleaned_data.get(f, APPLICATION_CONFIG_DEFAULT_JSON[f])
         for f, default_val in APPLICATION_CONFIG_DEFAULT_JSON["tracking"].items():
             config["tracking"][f] = self.cleaned_data.get("track_" + f, default_val)
+
         # apply addition options supplied as JSON
         if additional_json := self.cleaned_data.get("additional_json", None):
             config.update(additional_json)
+
         # set the config dict and save the model
         self.instance.config = config
+
         return super().save(commit=commit)
 
     class Meta:  # looks like it's not (easily) possible to define fieldsets and/or a custom template in a ModelForm
@@ -699,6 +721,41 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
 
         if not change:
             add_default_session_to_app_config(obj)
+
+        # if the chatbot feature is enabled for this app config, start a background thread that will download and
+        # prepare the application content
+        if settings.CHATBOT_API and obj.config.get("chatbot", False):
+
+            def fetch_app_content(app_config_id):
+                import requests
+                from bs4 import BeautifulSoup
+
+                app_config = ApplicationConfig.objects.get(id=app_config_id)
+                response = requests.get(app_config.application.url)
+                if not response.ok:
+                    return
+
+                # extract text from the main content of the learning app's HTML and assign an identifier to each
+                # content element so that the chatbot can refer to that and the app is able to jump to the correct
+                # place; it's important that the identifiers are assigned in the same way as in the learning app
+                content_elems = ["h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "div.figure", "div.section"]
+                selector = ", ".join(f".section.level2 > {e}" for e in content_elems)
+
+                try:
+                    html = BeautifulSoup(response.content)
+                    text = html.select_one("h1.title").text + "\n\n"
+                    for i, elem in enumerate(html.select(selector)):
+                        cls = elem.get("class", "")
+                        if "tracking_consent_text" in cls or "data_protection_text" in cls or not elem.text.strip():
+                            continue
+                        text += f"mainContentElem-{i}: {elem.text.strip()}\n\n"
+                except Exception:
+                    return
+
+                app_config.app_content = text
+                app_config.save()
+
+            threading.Thread(target=fetch_app_content, args=[obj.pk], daemon=True).start()
 
 
 class ApplicationSessionAdmin(admin.ModelAdmin):

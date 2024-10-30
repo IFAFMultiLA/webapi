@@ -7,6 +7,7 @@ be formatted in ISO 8601 format.
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
+import string
 from functools import wraps
 
 from django.conf import settings
@@ -596,7 +597,12 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 @require_user_session_token
 def chatbot_message(request, user_app_sess_obj, parsed_data):
     if OpenAI is None:
-        raise ImportError("Chatbot feature enabled, but openai package not installed.")
+        raise ImportError("Package 'openai' not installed.")
+
+    # check if chatbot feature is enabled for this app config
+    app_config = user_app_sess_obj.application_session.config
+    if not app_config.config.get("chatbot", False):
+        return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 
     # post new message to chatbot API
     if request.method == "POST":
@@ -606,8 +612,9 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
         except KeyError:
             return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
-        # optional: get language preference TODO
-        # language = parsed_data.get("language", "en")
+        # get optional data
+        language = parsed_data.get("language", "en")
+        simulate_chatapi = parsed_data.get("simulate", False)
 
         # if we have a tracking session, make sure it belongs to the user app. session
         tracking_sess = None
@@ -619,22 +626,39 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
             except TrackingSession.DoesNotExist:
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
+        # create prompt
+        prompt_templ = string.Template(settings.CHATBOT_API["prompt_templates"][language])
+
+        app_content = app_config.app_content
+        if app_content is None:
+            return HttpResponse(status=status.HTTP_204_NO_CONTENT)
+        prompt = prompt_templ.substitute(doc_text=app_content, question=message)
+
         # make an request to the API
-        client = OpenAI(api_key=settings.CHATBOT_API["key"])
+        if simulate_chatapi:
+            bot_response = (
+                f"No real chat response was generated since Chat API request was only simulated with the "
+                f"following prompt:\n\n{prompt}"
+            )
+        else:
+            try:
+                client = OpenAI(api_key=settings.CHATBOT_API["key"])
 
-        completion = client.chat.completions.create(
-            model=settings.CHATBOT_API["model"],
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": message},
-            ],
-        )
+                completion = client.chat.completions.create(
+                    model=settings.CHATBOT_API["model"],
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": prompt},
+                    ],
+                )
 
-        # get the response
-        if not completion.choices:
-            return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                # get the API response
+                if not completion.choices:
+                    return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        bot_response = completion.choices[0].message.content
+                bot_response = completion.choices[0].message.content
+            except Exception:
+                return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         return JsonResponse({"message": bot_response}, status=status.HTTP_200_OK)
 
