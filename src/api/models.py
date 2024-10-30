@@ -114,7 +114,13 @@ class ApplicationConfig(models.Model):
         "Configuration label", max_length=128, blank=False, help_text="A unique label to identify this configuration."
     )
     config = models.JSONField("Configuration", blank=True, default=application_config_default_json_instance)
-    app_content = models.TextField("Application content", null=True, blank=True, default=None)
+    app_content = models.TextField(
+        "Application content",
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Learning app content as retrieved from the app URL and processed for usage with the chatbot API.",
+    )
     updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 

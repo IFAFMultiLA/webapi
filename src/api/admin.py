@@ -353,6 +353,10 @@ class ApplicationConfigForm(forms.ModelForm):
     class Meta:  # looks like it's not (easily) possible to define fieldsets and/or a custom template in a ModelForm
         model = ApplicationConfig
         exclude = ["config", "updated_by"]
+        if settings.CHATBOT_API:
+            widgets = {
+                "app_content": forms.Textarea(attrs={"disabled": True, "cols": 103}),
+            }
 
 
 # --- model admins ---
@@ -669,8 +673,16 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
     def get_fields(self, request, obj=None):
         """Customize fields: Remove some fields when creating a new configuration."""
         fields = super().get_fields(request, obj=obj)
+        try:
+            fields.remove("app_content")
+        except ValueError:
+            pass
+
         if obj is None:
             return [f for f in fields if f not in {"application", "updated", "updated_by"}]
+        elif settings.CHATBOT_API and obj.config.get("chatbot"):
+            fields.append("app_content")
+
         return fields
 
     def add_view(self, request, form_url="", extra_context=None):
