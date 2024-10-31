@@ -757,11 +757,14 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
                 try:
                     html = BeautifulSoup(response.content, features="html.parser")
                     text = html.select_one("h1.title").text + "\n\n"
-                    for i, elem in enumerate(html.select(selector)):
+                    skip_classes = ("summary", "tracking_consent_text", "data_protection_text")
+                    i = 0
+                    for elem in html.select(selector):
                         cls = elem.get("class", "")
-                        if "tracking_consent_text" in cls or "data_protection_text" in cls or not elem.text.strip():
+                        if any(c in cls for c in skip_classes):
                             continue
                         text += f"mainContentElem-{i}: {elem.text.strip()}\n\n"
+                        i += 1
                 except Exception:
                     return
 
