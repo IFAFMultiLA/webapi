@@ -156,10 +156,11 @@ class ApplicationConfigForm(forms.ModelForm):
         required=False,
     )
     if settings.CHATBOT_API:
-        chatbot = forms.BooleanField(
-            label="Enable chatbot",
+        chatbot = forms.ChoiceField(
+            label="Enable chatbot choosing a model",
             help_text="Provide an interactive assistant in the application.",
-            initial=False,
+            choices=[(None, "(disabled)")] + [(x, x) for x in settings.CHATBOT_API["available_models"]],
+            initial=None,
             required=False,
         )
     reset_button = forms.BooleanField(
@@ -736,7 +737,7 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
 
         # if the chatbot feature is enabled for this app config, start a background thread that will download and
         # prepare the application content
-        if settings.CHATBOT_API and obj.config.get("chatbot", False):
+        if settings.CHATBOT_API and obj.config.get("chatbot", None):
 
             def fetch_app_content(app_config_id):
                 import requests

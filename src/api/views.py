@@ -611,7 +611,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
 
     # check if chatbot feature is enabled for this app config
     app_config = user_app_sess_obj.application_session.config
-    if not app_config.config.get("chatbot", False):
+    if not (chatbot_model := app_config.config.get("chatbot", None)):
         return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 
     # post new message to chatbot API
@@ -666,8 +666,8 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
             msgs_formatted = "\n\n".join(f'{msg["role"]}: {msg["content"]}' for msg in msgs_for_request)
 
             bot_response = (
-                f"No real chat response was generated since Chat API request was only simulated with the "
-                f"following messages:\n\n{msgs_formatted}"
+                f"No real chat response was generated since the chat API request to model '{chatbot_model}' was "
+                f"only simulated with the following messages:\n\n{msgs_formatted}"
             )
 
             if isinstance(simulate_chatapi, str):
@@ -677,7 +677,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
                 client = OpenAI(api_key=settings.CHATBOT_API["key"])
 
                 completion = client.chat.completions.create(
-                    model=settings.CHATBOT_API["model"],
+                    model=chatbot_model,
                     messages=msgs_for_request,
                 )
 
@@ -708,7 +708,12 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
                 tracking_session=tracking_sess,
                 time=datetime.now(ZoneInfo(settings.TIME_ZONE)),
                 type="chatbot_communication",
-                value={"user": prompt, "assistant": bot_response, "assistant_content_section_ref": content_section},
+                value={
+                    "user": prompt,
+                    "assistant": bot_response,
+                    "assistant_content_section_ref": content_section,
+                    "model": chatbot_model,
+                },
             )
             event.save()
 

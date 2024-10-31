@@ -55,7 +55,7 @@ from .serializers import TrackingEventSerializer, TrackingSessionSerializer, Use
 
 SETTINGS_CHATBOT_FEATURE_ENABLED = {
     "key": "anykey",
-    "model": "anymodel",
+    "available_models": ["foo-model-1", "foo-model-2"],
     "system_role_templates": {  # per language
         "en": "You are a teacher in data science and statistics. Document text: $doc_text",
     },
@@ -1444,14 +1444,17 @@ class ViewTests(CustomAPITestCase):
         app = Application(name="testapp", url="http://testapp.com", updated_by=self.user)
         app.save()
         appconfig_nochat = ApplicationConfig(
-            application=app, label="testconfig_nochat", config={"chatbot": False}, updated_by=self.user
+            application=app, label="testconfig_nochat", config={"chatbot": None}, updated_by=self.user
         )
         appconfig_nochat.save()
         appsess_nochat = ApplicationSession(config=appconfig_nochat, auth_mode="none")
         appsess_nochat.generate_code()
         appsess_nochat.save()
         appconfig_nocontent = ApplicationConfig(
-            application=app, label="testconfig_nocontent", config={"chatbot": True}, updated_by=self.user
+            application=app,
+            label="testconfig_nocontent",
+            config={"chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0]},
+            updated_by=self.user,
         )
         appconfig_nocontent.save()
         appsess_nocontent = ApplicationSession(config=appconfig_nocontent, auth_mode="none")
@@ -1460,7 +1463,7 @@ class ViewTests(CustomAPITestCase):
         appconfig_chat = ApplicationConfig(
             application=app,
             label="testconfig_chat",
-            config={"chatbot": True, "tracking": {"chatbot": True}},
+            config={"chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0], "tracking": {"chatbot": True}},
             updated_by=self.user,
             app_content="some app content",
         )
@@ -1502,10 +1505,11 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(len(tracked_events), len(expected_user_msgs))
             for event, expected_msg in zip(tracked_events, expected_user_msgs):
                 self.assertIsInstance(event, dict)
-                self.assertEqual(set(event.keys()), {"user", "assistant", "assistant_content_section_ref"})
+                self.assertEqual(set(event.keys()), {"user", "assistant", "assistant_content_section_ref", "model"})
                 self.assertEqual(event["user"], expected_msg)
                 self.assertTrue(event["assistant"].startswith("No real chat response was generated "))
                 self.assertEqual(event["assistant_content_section_ref"], example_section)
+                self.assertEqual(event["model"], appconfig_chat.config["chatbot"])
 
         # try everything with and without tracking enabled
         for with_tracking in (False, True):
@@ -1545,6 +1549,7 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(set(resp_data.keys()), {"message", "content_section"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+            self.assertIn(appconfig_chat.config["chatbot"], resp_data["message"])
             self.assertEqual(resp_data["content_section"], example_section)
 
             user_app_sess = UserApplicationSession.objects.get(code=auth_token)
@@ -1575,6 +1580,7 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(set(resp_data.keys()), {"message", "content_section"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+            self.assertIn(appconfig_chat.config["chatbot"], resp_data["message"])
             self.assertEqual(resp_data["content_section"], example_section)
 
             user_app_sess = UserApplicationSession.objects.get(code=auth_token)
