@@ -8,7 +8,9 @@ be formatted in ISO 8601 format.
 """
 
 import string
+from datetime import datetime
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -34,6 +36,7 @@ from .models import (
     ApplicationConfig,
     ApplicationSession,
     ApplicationSessionGate,
+    TrackingEvent,
     TrackingSession,
     User,
     UserApplicationSession,
@@ -683,6 +686,16 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
         prev_comm.extend([["user", prompt], ["assistant", bot_response]])
         user_app_sess_obj.chatbot_communication = prev_comm
         user_app_sess_obj.save()
+
+        # also store as tracking event if tracking is enabled
+        if tracking_sess and app_config.config.get("tracking", {}).get("chatbot", False):
+            event = TrackingEvent(
+                tracking_session=tracking_sess,
+                time=datetime.now(ZoneInfo(settings.TIME_ZONE)),
+                type="chatbot_communication",
+                value={"user": prompt, "assistant": bot_response},
+            )
+            event.save()
 
         # return response as JSON
         return JsonResponse({"message": bot_response}, status=status.HTTP_200_OK)

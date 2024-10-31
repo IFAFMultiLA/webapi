@@ -1460,7 +1460,7 @@ class ViewTests(CustomAPITestCase):
         appconfig_chat = ApplicationConfig(
             application=app,
             label="testconfig_chat",
-            config={"chatbot": True},
+            config={"chatbot": True, "tracking": {"chatbot": True}},
             updated_by=self.user,
             app_content="some app content",
         )
@@ -1491,6 +1491,19 @@ class ViewTests(CustomAPITestCase):
                 tracking_sess_id = response.json()["tracking_session_id"]
 
             return appsess.code, auth_token, tracking_sess_id
+
+        def check_tracking_events(tracking_sess_id, expected_user_msgs):
+            tracked_events = (
+                TrackingEvent.objects.filter(tracking_session=tracking_sess_id, type="chatbot_communication")
+                .values_list("value", flat=True)
+                .order_by("time")
+            )
+            self.assertEqual(len(tracked_events), len(expected_user_msgs))
+            for event, expected_msg in zip(tracked_events, expected_user_msgs):
+                self.assertIsInstance(event, dict)
+                self.assertEqual(set(event.keys()), {"user", "assistant"})
+                self.assertEqual(event["user"], expected_msg)
+                self.assertTrue(event["assistant"].startswith("No real chat response was generated "))
 
         # try everything with and without tracking enabled
         for with_tracking in (False, True):
@@ -1544,6 +1557,9 @@ class ViewTests(CustomAPITestCase):
             self.assertIn("system: ", msg2)
             self.assertIn(appconfig_chat.app_content, msg2)
 
+            if with_tracking:
+                check_tracking_events(tracking_sess_id, ["foo"])
+
             # ok for second interaction (with simulated chatbot API response)
             response = self.client.post_json(
                 url,
@@ -1572,6 +1588,9 @@ class ViewTests(CustomAPITestCase):
             role4, msg4 = user_app_sess.chatbot_communication[3]
             self.assertEqual(role4, "assistant")
             self.assertTrue(msg4.startswith("No real chat response was generated "))
+
+            if with_tracking:
+                check_tracking_events(tracking_sess_id, ["foo", "foo2"])
 
     @override_settings(CHATBOT_API=None)
     def test_chatbot_message_disabled(self):
