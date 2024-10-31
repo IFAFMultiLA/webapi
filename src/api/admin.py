@@ -754,7 +754,7 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
                 selector = ", ".join(f".section.level2 > {e}" for e in content_elems)
 
                 try:
-                    html = BeautifulSoup(response.content)
+                    html = BeautifulSoup(response.content, features="html.parser")
                     text = html.select_one("h1.title").text + "\n\n"
                     for i, elem in enumerate(html.select(selector)):
                         cls = elem.get("class", "")

@@ -56,8 +56,11 @@ from .serializers import TrackingEventSerializer, TrackingSessionSerializer, Use
 SETTINGS_CHATBOT_FEATURE_ENABLED = {
     "key": "anykey",
     "model": "anymodel",
-    "prompt_templates": {  # per language
-        "en": "Some prompt with document text: $doc_text and a question: $question",
+    "system_role_templates": {  # per language
+        "en": "You are a teacher in data science and statistics. Document text: $doc_text",
+    },
+    "prompt_templates": {  #  per language
+        "en": "$question",
     },
 }
 
@@ -1527,6 +1530,48 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(set(resp_data.keys()), {"message"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+
+            user_app_sess = UserApplicationSession.objects.get(code=auth_token)
+            self.assertIsInstance(user_app_sess.chatbot_communication, list)
+            self.assertEqual(len(user_app_sess.chatbot_communication), 2)
+            self.assertTrue(all(len(pair) == 2 for pair in user_app_sess.chatbot_communication))
+            role1, msg1 = user_app_sess.chatbot_communication[0]
+            self.assertEqual(role1, "user")
+            self.assertEqual(msg1, "foo")
+            role2, msg2 = user_app_sess.chatbot_communication[1]
+            self.assertEqual(role2, "assistant")
+            self.assertTrue(msg2.startswith("No real chat response was generated "))
+            self.assertIn("system: ", msg2)
+            self.assertIn(appconfig_chat.app_content, msg2)
+
+            # ok for second interaction (with simulated chatbot API response)
+            response = self.client.post_json(
+                url,
+                data=base_data | {"sess": sess_code, "tracking_session": tracking_sess_id, "message": "foo2"},
+                auth_token=auth_token,
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.headers["Content-Type"], "application/json")
+            resp_data = response.json()
+            self.assertEqual(set(resp_data.keys()), {"message"})
+            self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
+            self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+
+            user_app_sess = UserApplicationSession.objects.get(code=auth_token)
+            self.assertIsInstance(user_app_sess.chatbot_communication, list)
+            self.assertEqual(len(user_app_sess.chatbot_communication), 4)
+            role1, msg1 = user_app_sess.chatbot_communication[0]
+            self.assertEqual(role1, "user")
+            self.assertEqual(msg1, "foo")
+            role2, msg2 = user_app_sess.chatbot_communication[1]
+            self.assertEqual(role2, "assistant")
+            self.assertTrue(msg2.startswith("No real chat response was generated "))
+            role3, msg3 = user_app_sess.chatbot_communication[2]
+            self.assertEqual(role3, "user")
+            self.assertEqual(msg3, "foo2")
+            role4, msg4 = user_app_sess.chatbot_communication[3]
+            self.assertEqual(role4, "assistant")
+            self.assertTrue(msg4.startswith("No real chat response was generated "))
 
     @override_settings(CHATBOT_API=None)
     def test_chatbot_message_disabled(self):

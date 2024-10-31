@@ -629,19 +629,38 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
             except TrackingSession.DoesNotExist:
                 return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
+        # get previous messages
+        prev_comm = user_app_sess_obj.chatbot_communication or []
+
         # create prompt
-        prompt_templ = string.Template(settings.CHATBOT_API["prompt_templates"][language])
+        try:
+            sys_role_templ = string.Template(settings.CHATBOT_API["system_role_templates"][language])
+            prompt_templ = string.Template(settings.CHATBOT_API["prompt_templates"][language])
+        except KeyError:
+            return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
         app_content = app_config.app_content
         if app_content is None:
             return HttpResponse(status=status.HTTP_204_NO_CONTENT)
+        sys_role = sys_role_templ.substitute(doc_text=app_content)
         prompt = prompt_templ.substitute(doc_text=app_content, question=message)
+
+        msgs_for_request = [
+            {"role": "system", "content": sys_role},
+        ]
+
+        for role, msg in prev_comm:
+            msgs_for_request.append({"role": role, "content": msg})
+
+        msgs_for_request.append({"role": "user", "content": prompt})
 
         # make an request to the API
         if simulate_chatapi:
+            msgs_formatted = "\n\n".join(f'{msg["role"]}: {msg["content"]}' for msg in msgs_for_request)
+
             bot_response = (
                 f"No real chat response was generated since Chat API request was only simulated with the "
-                f"following prompt:\n\n{prompt}"
+                f"following messages:\n\n{msgs_formatted}"
             )
         else:
             try:
@@ -649,10 +668,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
 
                 completion = client.chat.completions.create(
                     model=settings.CHATBOT_API["model"],
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": prompt},
-                    ],
+                    messages=msgs_for_request,
                 )
 
                 # get the API response
@@ -663,6 +679,12 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
             except Exception:
                 return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+        # save this communication to the DB
+        prev_comm.extend([["user", prompt], ["assistant", bot_response]])
+        user_app_sess_obj.chatbot_communication = prev_comm
+        user_app_sess_obj.save()
+
+        # return response as JSON
         return JsonResponse({"message": bot_response}, status=status.HTTP_200_OK)
 
 

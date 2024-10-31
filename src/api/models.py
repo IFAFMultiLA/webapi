@@ -237,6 +237,7 @@ class UserApplicationSession(models.Model):
     #   stored via cookies)
     user = models.ForeignKey(User, null=True, default=None, on_delete=models.SET_NULL)
     code = models.CharField("Unique user session code", max_length=64, blank=False)
+    chatbot_communication = models.JSONField("Previous chatbot communication", blank=True, null=True)
 
     created = models.DateTimeField("Creation time", auto_now_add=True)
 

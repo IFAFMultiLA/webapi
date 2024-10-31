@@ -167,13 +167,16 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
 CHATBOT_API = {  # set to None to disable chatbot API feature
     "key": os.environ.get("OPENAI_API_KEY"),
     "model": "gpt-3.5-turbo",
+    "system_role_templates": {  #  per language
+        "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "
+        'by "---" marks. Before each content section in the document, there is a unique identifier for that '
+        'section denoted as "mainContentElem-#". "#" is a placeholder for a number.'
+        "\n\n---\n\n$doc_text\n\n---\n\nNow answer the following question and, if possible, refer to the "
+        "learning material. If you are referring to the learning material, end your answer with a new paragraph "
+        'containing only "mainContentElem-#" and replace "#" with the respective section number.',
+    },
     "prompt_templates": {  #  per language
-        "en": 'Consider the following learning material enclosed by "---" marks. Before each content section in the '
-        'document, there is a unique identifier for that section denoted as "mainContentElem-#". "#" is a '
-        "placeholder for a number.\n\n---\n\n$doc_text\n\n---\n\nNow answer the following question and, if "
-        "possible, refer to the learning material. If you are referring to the learning material, end your "
-        'answer with a new paragraph containing only "mainContentElem-#" and replace "#" with the respective '
-        "section number. The question is: $question",
+        "en": "$question",
     },
 }
 
