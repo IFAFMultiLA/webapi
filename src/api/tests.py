@@ -1470,9 +1470,10 @@ class ViewTests(CustomAPITestCase):
         appsess_chat.save()
 
         url = reverse("chatbot_message")
+        example_section = "mainContentElem-123"
         base_data = {
             "language": "en",
-            "simulate": True,  # triggers view to NOT make actual (costly!) requests to the chatbot API
+            "simulate": example_section,  # triggers view to NOT make actual (costly!) requests to the chatbot API
         }
 
         def get_sess_and_auth_code(appsess, with_tracking=False):
@@ -1501,9 +1502,10 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(len(tracked_events), len(expected_user_msgs))
             for event, expected_msg in zip(tracked_events, expected_user_msgs):
                 self.assertIsInstance(event, dict)
-                self.assertEqual(set(event.keys()), {"user", "assistant"})
+                self.assertEqual(set(event.keys()), {"user", "assistant", "assistant_content_section_ref"})
                 self.assertEqual(event["user"], expected_msg)
                 self.assertTrue(event["assistant"].startswith("No real chat response was generated "))
+                self.assertEqual(event["assistant_content_section_ref"], example_section)
 
         # try everything with and without tracking enabled
         for with_tracking in (False, True):
@@ -1540,9 +1542,10 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertEqual(response.headers["Content-Type"], "application/json")
             resp_data = response.json()
-            self.assertEqual(set(resp_data.keys()), {"message"})
+            self.assertEqual(set(resp_data.keys()), {"message", "content_section"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+            self.assertEqual(resp_data["content_section"], example_section)
 
             user_app_sess = UserApplicationSession.objects.get(code=auth_token)
             self.assertIsInstance(user_app_sess.chatbot_communication, list)
@@ -1569,9 +1572,10 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertEqual(response.headers["Content-Type"], "application/json")
             resp_data = response.json()
-            self.assertEqual(set(resp_data.keys()), {"message"})
+            self.assertEqual(set(resp_data.keys()), {"message", "content_section"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+            self.assertEqual(resp_data["content_section"], example_section)
 
             user_app_sess = UserApplicationSession.objects.get(code=auth_token)
             self.assertIsInstance(user_app_sess.chatbot_communication, list)

@@ -7,6 +7,7 @@ be formatted in ISO 8601 format.
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
+import re
 import string
 from datetime import datetime
 from functools import wraps
@@ -54,7 +55,10 @@ DEFAULT_ERROR_VIEWS = {
 }
 
 MIN_PASSWORD_LENGTH = 8
-
+if settings.CHATBOT_API and "content_section_identifier_pattern" in settings.CHATBOT_API.keys():
+    PTTRN_CHATBOT_RESPONSE_SECTION = re.compile(settings.CHATBOT_API["content_section_identifier_pattern"])
+else:
+    PTTRN_CHATBOT_RESPONSE_SECTION = None
 
 # --- decorators ---
 
@@ -665,6 +669,9 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
                 f"No real chat response was generated since Chat API request was only simulated with the "
                 f"following messages:\n\n{msgs_formatted}"
             )
+
+            if isinstance(simulate_chatapi, str):
+                bot_response = bot_response + f"\n\n{simulate_chatapi}"
         else:
             try:
                 client = OpenAI(api_key=settings.CHATBOT_API["key"])
@@ -682,6 +689,14 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
             except Exception:
                 return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+        # post-process bot response
+        bot_response = bot_response.strip()
+        if PTTRN_CHATBOT_RESPONSE_SECTION and (m := PTTRN_CHATBOT_RESPONSE_SECTION.search(bot_response)):
+            content_section = m.group(0)
+            bot_response = PTTRN_CHATBOT_RESPONSE_SECTION.sub("", bot_response).strip()
+        else:
+            content_section = None
+
         # save this communication to the DB
         prev_comm.extend([["user", prompt], ["assistant", bot_response]])
         user_app_sess_obj.chatbot_communication = prev_comm
@@ -693,12 +708,12 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
                 tracking_session=tracking_sess,
                 time=datetime.now(ZoneInfo(settings.TIME_ZONE)),
                 type="chatbot_communication",
-                value={"user": prompt, "assistant": bot_response},
+                value={"user": prompt, "assistant": bot_response, "assistant_content_section_ref": content_section},
             )
             event.save()
 
         # return response as JSON
-        return JsonResponse({"message": bot_response}, status=status.HTTP_200_OK)
+        return JsonResponse({"message": bot_response, "content_section": content_section}, status=status.HTTP_200_OK)
 
 
 def csrf_failure(request, reason=""):

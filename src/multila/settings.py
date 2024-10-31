@@ -167,6 +167,7 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
 CHATBOT_API = {  # set to None to disable chatbot API feature
     "key": os.environ.get("OPENAI_API_KEY"),
     "model": "gpt-3.5-turbo",
+    "content_section_identifier_pattern": r"mainContentElem-\d+$",
     "system_role_templates": {  #  per language
         "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "
         'by "---" marks. Before each content section in the document, there is a unique identifier for that '
