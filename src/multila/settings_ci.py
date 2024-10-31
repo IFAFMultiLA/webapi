@@ -125,6 +125,7 @@ STATIC_ROOT = BASE_DIR.parent / "static_files"
 DATA_EXPORT_DIR = BASE_DIR.parent / "data" / "export"
 CODEBOOK_PATH = BASE_DIR.parent / "data" / "codebook.pdf"
 APPS_DEPLOYMENT = None
+CHATBOT_API = None
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

@@ -596,6 +596,9 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 @api_view(["POST"])
 @require_user_session_token
 def chatbot_message(request, user_app_sess_obj, parsed_data):
+    if not settings.CHATBOT_API:
+        return HttpResponse(status=status.HTTP_404_NOT_FOUND)
+
     if OpenAI is None:
         raise ImportError("Package 'openai' not installed.")
 

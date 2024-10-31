@@ -18,7 +18,7 @@ from django.db.utils import IntegrityError
 from django.forms.models import ModelForm, ModelFormMetaclass
 from django.http import HttpResponseRedirect, SimpleCookie
 from django.template.response import TemplateResponse
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -50,7 +50,16 @@ from .models import (
 )
 from .serializers import TrackingEventSerializer, TrackingSessionSerializer, UserFeedbackSerializer
 
-# ----- helper functions -----
+# ----- helper functions and constants -----
+
+
+SETTINGS_CHATBOT_FEATURE_ENABLED = {
+    "key": "anykey",
+    "model": "anymodel",
+    "prompt_templates": {  # per language
+        "en": "Some prompt with document text: $doc_text and a question: $question",
+    },
+}
 
 
 def tznow():
@@ -1426,6 +1435,7 @@ class ViewTests(CustomAPITestCase):
                     if reset_cookies:
                         self.client.cookies = SimpleCookie()
 
+    @override_settings(CHATBOT_API=SETTINGS_CHATBOT_FEATURE_ENABLED)
     def test_chatbot_message(self):
         # prepare data: generate app, app configs and app session
         app = Application(name="testapp", url="http://testapp.com", updated_by=self.user)
@@ -1517,6 +1527,16 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(set(resp_data.keys()), {"message"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
+
+    @override_settings(CHATBOT_API=None)
+    def test_chatbot_message_disabled(self):
+        # request application session – also sets CSRF token in cookie
+        response = self.client.get(reverse("session"), {"sess": self.app_sess_no_auth.code})
+        auth_token = response.json()["user_code"]
+
+        url = reverse("chatbot_message")
+        response = self.client.post(url, data={"sess": self.app_sess_no_auth.code}, auth_token=auth_token)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 # ----- admin -----

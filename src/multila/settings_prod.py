@@ -153,6 +153,7 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
     # app in order to trigger dependency installation, app removal, etc. via an external program; optional
     "update_trigger_file": os.environ.get("APP_UPLOAD_TRIGGER_FILE"),
 }
+CHATBOT_API = None
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
