@@ -21,10 +21,8 @@ urlpatterns = [
     path("track_event/", views.track_event, name="track_event"),
     path("user_feedback/", views.user_feedback, name="user_feedback"),
     path("gate/<str:sessioncode>", views.app_session_gate, name="gate"),
+    path("chatbot_message/", views.chatbot_message, name="chatbot_message"),
 ]
-
-if settings.CHATBOT_API:
-    urlpatterns.append(path("chatbot_message/", views.chatbot_message, name="chatbot_message"))
 
 if settings.DEBUG:
     urlpatterns.append(
