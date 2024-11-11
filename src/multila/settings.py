@@ -172,8 +172,8 @@ CHATBOT_API = {  # set to None to disable chatbot API feature
         "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "
         'by "---" marks. Before each content section in the document, there is a unique identifier for that '
         'section denoted as "mainContentElem-#". "#" is a placeholder for a number.'
-        "\n\n---\n\n$doc_text\n\n---\n\nNow answer the following question and, if possible, refer to the "
-        "learning material. If you are referring to the learning material, end your answer with a new paragraph "
+        "\n\n---\n\n$doc_text\n\n---\n\nNow give a short answer to the following question and, if possible, refer to "
+        "the learning material. If you are referring to the learning material, end your answer with a new paragraph "
         'containing only "mainContentElem-#" and replace "#" with the respective section number.',
     },
     "prompt_templates": {  #  per language

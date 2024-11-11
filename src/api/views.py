@@ -667,7 +667,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
 
             bot_response = (
                 f"No real chat response was generated since the chat API request to model '{chatbot_model}' was "
-                f"only simulated with the following messages:\n\n{msgs_formatted}"
+                f"only simulated with the following messages:\n\n{msgs_formatted}\n\nmainContentElem-13"
             )
 
             if isinstance(simulate_chatapi, str):
