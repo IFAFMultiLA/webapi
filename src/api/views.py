@@ -641,8 +641,18 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
 
         # create prompt
         try:
-            sys_role_templ = string.Template(settings.CHATBOT_API["system_role_templates"][language])
-            prompt_templ = string.Template(settings.CHATBOT_API["prompt_templates"][language])
+            if app_config.config["chatbot_system_prompt"]:
+                sys_prompt = app_config.config["chatbot_system_prompt"]
+            else:
+                sys_prompt = settings.CHATBOT_API["system_role_templates"][language]
+
+            if app_config.config["chatbot_user_prompt"]:
+                usr_prompt = app_config.config["chatbot_user_prompt"]
+            else:
+                usr_prompt = settings.CHATBOT_API["user_role_templates"][language]
+
+            sys_role_templ = string.Template(sys_prompt)
+            usr_role_templ = string.Template(usr_prompt)
         except KeyError:
             return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
@@ -650,7 +660,10 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
         if app_content is None:
             return HttpResponse(status=status.HTTP_204_NO_CONTENT)
         sys_role = sys_role_templ.substitute(doc_text=app_content)
-        prompt = prompt_templ.substitute(doc_text=app_content, question=message)
+        prompt = usr_role_templ.substitute(doc_text=app_content, question=message)
+
+        if not prompt:
+            return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
         msgs_for_request = [
             {"role": "system", "content": sys_role},

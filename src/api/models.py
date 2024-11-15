@@ -46,6 +46,8 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
 if settings.CHATBOT_API is not None:
     APPLICATION_CONFIG_DEFAULT_JSON["chatbot"] = False
     APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["chatbot"] = True
+    APPLICATION_CONFIG_DEFAULT_JSON["chatbot_system_prompt"] = ""
+    APPLICATION_CONFIG_DEFAULT_JSON["chatbot_user_prompt"] = ""
 
 
 def max_options_length(opts):

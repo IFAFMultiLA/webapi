@@ -59,7 +59,7 @@ SETTINGS_CHATBOT_FEATURE_ENABLED = {
     "system_role_templates": {  # per language
         "en": "You are a teacher in data science and statistics. Document text: $doc_text",
     },
-    "prompt_templates": {  #  per language
+    "user_role_templates": {  #  per language
         "en": "$question",
     },
 }
@@ -1453,7 +1453,11 @@ class ViewTests(CustomAPITestCase):
         appconfig_nocontent = ApplicationConfig(
             application=app,
             label="testconfig_nocontent",
-            config={"chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0]},
+            config={
+                "chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0],
+                "chatbot_system_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["system_role_templates"]["en"],
+                "chatbot_user_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["user_role_templates"]["en"],
+            },
             updated_by=self.user,
         )
         appconfig_nocontent.save()
@@ -1463,7 +1467,12 @@ class ViewTests(CustomAPITestCase):
         appconfig_chat = ApplicationConfig(
             application=app,
             label="testconfig_chat",
-            config={"chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0], "tracking": {"chatbot": True}},
+            config={
+                "chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0],
+                "chatbot_system_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["system_role_templates"]["en"],
+                "chatbot_user_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["user_role_templates"]["en"],
+                "tracking": {"chatbot": True},
+            },
             updated_by=self.user,
             app_content="some app content",
         )

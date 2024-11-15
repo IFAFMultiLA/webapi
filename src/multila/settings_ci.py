@@ -133,12 +133,20 @@ CHATBOT_API = {  # set to None to disable chatbot API feature
         "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "
         'by "---" marks. Before each content section in the document, there is a unique identifier for that '
         'section denoted as "mainContentElem-#". "#" is a placeholder for a number.'
-        "\n\n---\n\n$doc_text\n\n---\n\nNow answer the following question and, if possible, refer to the "
-        "learning material. If you are referring to the learning material, end your answer with a new paragraph "
+        "\n\n---\n\n$doc_text\n\n---\n\nNow give a short answer to the following question and, if possible, refer to "
+        "the learning material. If you are referring to the learning material, end your answer with a new paragraph "
         'containing only "mainContentElem-#" and replace "#" with the respective section number.',
+        "de": "Sie sind Lehrkraft im Bereich Data Science und Statistik. Berücksichtigen Sie das folgende "
+        'Lehrmaterial, das durch "---"-Markierungen eingeschlossen ist. Vor jedem Inhaltsabschnitt im Dokument '
+        'gibt es eine eindeutige Kennung für diesen Abschnitt, die mit "mainContentElem-#" angegeben ist. "#" '
+        "ist ein Platzhalter für eine Zahl.\n\n---\n\n$doc_text\n\n---\n\nGeben Sie nun eine kurze Antwort auf "
+        "die folgende Frage und beziehen Sie sich, wenn möglich, auf das Lehrmaterial. Wenn Sie sich auf das "
+        'Lehrmaterial beziehen, beenden Sie Ihre Antwort mit einem neuen Absatz, der nur "mainContentElem-#" '
+        'enthält und ersetzen Sie "#" durch die entsprechende Abschnittsnummer.',
     },
-    "prompt_templates": {  #  per language
+    "user_role_templates": {  #  per language
         "en": "$question",
+        "de": "$question",
     },
 }
 

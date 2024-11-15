@@ -13,8 +13,9 @@ import shutil
 import tempfile
 import threading
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from glob import glob
+from time import sleep
 from urllib.parse import urlsplit, urlunsplit
 from zipfile import ZIP_DEFLATED, ZipFile
 from zoneinfo import ZoneInfo
@@ -162,6 +163,18 @@ class ApplicationConfigForm(forms.ModelForm):
             choices=[(None, "(disabled)")] + [(x, x) for x in settings.CHATBOT_API["available_models"]],
             initial=None,
             required=False,
+        )
+        chatbot_system_prompt = forms.CharField(
+            label="Chat API system prompt template",
+            help_text="Use placeholder $doc_text for learning app text.",
+            required=False,
+            widget=forms.Textarea(attrs={"cols": 103}),
+        )
+        chatbot_user_prompt = forms.CharField(
+            label="Chat API user prompt template",
+            help_text="Use placeholders $doc_text for learning app text and $question for user submitted question.",
+            required=False,
+            widget=forms.Textarea(attrs={"cols": 103}),
         )
     reset_button = forms.BooleanField(
         label="Enable reset button",
@@ -333,10 +346,10 @@ class ApplicationConfigForm(forms.ModelForm):
         for f in ("exclude", "js", "css"):
             config[f] = [v.strip() for v in self.cleaned_data.get(f, "").split(",") if v.strip()]
 
-        # apply fields with on/off options
+        # apply all other fields
         fields = ["feedback", "summary", "reset_button"]
         if settings.CHATBOT_API:
-            fields.append("chatbot")
+            fields.extend(["chatbot", "chatbot_system_prompt", "chatbot_user_prompt"])
         for f in fields:
             config[f] = self.cleaned_data.get(f, APPLICATION_CONFIG_DEFAULT_JSON[f])
         for f, default_val in APPLICATION_CONFIG_DEFAULT_JSON["tracking"].items():
@@ -363,6 +376,19 @@ class ApplicationConfigForm(forms.ModelForm):
 # --- model admins ---
 
 
+def app_config_form_fields(default_fields, obj=None):
+    """Helper function to remove some fields when creating a new configuration."""
+    additional_chatbot_fields = ("app_content", "chatbot_system_prompt", "chatbot_user_prompt")
+    fields = [f for f in default_fields if f not in additional_chatbot_fields]
+
+    if obj is None:
+        return [f for f in fields if f not in {"application", "updated", "updated_by"}]
+    elif settings.CHATBOT_API and obj.config.get("chatbot"):
+        fields.extend(additional_chatbot_fields)
+
+    return fields
+
+
 class ApplicationConfigInline(admin.StackedInline):
     """
     Inline admin for application configurations used in `ApplicationAdmin` below.
@@ -370,6 +396,16 @@ class ApplicationConfigInline(admin.StackedInline):
 
     model = ApplicationConfig
     form = ApplicationConfigForm
+
+    def get_fields(self, request, obj=None):
+        """Customize fields: Remove some fields when creating a new configuration."""
+        default_fields = super().get_fields(request, obj=obj)
+        if isinstance(obj, Application):
+            try:
+                obj = ApplicationConfig.objects.get(application=obj.id)
+            except ApplicationConfig.DoesNotExist:
+                return default_fields
+        return app_config_form_fields(default_fields, obj)
 
     def get_extra(self, request, obj=None, **kwargs):
         """No extra form if editing, otherwise display a single extra form."""
@@ -673,18 +709,7 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
 
     def get_fields(self, request, obj=None):
         """Customize fields: Remove some fields when creating a new configuration."""
-        fields = super().get_fields(request, obj=obj)
-        try:
-            fields.remove("app_content")
-        except ValueError:
-            pass
-
-        if obj is None:
-            return [f for f in fields if f not in {"application", "updated", "updated_by"}]
-        elif settings.CHATBOT_API and obj.config.get("chatbot"):
-            fields.append("app_content")
-
-        return fields
+        return app_config_form_fields(super().get_fields(request, obj=obj), obj)
 
     def add_view(self, request, form_url="", extra_context=None):
         """Customize view: Make sure to get the current application ID for which this configuration is created."""
@@ -743,34 +768,63 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
                 import requests
                 from bs4 import BeautifulSoup
 
-                app_config = ApplicationConfig.objects.get(id=app_config_id)
+                text = ""
+                default_lang = "en"
+                sys_prompt = settings.CHATBOT_API["system_role_templates"][default_lang]
+                usr_prompt = settings.CHATBOT_API["user_role_templates"][default_lang]
+
+                # make sure the current app config was saved before in the main thread
+                tries = 0
+                while True:
+                    app_config = ApplicationConfig.objects.get(id=app_config_id)
+                    savetime_diff = datetime.now(ZoneInfo(settings.TIME_ZONE)) - app_config.updated
+                    if savetime_diff < timedelta(seconds=5) or tries > 20:
+                        break
+                    sleep(0.25)
+                    tries += 1
+
+                # fetch the app HTML
                 response = requests.get(app_config.application.url)
-                if not response.ok:
-                    return
 
-                # extract text from the main content of the learning app's HTML and assign an identifier to each
-                # content element so that the chatbot can refer to that and the app is able to jump to the correct
-                # place; it's important that the identifiers are assigned in the same way as in the learning app
-                content_elems = ["h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "div.figure", "div.section"]
-                selector = ", ".join(f".section.level2 > {e}" for e in content_elems)
+                if response.ok:
+                    # extract text from the main content of the learning app's HTML and assign an identifier to each
+                    # content element so that the chatbot can refer to that and the app is able to jump to the correct
+                    # place; it's important that the identifiers are assigned in the same way as in the learning app
+                    content_elems = ["h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "div.figure", "div.section"]
+                    selector = ", ".join(f".section.level2 > {e}" for e in content_elems)
 
-                try:
-                    html = BeautifulSoup(response.content, features="html.parser")
-                    text = html.select_one("h1.title").text + "\n\n"
-                    skip_classes = ("summary", "tracking_consent_text", "data_protection_text")
-                    i = 0
-                    for elem in html.select(selector):
-                        cls = elem.get("class", "")
-                        if any(c in cls for c in skip_classes):
-                            continue
-                        text += f"mainContentElem-{i}: {elem.text.strip()}\n\n"
-                        i += 1
-                except Exception:
-                    return
+                    try:
+                        html = BeautifulSoup(response.content, features="html.parser")
 
+                        # also try to find out the app's language and use the appropriate prompot
+                        try:
+                            app_learnrextra_config = json.loads(html.select_one("#learnrextra-config").text)
+                            app_lang = app_learnrextra_config["language"]
+                            sys_prompt = settings.CHATBOT_API["system_role_templates"].get(app_lang, sys_prompt)
+                            usr_prompt = settings.CHATBOT_API["user_role_templates"].get(app_lang, usr_prompt)
+                        except Exception:
+                            pass
+
+                        text = html.select_one("h1.title").text + "\n\n"
+                        skip_classes = ("summary", "tracking_consent_text", "data_protection_text")
+                        i = 0
+                        for elem in html.select(selector):
+                            cls = elem.get("class", "")
+                            if any(c in cls for c in skip_classes):
+                                continue
+                            text += f"mainContentElem-{i}: {elem.text.strip()}\n\n"
+                            i += 1
+                    except Exception:
+                        pass
+
+                if not app_config.config["chatbot_system_prompt"]:
+                    app_config.config["chatbot_system_prompt"] = sys_prompt
+                if not app_config.config["chatbot_user_prompt"]:
+                    app_config.config["chatbot_user_prompt"] = usr_prompt
                 app_config.app_content = text
                 app_config.save()
 
+            # run this in a separate thread, as fetching the app content via HTTP may take some time
             threading.Thread(target=fetch_app_content, args=[obj.pk], daemon=True).start()
 
 
