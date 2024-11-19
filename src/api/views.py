@@ -614,6 +614,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
         logger.error("Chatbot message endpoint used, but chatbot API not configured for this application session.")
         return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 
+    # create a chat API instance with the respective settings
     chat_provider_label, chat_model = provider_model.split(" | ")
     try:
         chat_provider_opts = settings.CHATBOT_API["providers"][chat_provider_label]
@@ -694,6 +695,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
 
         # make an request to the API
         if simulate_chatapi:
+            # only simulate the request
             msgs_formatted = "\n\n".join(f'{msg["role"]}: {msg["content"]}' for msg in msgs_for_request)
 
             bot_response = (
@@ -706,7 +708,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
                 bot_response = bot_response + f"\n\n{simulate_chatapi}"
         else:
             try:
-                # get the API response
+                # make a real request and get the API response
                 bot_response = chat_api.request(msgs_for_request, **chat_provider_opts.get("request_options", {}))
 
                 if not bot_response:

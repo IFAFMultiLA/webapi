@@ -139,9 +139,11 @@ class ApplicationForm(forms.ModelForm):
         exclude = ["updated", "updated_by"]
 
 
+# build chatbot API options from settings
 chatbot_api_choices = []
 if settings.CHATBOT_API:
-    chatbot_api_choices.append((None, "(disabled)"))
+    chatbot_api_choices.append((None, "(disabled)"))  # first choice: no chat API usage
+    # add available providers with their respective models
     for provider, opts in settings.CHATBOT_API["providers"].items():
         if " | " in provider:
             raise ValueError("the provider name is not allowed to use the string ' | '")
@@ -760,8 +762,8 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """
-        Custom model save method to add current user to the `updated_by` field and assign the selected
-        application's ID.
+        Custom model save method to add current user to the `updated_by` field, assign the selected
+        application's ID and optionally fetch the app content text for use with the chatbot.
         """
         obj.updated_by = request.user
         obj.application_id = self._get_application_id(request)
