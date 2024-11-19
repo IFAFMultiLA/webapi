@@ -54,11 +54,13 @@ from .serializers import TrackingEventSerializer, TrackingSessionSerializer, Use
 
 
 SETTINGS_CHATBOT_FEATURE_ENABLED = {
-    "key": "anykey",
-    "provider": "openai",
-    "setup_options": {},
-    "request_options": {},
-    "available_models": ["foo-model-1", "foo-model-2"],
+    "providers": {  # note that the provider name is not allowed to use the string ' | '
+        "test": {
+            "key": "anykey",
+            "provider": "openai",
+            "available_models": ["foo-model-1", "foo-model-2"],
+        },
+    },
     "system_role_templates": {  # per language
         "en": "You are a teacher in data science and statistics. Document text: $doc_text",
     },
@@ -1453,11 +1455,15 @@ class ViewTests(CustomAPITestCase):
         appsess_nochat = ApplicationSession(config=appconfig_nochat, auth_mode="none")
         appsess_nochat.generate_code()
         appsess_nochat.save()
+        default_chat_provider = "test"
+        default_chat_model = SETTINGS_CHATBOT_FEATURE_ENABLED["providers"][default_chat_provider]["available_models"][0]
+        default_chat_prov_mdl = f"{default_chat_provider} | {default_chat_model}"
+
         appconfig_nocontent = ApplicationConfig(
             application=app,
             label="testconfig_nocontent",
             config={
-                "chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0],
+                "chatbot": default_chat_prov_mdl,
                 "chatbot_system_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["system_role_templates"]["en"],
                 "chatbot_user_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["user_role_templates"]["en"],
             },
@@ -1471,7 +1477,7 @@ class ViewTests(CustomAPITestCase):
             application=app,
             label="testconfig_chat",
             config={
-                "chatbot": SETTINGS_CHATBOT_FEATURE_ENABLED["available_models"][0],
+                "chatbot": default_chat_prov_mdl,
                 "chatbot_system_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["system_role_templates"]["en"],
                 "chatbot_user_prompt": SETTINGS_CHATBOT_FEATURE_ENABLED["user_role_templates"]["en"],
                 "tracking": {"chatbot": True},
@@ -1561,7 +1567,8 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(set(resp_data.keys()), {"message", "content_section"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
-            self.assertIn(appconfig_chat.config["chatbot"], resp_data["message"])
+            self.assertIn(default_chat_provider, resp_data["message"])
+            self.assertIn(default_chat_model, resp_data["message"])
             self.assertEqual(resp_data["content_section"], example_section)
 
             user_app_sess = UserApplicationSession.objects.get(code=auth_token)
@@ -1592,7 +1599,8 @@ class ViewTests(CustomAPITestCase):
             self.assertEqual(set(resp_data.keys()), {"message", "content_section"})
             self.assertTrue(resp_data["message"].startswith("No real chat response was generated "))
             self.assertIn(appsess_chat.config.app_content, resp_data["message"])
-            self.assertIn(appconfig_chat.config["chatbot"], resp_data["message"])
+            self.assertIn(default_chat_provider, resp_data["message"])
+            self.assertIn(default_chat_model, resp_data["message"])
             self.assertEqual(resp_data["content_section"], example_section)
 
             user_app_sess = UserApplicationSession.objects.get(code=auth_token)

@@ -126,11 +126,13 @@ DATA_EXPORT_DIR = BASE_DIR.parent / "data" / "export"
 CODEBOOK_PATH = BASE_DIR.parent / "data" / "codebook.pdf"
 APPS_DEPLOYMENT = None
 CHATBOT_API = {  # set to None to disable chatbot API feature
-    "key": "simulate-only",
-    "provider": "openai",
-    "setup_options": {},
-    "request_options": {},
-    "available_models": ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"],
+    "providers": {  # note that the provider name is not allowed to use the string ' | '
+        "test": {
+            "key": "simulate-only",
+            "provider": "openai",
+            "available_models": ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"],
+        },
+    },
     "content_section_identifier_pattern": r"mainContentElem-\d+$",
     "system_role_templates": {  #  per language
         "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "

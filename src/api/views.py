@@ -7,6 +7,7 @@ be formatted in ISO 8601 format.
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
+import logging
 import re
 import string
 from datetime import datetime
@@ -57,6 +58,8 @@ if settings.CHATBOT_API and "content_section_identifier_pattern" in settings.CHA
     PTTRN_CHATBOT_RESPONSE_SECTION = re.compile(settings.CHATBOT_API["content_section_identifier_pattern"])
 else:
     PTTRN_CHATBOT_RESPONSE_SECTION = None
+
+logger = logging.getLogger(__name__)
 
 # --- decorators ---
 
@@ -602,19 +605,28 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
 @require_user_session_token
 def chatbot_message(request, user_app_sess_obj, parsed_data):
     if not settings.CHATBOT_API:
+        logger.error("Chatbot message endpoint used, but chatbot API not enabled.")
         return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 
     # check if chatbot feature is enabled for this app config
     app_config = user_app_sess_obj.application_session.config
-    if not (chatbot_model := app_config.config.get("chatbot", None)):
+    if not (provider_model := app_config.config.get("chatbot", None)):
+        logger.error("Chatbot message endpoint used, but chatbot API not configured for this application session.")
         return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 
-    chat_api = new_chat_api(
-        settings.CHATBOT_API["provider"],
-        chatbot_model,
-        settings.CHATBOT_API["key"],
-        **settings.CHATBOT_API.get("setup_options", {}),
-    )
+    chat_provider_label, chat_model = provider_model.split(" | ")
+    try:
+        chat_provider_opts = settings.CHATBOT_API["providers"][chat_provider_label]
+
+        chat_api = new_chat_api(
+            chat_provider_opts["provider"],
+            chat_model,
+            chat_provider_opts["key"],
+            **chat_provider_opts.get("setup_options", {}),
+        )
+    except Exception as exc:
+        logger.error('Error creating chatbot API object for label "%s": %s', chat_provider_label, exc)
+        return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     # post new message to chatbot API
     if request.method == "POST":
@@ -622,6 +634,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
         try:
             message = parsed_data["message"]
         except KeyError:
+            logger.error("No message provided in chatbot endpoint.")
             return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
         # get optional data
@@ -655,16 +668,19 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
 
             sys_role_templ = string.Template(sys_prompt)
             usr_role_templ = string.Template(usr_prompt)
-        except KeyError:
+        except KeyError as exc:
+            logger.error("Error creating chatbot prompt: %s", exc)
             return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
         app_content = app_config.app_content
         if app_content is None:
+            logger.error("No app content provided for chatbot prompt.")
             return HttpResponse(status=status.HTTP_204_NO_CONTENT)
         sys_role = sys_role_templ.substitute(doc_text=app_content)
         prompt = usr_role_templ.substitute(doc_text=app_content, question=message)
 
         if not prompt:
+            logger.error("No prompt provided.")
             return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
 
         msgs_for_request = [
@@ -681,8 +697,9 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
             msgs_formatted = "\n\n".join(f'{msg["role"]}: {msg["content"]}' for msg in msgs_for_request)
 
             bot_response = (
-                f"No real chat response was generated since the chat API request to model '{chatbot_model}' was "
-                f"only simulated with the following messages:\n\n{msgs_formatted}\n\nmainContentElem-13"
+                f"No real chat response was generated since the chat API request to provider with label "
+                f"'{chat_provider_label}' and model '{chat_model}' was only simulated with the following "
+                f"messages:\n\n{msgs_formatted}\n\nmainContentElem-13"
             )
 
             if isinstance(simulate_chatapi, str):
@@ -690,11 +707,13 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
         else:
             try:
                 # get the API response
-                bot_response = chat_api.request(msgs_for_request, **settings.CHATBOT_API.get("request_options", {}))
+                bot_response = chat_api.request(msgs_for_request, **chat_provider_opts.get("request_options", {}))
 
                 if not bot_response:
+                    logger.error("No response returned from chat API.")
                     return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            except Exception:
+            except Exception as exc:
+                logger.error("An error occurred while sending a request to the chat API: %s", exc)
                 return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         # post-process bot response
@@ -720,7 +739,7 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
                     "user": prompt,
                     "assistant": bot_response,
                     "assistant_content_section_ref": content_section,
-                    "model": chatbot_model,
+                    "model": provider_model,
                 },
             )
             event.save()

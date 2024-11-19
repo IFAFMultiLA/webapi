@@ -165,11 +165,23 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
 }
 
 CHATBOT_API = {  # set to None to disable chatbot API feature
-    "key": os.environ.get("OPENAI_API_KEY"),
-    "provider": "openai",
-    "setup_options": {},
-    "request_options": {},
-    "available_models": ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"],
+    "providers": {  # note that the provider name is not allowed to use the string ' | '
+        "openai": {
+            "key": os.environ.get("OPENAI_API_KEY"),
+            "provider": "openai",
+            "available_models": ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"],
+        },
+        "lm-studio": {
+            "key": "lm-studio",
+            "provider": "openai",
+            "setup_options": {"base_url": os.environ.get("TEST_LLM_SERVER")},
+            "request_options": dict(max_tokens=500, stop=None, temperature=0.5),
+            "available_models": [
+                "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf",
+                "lmstudio-community/gemma-2-9b-it-GGUF/gemma-2-9b-it-Q4_K_M.gguf",
+            ],
+        },
+    },
     "content_section_identifier_pattern": r"mainContentElem-\d+$",
     "system_role_templates": {  #  per language
         "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "

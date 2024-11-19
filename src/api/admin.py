@@ -139,6 +139,16 @@ class ApplicationForm(forms.ModelForm):
         exclude = ["updated", "updated_by"]
 
 
+chatbot_api_choices = []
+if settings.CHATBOT_API:
+    chatbot_api_choices.append((None, "(disabled)"))
+    for provider, opts in settings.CHATBOT_API["providers"].items():
+        if " | " in provider:
+            raise ValueError("the provider name is not allowed to use the string ' | '")
+        for model in opts["available_models"]:
+            chatbot_api_choices.append((f"{provider} | {model}", f"{provider} / {model}"))
+
+
 class ApplicationConfigForm(forms.ModelForm):
     """
     Custom form for `ApplicationConfig` with additional form fields for options stored in the `config` JSON field.
@@ -158,9 +168,9 @@ class ApplicationConfigForm(forms.ModelForm):
     )
     if settings.CHATBOT_API:
         chatbot = forms.ChoiceField(
-            label="Enable chatbot choosing a model",
+            label="Enable chatbot choosing a provider and model",
             help_text="Provide an interactive assistant in the application.",
-            choices=[(None, "(disabled)")] + [(x, x) for x in settings.CHATBOT_API["available_models"]],
+            choices=chatbot_api_choices,
             initial=None,
             required=False,
         )
@@ -776,10 +786,13 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
                 # make sure the current app config was saved before in the main thread
                 tries = 0
                 while True:
-                    app_config = ApplicationConfig.objects.get(id=app_config_id)
-                    savetime_diff = datetime.now(ZoneInfo(settings.TIME_ZONE)) - app_config.updated
-                    if savetime_diff < timedelta(seconds=5) or tries > 20:
-                        break
+                    try:
+                        app_config = ApplicationConfig.objects.get(id=app_config_id)
+                        savetime_diff = datetime.now(ZoneInfo(settings.TIME_ZONE)) - app_config.updated
+                        if savetime_diff < timedelta(seconds=5) or tries > 20:
+                            break
+                    except ApplicationConfig.DoesNotExist:
+                        pass
                     sleep(0.25)
                     tries += 1
 
