@@ -28,9 +28,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 
 if settings.CHATBOT_API:
-    from openai import OpenAI
-else:
-    OpenAI = None
+    from .chatapi import new_chat_api
 
 from .models import (
     Application,
@@ -606,13 +604,17 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
     if not settings.CHATBOT_API:
         return HttpResponse(status=status.HTTP_404_NOT_FOUND)
 
-    if OpenAI is None:
-        raise ImportError("Package 'openai' not installed.")
-
     # check if chatbot feature is enabled for this app config
     app_config = user_app_sess_obj.application_session.config
     if not (chatbot_model := app_config.config.get("chatbot", None)):
         return HttpResponse(status=status.HTTP_404_NOT_FOUND)
+
+    chat_api = new_chat_api(
+        settings.CHATBOT_API["provider"],
+        chatbot_model,
+        settings.CHATBOT_API["key"],
+        **settings.CHATBOT_API.get("setup_options", {}),
+    )
 
     # post new message to chatbot API
     if request.method == "POST":
@@ -687,18 +689,11 @@ def chatbot_message(request, user_app_sess_obj, parsed_data):
                 bot_response = bot_response + f"\n\n{simulate_chatapi}"
         else:
             try:
-                client = OpenAI(api_key=settings.CHATBOT_API["key"])
-
-                completion = client.chat.completions.create(
-                    model=chatbot_model,
-                    messages=msgs_for_request,
-                )
-
                 # get the API response
-                if not completion.choices:
-                    return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                bot_response = chat_api.request(msgs_for_request, **settings.CHATBOT_API.get("request_options", {}))
 
-                bot_response = completion.choices[0].message.content
+                if not bot_response:
+                    return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
             except Exception:
                 return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 

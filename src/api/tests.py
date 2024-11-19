@@ -55,6 +55,9 @@ from .serializers import TrackingEventSerializer, TrackingSessionSerializer, Use
 
 SETTINGS_CHATBOT_FEATURE_ENABLED = {
     "key": "anykey",
+    "provider": "openai",
+    "setup_options": {},
+    "request_options": {},
     "available_models": ["foo-model-1", "foo-model-2"],
     "system_role_templates": {  # per language
         "en": "You are a teacher in data science and statistics. Document text: $doc_text",

@@ -166,6 +166,9 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
 
 CHATBOT_API = {  # set to None to disable chatbot API feature
     "key": os.environ.get("OPENAI_API_KEY"),
+    "provider": "openai",
+    "setup_options": {},
+    "request_options": {},
     "available_models": ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"],
     "content_section_identifier_pattern": r"mainContentElem-\d+$",
     "system_role_templates": {  #  per language
