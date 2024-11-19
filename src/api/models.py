@@ -43,6 +43,12 @@ APPLICATION_CONFIG_DEFAULT_JSON = {
     },
 }
 
+if settings.CHATBOT_API is not None:
+    APPLICATION_CONFIG_DEFAULT_JSON["chatbot"] = False
+    APPLICATION_CONFIG_DEFAULT_JSON["tracking"]["chatbot"] = True
+    APPLICATION_CONFIG_DEFAULT_JSON["chatbot_system_prompt"] = ""
+    APPLICATION_CONFIG_DEFAULT_JSON["chatbot_user_prompt"] = ""
+
 
 def max_options_length(opts):
     """
@@ -110,6 +116,13 @@ class ApplicationConfig(models.Model):
         "Configuration label", max_length=128, blank=False, help_text="A unique label to identify this configuration."
     )
     config = models.JSONField("Configuration", blank=True, default=application_config_default_json_instance)
+    app_content = models.TextField(
+        "Application content",
+        null=True,
+        blank=True,
+        default=None,
+        help_text="Learning app content as retrieved from the app URL and processed for usage with the chatbot API.",
+    )
     updated = models.DateTimeField("Last update", auto_now=True)
     updated_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
 
@@ -226,6 +239,7 @@ class UserApplicationSession(models.Model):
     #   stored via cookies)
     user = models.ForeignKey(User, null=True, default=None, on_delete=models.SET_NULL)
     code = models.CharField("Unique user session code", max_length=64, blank=False)
+    chatbot_communication = models.JSONField("Previous chatbot communication", blank=True, null=True)
 
     created = models.DateTimeField("Creation time", auto_now_add=True)
 

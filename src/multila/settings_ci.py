@@ -125,6 +125,35 @@ STATIC_ROOT = BASE_DIR.parent / "static_files"
 DATA_EXPORT_DIR = BASE_DIR.parent / "data" / "export"
 CODEBOOK_PATH = BASE_DIR.parent / "data" / "codebook.pdf"
 APPS_DEPLOYMENT = None
+CHATBOT_API = {  # set to None to disable chatbot API feature
+    "providers": {  # note that the provider name is not allowed to use the string ' | '
+        "test": {
+            "key": "simulate-only",
+            "provider": "openai",
+            "available_models": ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"],
+        },
+    },
+    "content_section_identifier_pattern": r"mainContentElem-\d+$",
+    "system_role_templates": {  #  per language
+        "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "
+        'by "---" marks. Before each content section in the document, there is a unique identifier for that '
+        'section denoted as "mainContentElem-#". "#" is a placeholder for a number.'
+        "\n\n---\n\n$doc_text\n\n---\n\nNow give a short answer to the following question and, if possible, refer to "
+        "the learning material. If you are referring to the learning material, end your answer with a new paragraph "
+        'containing only "mainContentElem-#" and replace "#" with the respective section number.',
+        "de": "Sie sind Lehrkraft im Bereich Data Science und Statistik. Berücksichtigen Sie das folgende "
+        'Lehrmaterial, das durch "---"-Markierungen eingeschlossen ist. Vor jedem Inhaltsabschnitt im Dokument '
+        'gibt es eine eindeutige Kennung für diesen Abschnitt, die mit "mainContentElem-#" angegeben ist. "#" '
+        "ist ein Platzhalter für eine Zahl.\n\n---\n\n$doc_text\n\n---\n\nGeben Sie nun eine kurze Antwort auf "
+        "die folgende Frage und beziehen Sie sich, wenn möglich, auf das Lehrmaterial. Wenn Sie sich auf das "
+        'Lehrmaterial beziehen, beenden Sie Ihre Antwort mit einem neuen Absatz, der nur "mainContentElem-#" '
+        'enthält und ersetzen Sie "#" durch die entsprechende Abschnittsnummer.',
+    },
+    "user_role_templates": {  #  per language
+        "en": "$question",
+        "de": "$question",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

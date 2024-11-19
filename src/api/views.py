@@ -7,8 +7,14 @@ be formatted in ISO 8601 format.
 .. codeauthor:: Markus Konrad <markus.konrad@htw-berlin.de>
 """
 
+import logging
+import re
+import string
+from datetime import datetime
 from functools import wraps
+from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
@@ -22,11 +28,15 @@ from ipware import get_client_ip
 from rest_framework import status
 from rest_framework.decorators import api_view
 
+if settings.CHATBOT_API:
+    from .chatapi import new_chat_api
+
 from .models import (
     Application,
     ApplicationConfig,
     ApplicationSession,
     ApplicationSessionGate,
+    TrackingEvent,
     TrackingSession,
     User,
     UserApplicationSession,
@@ -44,7 +54,12 @@ DEFAULT_ERROR_VIEWS = {
 }
 
 MIN_PASSWORD_LENGTH = 8
+if settings.CHATBOT_API and "content_section_identifier_pattern" in settings.CHATBOT_API.keys():
+    PTTRN_CHATBOT_RESPONSE_SECTION = re.compile(settings.CHATBOT_API["content_section_identifier_pattern"])
+else:
+    PTTRN_CHATBOT_RESPONSE_SECTION = None
 
+logger = logging.getLogger(__name__)
 
 # --- decorators ---
 
@@ -584,6 +599,155 @@ def track_event(request, user_app_sess_obj, parsed_data, tracking_sess_obj):
             return JsonResponse({"tracking_event_id": event_serializer.instance.pk}, status=status.HTTP_201_CREATED)
         else:
             return JsonResponse({"validation_errors": event_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@require_user_session_token
+def chatbot_message(request, user_app_sess_obj, parsed_data):
+    if not settings.CHATBOT_API:
+        logger.error("Chatbot message endpoint used, but chatbot API not enabled.")
+        return HttpResponse(status=status.HTTP_404_NOT_FOUND)
+
+    # check if chatbot feature is enabled for this app config
+    app_config = user_app_sess_obj.application_session.config
+    if not (provider_model := app_config.config.get("chatbot", None)):
+        logger.error("Chatbot message endpoint used, but chatbot API not configured for this application session.")
+        return HttpResponse(status=status.HTTP_404_NOT_FOUND)
+
+    # create a chat API instance with the respective settings
+    chat_provider_label, chat_model = provider_model.split(" | ")
+    try:
+        chat_provider_opts = settings.CHATBOT_API["providers"][chat_provider_label]
+
+        chat_api = new_chat_api(
+            chat_provider_opts["provider"],
+            chat_model,
+            chat_provider_opts["key"],
+            **chat_provider_opts.get("setup_options", {}),
+        )
+    except Exception as exc:
+        logger.error('Error creating chatbot API object for label "%s": %s', chat_provider_label, exc)
+        return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    # post new message to chatbot API
+    if request.method == "POST":
+        # get the user's message
+        try:
+            message = parsed_data["message"]
+        except KeyError:
+            logger.error("No message provided in chatbot endpoint.")
+            return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+        # get optional data
+        language = parsed_data.get("language", "en")
+        simulate_chatapi = parsed_data.get("simulate", False)
+
+        # if we have a tracking session, make sure it belongs to the user app. session
+        tracking_sess = None
+        if tracking_session_id := parsed_data.get("tracking_session", None):
+            try:
+                tracking_sess = TrackingSession.objects.get(id=tracking_session_id)
+                if tracking_sess.user_app_session_id != user_app_sess_obj.pk:
+                    return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+            except TrackingSession.DoesNotExist:
+                return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+        # get previous messages
+        prev_comm = user_app_sess_obj.chatbot_communication or []
+
+        # create prompt
+        try:
+            if app_config.config["chatbot_system_prompt"]:
+                sys_prompt = app_config.config["chatbot_system_prompt"]
+            else:
+                sys_prompt = settings.CHATBOT_API["system_role_templates"][language]
+
+            if app_config.config["chatbot_user_prompt"]:
+                usr_prompt = app_config.config["chatbot_user_prompt"]
+            else:
+                usr_prompt = settings.CHATBOT_API["user_role_templates"][language]
+
+            sys_role_templ = string.Template(sys_prompt)
+            usr_role_templ = string.Template(usr_prompt)
+        except KeyError as exc:
+            logger.error("Error creating chatbot prompt: %s", exc)
+            return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+        app_content = app_config.app_content
+        if app_content is None:
+            logger.error("No app content provided for chatbot prompt.")
+            return HttpResponse(status=status.HTTP_204_NO_CONTENT)
+        sys_role = sys_role_templ.substitute(doc_text=app_content)
+        prompt = usr_role_templ.substitute(doc_text=app_content, question=message)
+
+        if not prompt:
+            logger.error("No prompt provided.")
+            return HttpResponse(status=status.HTTP_400_BAD_REQUEST)
+
+        msgs_for_request = [
+            {"role": "system", "content": sys_role},
+        ]
+
+        for role, msg in prev_comm:
+            msgs_for_request.append({"role": role, "content": msg})
+
+        msgs_for_request.append({"role": "user", "content": prompt})
+
+        # make an request to the API
+        if simulate_chatapi:
+            # only simulate the request
+            msgs_formatted = "\n\n".join(f'{msg["role"]}: {msg["content"]}' for msg in msgs_for_request)
+
+            bot_response = (
+                f"No real chat response was generated since the chat API request to provider with label "
+                f"'{chat_provider_label}' and model '{chat_model}' was only simulated with the following "
+                f"messages:\n\n{msgs_formatted}\n\nmainContentElem-13"
+            )
+
+            if isinstance(simulate_chatapi, str):
+                bot_response = bot_response + f"\n\n{simulate_chatapi}"
+        else:
+            try:
+                # make a real request and get the API response
+                bot_response = chat_api.request(msgs_for_request, **chat_provider_opts.get("request_options", {}))
+
+                if not bot_response:
+                    logger.error("No response returned from chat API.")
+                    return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            except Exception as exc:
+                logger.error("An error occurred while sending a request to the chat API: %s", exc)
+                return HttpResponse(status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # post-process bot response
+        bot_response = bot_response.strip()
+        if PTTRN_CHATBOT_RESPONSE_SECTION and (m := PTTRN_CHATBOT_RESPONSE_SECTION.search(bot_response)):
+            content_section = m.group(0)
+            bot_response = PTTRN_CHATBOT_RESPONSE_SECTION.sub("", bot_response).strip()
+        else:
+            content_section = None
+
+        # save this communication to the DB
+        prev_comm.extend([["user", prompt], ["assistant", bot_response]])
+        user_app_sess_obj.chatbot_communication = prev_comm
+        user_app_sess_obj.save()
+
+        # also store as tracking event if tracking is enabled
+        if tracking_sess and app_config.config.get("tracking", {}).get("chatbot", False):
+            event = TrackingEvent(
+                tracking_session=tracking_sess,
+                time=datetime.now(ZoneInfo(settings.TIME_ZONE)),
+                type="chatbot_communication",
+                value={
+                    "user": prompt,
+                    "assistant": bot_response,
+                    "assistant_content_section_ref": content_section,
+                    "model": provider_model,
+                },
+            )
+            event.save()
+
+        # return response as JSON
+        return JsonResponse({"message": bot_response, "content_section": content_section}, status=status.HTTP_200_OK)
 
 
 def csrf_failure(request, reason=""):

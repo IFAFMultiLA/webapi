@@ -153,6 +153,45 @@ APPS_DEPLOYMENT = {  # set to None to disable app upload feature
     # app in order to trigger dependency installation, app removal, etc. via an external program; optional
     "update_trigger_file": os.environ.get("APP_UPLOAD_TRIGGER_FILE"),
 }
+CHATBOT_API = {  # set to None to disable chatbot API feature
+    "providers": {  # note that the provider name is not allowed to use the string ' | '
+        "openai": {
+            "key": os.environ.get("OPENAI_API_KEY"),
+            "provider": "openai",
+            "available_models": ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4o"],
+        },
+        "lm-studio": {
+            "key": "lm-studio",
+            "provider": "openai",
+            "setup_options": {"base_url": os.environ.get("SELFHOSTED_LLM_SERVER")},
+            "request_options": dict(max_tokens=500, stop=None, temperature=0.5),
+            "available_models": [
+                "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf",
+                "lmstudio-community/gemma-2-9b-it-GGUF/gemma-2-9b-it-Q4_K_M.gguf",
+            ],
+        },
+    },
+    "content_section_identifier_pattern": r"mainContentElem-\d+$",
+    "system_role_templates": {  #  per language
+        "en": "You are a teacher in data science and statistics. Consider the following learning material enclosed "
+        'by "---" marks. Before each content section in the document, there is a unique identifier for that '
+        'section denoted as "mainContentElem-#". "#" is a placeholder for a number.'
+        "\n\n---\n\n$doc_text\n\n---\n\nNow give a short answer to the following question and, if possible, refer to "
+        "the learning material. If you are referring to the learning material, end your answer with a new paragraph "
+        'containing only "mainContentElem-#" and replace "#" with the respective section number.',
+        "de": "Du bist Lehrkraft im Bereich Data Science und Statistik. Berücksichtige das folgende "
+        'Lehrmaterial, das durch "---"-Markierungen eingeschlossen ist. Vor jedem Inhaltsabschnitt im Dokument '
+        'gibt es eine eindeutige Kennung für diesen Abschnitt, die mit "mainContentElem-#" angegeben ist. "#" '
+        "ist ein Platzhalter für eine Zahl.\n\n---\n\n$doc_text\n\n---\n\nGib nun eine kurze Antwort auf "
+        "die folgende Frage und beziehe dich, wenn möglich, auf das Lehrmaterial. Wenn du dich auf das "
+        "Lehrmaterial beziehst, beende deine Antwort mit einem neuen Absatz, der ausschließlich den Text "
+        '"mainContentElem-#" enthält und ersetze "#" durch die entsprechende Abschnittsnummer.',
+    },
+    "user_role_templates": {  #  per language
+        "en": "$question",
+        "de": "$question",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

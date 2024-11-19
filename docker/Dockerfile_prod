@@ -2,7 +2,10 @@ FROM python:3.11
 ENV TZ="Europe/Berlin"
 WORKDIR /code
 COPY ./requirements_prod.txt /code/
+COPY ./requirements_extra.txt /code/
 RUN pip install -U pip
 RUN pip install -r requirements_prod.txt
+# uncomment the following for additional features
+# RUN pip install -r requirements_extra.txt
 COPY ./src /code/
 COPY ./data/codebook.pdf /
