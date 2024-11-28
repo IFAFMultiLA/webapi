@@ -13,6 +13,7 @@ import shutil
 import tempfile
 import threading
 from collections import defaultdict
+from copy import deepcopy
 from datetime import datetime, timedelta
 from glob import glob
 from time import sleep
@@ -805,7 +806,19 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
                     # extract text from the main content of the learning app's HTML and assign an identifier to each
                     # content element so that the chatbot can refer to that and the app is able to jump to the correct
                     # place; it's important that the identifiers are assigned in the same way as in the learning app
-                    content_elems = ["h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "div.figure", "div.section"]
+                    content_elems = [
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                        "p",
+                        "ul",
+                        "ol",
+                        "table",
+                        "div.figure",
+                        "div.section",
+                    ]
                     selector = ", ".join(f".section.level2 > {e}" for e in content_elems)
 
                     try:
@@ -821,13 +834,25 @@ class ApplicationConfigAdmin(admin.ModelAdmin):
                             pass
 
                         text = html.select_one("h1.title").text + "\n\n"
-                        skip_classes = ("summary", "tracking_consent_text", "data_protection_text")
+                        skip_classes = ("tracking_consent_text", "data_protection_text")
                         i = 0
                         for elem in html.select(selector):
                             cls = elem.get("class", "")
                             if any(c in cls for c in skip_classes):
                                 continue
-                            text += f"mainContentElem-{i}: {elem.text.strip()}\n\n"
+
+                            # special treatment for tables: copy them, remove them, ...
+                            tbls = deepcopy(elem.select("table"))
+                            for tbl in elem.select("table"):
+                                tbl.decompose()
+
+                            elem_text = elem.text.strip()
+
+                            # now add the table contents from the copies as plain HTML so that the LLM hopefully
+                            # understands the structure
+                            for tbl in tbls:
+                                elem_text += "\n\n" + str(tbl)
+                            text += f"mainContentElem-{i}: {elem_text}\n\n"
                             i += 1
                     except Exception:
                         pass
