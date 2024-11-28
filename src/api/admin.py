@@ -415,7 +415,7 @@ class ApplicationConfigInline(admin.StackedInline):
         default_fields = super().get_fields(request, obj=obj)
         if isinstance(obj, Application):
             try:
-                obj = ApplicationConfig.objects.get(application=obj.id)
+                obj = ApplicationConfig.objects.filter(application=obj.id).first()
             except ApplicationConfig.DoesNotExist:
                 return default_fields
         return app_config_form_fields(default_fields, obj)
